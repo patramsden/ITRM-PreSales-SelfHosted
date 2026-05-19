@@ -56,7 +56,7 @@ export function StoreInitializer({ children }: Props) {
 
     load();
     return () => { cancelled = true; };
-  }, [initialized, initFromApi]);
+  }, [initialized, initFromApi, authLoading]);
 
   if (!initialized) {
     return (
