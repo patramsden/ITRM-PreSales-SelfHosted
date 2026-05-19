@@ -208,10 +208,17 @@ success ".env written"
 # ─── Step 5: PostgreSQL database setup ───────────────────────────────────────
 info "Step 5/9 — Configuring PostgreSQL..."
 
-PG_VERSION=$(pg_lsclusters -h 2>/dev/null | awk '{print $1}' | head -1 || echo "16")
-
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='${PG_USER}'" | grep -q 1 || \
-  sudo -u postgres psql -c "CREATE USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
+# Create the user if it doesn't exist, then ALWAYS update the password so it
+# stays in sync with .env — even on re-runs where the user already exists.
+sudo -u postgres psql -c "
+  DO \$\$
+  BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='${PG_USER}') THEN
+      CREATE USER ${PG_USER};
+    END IF;
+  END
+  \$\$;
+  ALTER USER ${PG_USER} WITH PASSWORD '${PG_PASS}';"
 
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${PG_DB}'" | grep -q 1 || \
   sudo -u postgres createdb -O "$PG_USER" "$PG_DB"
