@@ -5,7 +5,11 @@ import { getAppSettings, updateAppSettings, getAppSettingsDirect } from '../repo
 
 const router = Router();
 
-router.get('/',  requireAuth,               async (_req, res) => { res.json(await getAppSettings()); });
+// GET is intentionally public — getAppSettings() already strips all secret/sensitive
+// keys and replaces them with a *.configured boolean. This endpoint must be reachable
+// before login so BrandingContext can load the logo, colours and company name on the
+// login page. Write operations still require admin auth.
+router.get('/', async (_req, res) => { res.json(await getAppSettings()); });
 router.put('/',  requireAuth, requireAdmin, async (req,  res) => {
   await updateAppSettings(req.body as Record<string, string>);
   res.json(await getAppSettings());
