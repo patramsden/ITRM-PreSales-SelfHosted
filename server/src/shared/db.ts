@@ -1,0 +1,241 @@
+import { Pool } from 'pg';
+
+const DATABASE_URL = process.env.DATABASE_URL ?? '';
+
+let _pool: Pool | null = null;
+
+export function getPool(): Pool {
+  if (_pool) return _pool;
+  if (!DATABASE_URL) throw new Error('DATABASE_URL is not set');
+  _pool = new Pool({ connectionString: DATABASE_URL });
+  _pool.on('error', (err) => console.error('[pg] idle client error', err));
+  return _pool;
+}
+
+/** Convenience wrapper — returns typed row array. */
+export async function query<T extends Record<string, unknown> = Record<string, unknown>>(
+  text: string,
+  params?: unknown[],
+): Promise<T[]> {
+  const result = await getPool().query(text, params);
+  return result.rows as T[];
+}
+
+// ─── Schema bootstrap ─────────────────────────────────────────────────────────
+// Called once via POST /api/seed. Creates all tables and runs additive migrations.
+
+export async function ensureSchema(): Promise<void> {
+  const pool = getPool();
+
+  // ── Core tables (idempotent CREATE IF NOT EXISTS) ──────────────────────────
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id            VARCHAR(100)  NOT NULL PRIMARY KEY,
+      name          VARCHAR(255)  NOT NULL,
+      email         VARCHAR(255)  NOT NULL,
+      department    VARCHAR(100),
+      app_role      VARCHAR(20)   NOT NULL DEFAULT 'user',
+      auth_provider VARCHAR(20)   NOT NULL DEFAULT 'local',
+      password_hash VARCHAR(500),
+      saml_name_id  VARCHAR(500),
+      totp_secret   VARCHAR(100),
+      job_title     VARCHAR(200),
+      avatar_data   TEXT
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS proposals (
+      id                    VARCHAR(100)  NOT NULL PRIMARY KEY,
+      project_name          VARCHAR(500)  NOT NULL,
+      client                VARCHAR(255)  NOT NULL,
+      account_manager       VARCHAR(255),
+      status                VARCHAR(50)   NOT NULL DEFAULT 'Draft',
+      currency              VARCHAR(10)   NOT NULL DEFAULT 'GBP',
+      date_created          DATE          NOT NULL,
+      date_modified         DATE          NOT NULL,
+      ticket_ref            VARCHAR(100),
+      markup_pct            NUMERIC(5,2)  NOT NULL DEFAULT 15,
+      objectives            TEXT,
+      business_requirements TEXT,
+      justification         TEXT,
+      constraints           TEXT,
+      assumptions           TEXT,
+      notes                 TEXT,
+      owner_id              VARCHAR(100)  NOT NULL,
+      collaborator_ids      TEXT          NOT NULL DEFAULT '[]',
+      sow_content           TEXT,
+      planner_url           VARCHAR(500),
+      template_id           VARCHAR(100),
+      trb_status            VARCHAR(50),
+      trb_review_notes      TEXT,
+      trb_reviewed_by       VARCHAR(255),
+      trb_reviewed_at       TIMESTAMPTZ,
+      five_k_status         VARCHAR(50)
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS parts (
+      id          VARCHAR(100)  NOT NULL PRIMARY KEY,
+      proposal_id VARCHAR(100)  NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      description VARCHAR(500)  NOT NULL,
+      sku         VARCHAR(100),
+      quantity    INTEGER       NOT NULL DEFAULT 1,
+      unit_cost   NUMERIC(18,2) NOT NULL DEFAULT 0,
+      unit_price  NUMERIC(18,2) NOT NULL DEFAULT 0,
+      part_type   VARCHAR(50)   NOT NULL DEFAULT 'Hardware',
+      sort_order  INTEGER       NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS vendor_quotes (
+      id              VARCHAR(100)  NOT NULL PRIMARY KEY,
+      part_id         VARCHAR(100)  NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+      vendor          VARCHAR(255),
+      reference       VARCHAR(255),
+      cost            NUMERIC(18,2) NOT NULL DEFAULT 0,
+      valid_until     DATE,
+      notes           TEXT,
+      is_selected     BOOLEAN       NOT NULL DEFAULT FALSE,
+      attachment_name VARCHAR(500),
+      attachment_mime VARCHAR(100),
+      attachment_data TEXT
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS phases (
+      id          VARCHAR(100) NOT NULL PRIMARY KEY,
+      proposal_id VARCHAR(100) NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      name        VARCHAR(255) NOT NULL,
+      sort_order  INTEGER      NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id              VARCHAR(100)  NOT NULL PRIMARY KEY,
+      phase_id        VARCHAR(100)  NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+      name            VARCHAR(255)  NOT NULL,
+      role            VARCHAR(255),
+      days            NUMERIC(5,1)  NOT NULL DEFAULT 1,
+      day_rate        NUMERIC(18,2) NOT NULL DEFAULT 0,
+      unit            VARCHAR(10)   NOT NULL DEFAULT 'days',
+      rate_multiplier NUMERIC(3,1)  NOT NULL DEFAULT 1,
+      sort_order      INTEGER       NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS templates (
+      id           VARCHAR(100) NOT NULL PRIMARY KEY,
+      name         VARCHAR(255) NOT NULL,
+      description  VARCHAR(1000),
+      owner_id     VARCHAR(100) NOT NULL,
+      date_created DATE         NOT NULL
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS template_parts (
+      id          VARCHAR(100)  NOT NULL PRIMARY KEY,
+      template_id VARCHAR(100)  NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+      description VARCHAR(500)  NOT NULL,
+      sku         VARCHAR(100),
+      quantity    INTEGER       NOT NULL DEFAULT 1,
+      unit_cost   NUMERIC(18,2) NOT NULL DEFAULT 0,
+      unit_price  NUMERIC(18,2) NOT NULL DEFAULT 0,
+      part_type   VARCHAR(50)   NOT NULL DEFAULT 'Hardware',
+      sort_order  INTEGER       NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS template_phases (
+      id          VARCHAR(100) NOT NULL PRIMARY KEY,
+      template_id VARCHAR(100) NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+      name        VARCHAR(255) NOT NULL,
+      sort_order  INTEGER      NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS template_tasks (
+      id              VARCHAR(100)  NOT NULL PRIMARY KEY,
+      phase_id        VARCHAR(100)  NOT NULL REFERENCES template_phases(id) ON DELETE CASCADE,
+      name            VARCHAR(255)  NOT NULL,
+      role            VARCHAR(255),
+      days            NUMERIC(5,1)  NOT NULL DEFAULT 1,
+      day_rate        NUMERIC(18,2) NOT NULL DEFAULT 0,
+      unit            VARCHAR(10)   NOT NULL DEFAULT 'days',
+      rate_multiplier NUMERIC(3,1)  NOT NULL DEFAULT 1,
+      sort_order      INTEGER       NOT NULL DEFAULT 0
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS catalog_items (
+      id             VARCHAR(100)  NOT NULL PRIMARY KEY,
+      sku            VARCHAR(100)  NOT NULL,
+      description    VARCHAR(500)  NOT NULL,
+      category       VARCHAR(100),
+      default_vendor VARCHAR(255),
+      list_price     NUMERIC(18,2) NOT NULL DEFAULT 0,
+      part_type      VARCHAR(50)   NOT NULL DEFAULT 'Hardware',
+      related_ids    TEXT          NOT NULL DEFAULT '[]'
+    )`,
+
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_catalog_items_sku ON catalog_items(sku)`,
+
+    `CREATE TABLE IF NOT EXISTS rate_cards (
+      id               VARCHAR(100)  NOT NULL PRIMARY KEY,
+      role             VARCHAR(255)  NOT NULL,
+      cost_rate        NUMERIC(18,2) NOT NULL DEFAULT 0,
+      sell_rate        NUMERIC(18,2) NOT NULL DEFAULT 0,
+      currency         VARCHAR(10)   NOT NULL DEFAULT 'GBP',
+      effective_from   DATE          NOT NULL,
+      effective_to     DATE,
+      overtime_enabled BOOLEAN       NOT NULL DEFAULT FALSE
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS lookups (
+      key   VARCHAR(100) NOT NULL PRIMARY KEY,
+      value TEXT         NOT NULL
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS sessions (
+      token      VARCHAR(100) NOT NULL PRIMARY KEY,
+      user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS auth_codes (
+      code       VARCHAR(100) NOT NULL PRIMARY KEY,
+      user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ  NOT NULL
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS app_settings (
+      key   VARCHAR(100) NOT NULL PRIMARY KEY,
+      value TEXT         NOT NULL DEFAULT ''
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS proposal_versions (
+      id          VARCHAR(100) NOT NULL PRIMARY KEY,
+      proposal_id VARCHAR(100) NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      snapshot    TEXT         NOT NULL,
+      saved_by    VARCHAR(255) NOT NULL DEFAULT 'system',
+      saved_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS proposal_shares (
+      token       VARCHAR(100) NOT NULL PRIMARY KEY,
+      proposal_id VARCHAR(100) NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      created_by  VARCHAR(255) NOT NULL DEFAULT 'system',
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      expires_at  TIMESTAMPTZ
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS totp_challenges (
+      token      VARCHAR(100) NOT NULL PRIMARY KEY,
+      user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token      VARCHAR(100) NOT NULL PRIMARY KEY,
+      user_id    VARCHAR(100) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      used       BOOLEAN      NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
+  ];
+
+  for (const stmt of tables) {
+    await pool.query(stmt);
+  }
+}

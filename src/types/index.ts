@@ -1,0 +1,205 @@
+// ─── Users & Auth ───────────────────────────────────────────────────────────
+
+export type AppRole = 'admin' | 'user';
+export type AuthProvider = 'local' | 'saml';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  department?: string;
+  jobTitle?: string;
+  /** Base64 data URL of the user's profile photo */
+  avatar?: string;
+  appRole: AppRole;
+  authProvider: AuthProvider;
+  /** True if the user has enrolled TOTP (returned by the admin list endpoint) */
+  totpEnabled?: boolean;
+}
+
+// ─── Proposal roles ──────────────────────────────────────────────────────────
+
+export type ProposalRole = 'owner' | 'collaborator' | 'reader' | 'admin';
+
+export type ProposalStatus = 'Draft' | 'In Review' | 'Approved' | 'Won' | 'Lost';
+
+export type Currency = 'GBP' | 'USD' | 'EUR';
+
+// ─── Vendor Quotes ───────────────────────────────────────────────────────────
+
+export interface VendorQuote {
+  id: string;
+  vendor: string;
+  reference: string;
+  cost: number;
+  validUntil: string;
+  notes?: string;
+  selected: boolean;
+  /** Original filename of the attached quote document */
+  attachmentName?: string;
+  /** MIME type of the attachment */
+  attachmentMime?: string;
+  /** Base64-encoded file content (omitted in list views, populated on demand) */
+  attachmentData?: string;
+}
+
+// ─── Parts ───────────────────────────────────────────────────────────────────
+
+export type PartType = 'Hardware' | 'Software' | 'Monthly' | 'Annual';
+
+export interface Part {
+  id: string;
+  description: string;
+  sku?: string;
+  quantity: number;
+  unitCost: number;
+  unitPrice: number;
+  quotes: VendorQuote[];
+  /** Commercial category — drives the TCO breakdown. Defaults to Hardware. */
+  partType?: PartType;
+}
+
+// ─── Consultancy ─────────────────────────────────────────────────────────────
+
+export interface ConsultancyTask {
+  id: string;
+  name: string;
+  role: string;
+  /** Always stored in days (fractional OK). Use `unit` to control display. */
+  days: number;
+  dayRate: number;
+  /** Input/display unit. Default 'days'. */
+  unit?: 'days' | 'hours';
+  /** Overtime multiplier applied to the day rate. Default 1 (standard). */
+  rateMultiplier?: 1 | 1.5 | 2;
+}
+
+export interface ConsultancyPhase {
+  id: string;
+  name: string;
+  tasks: ConsultancyTask[];
+}
+
+// ─── Proposal ────────────────────────────────────────────────────────────────
+
+export interface Proposal {
+  id: string;
+  projectName: string;
+  client: string;
+  accountManager: string;
+  status: ProposalStatus;
+  currency: Currency;
+  dateCreated: string;
+  dateModified: string;
+  ticketRef?: string;
+  markupPct: number;
+
+  // narrative
+  objectives?: string;
+  businessRequirements?: string;
+  justification?: string;
+  constraints?: string;
+  assumptions?: string;
+  notes?: string;
+
+  // people
+  ownerId: string;
+  collaboratorIds: string[];
+
+  // content
+  parts: Part[];
+  phases: ConsultancyPhase[];
+
+  // SoW
+  sowContent?: string;
+
+  // external links
+  plannerUrl?: string;
+
+  // template source
+  templateId?: string;
+
+  // Approval reviews (driven by GP thresholds)
+  trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived';
+  trbReviewNotes?: string;
+  trbReviewedBy?: string;
+  trbReviewedAt?: string;
+  fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+}
+
+// ─── Template ────────────────────────────────────────────────────────────────
+
+export interface Template {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  dateCreated: string;
+  parts: Part[];
+  phases: ConsultancyPhase[];
+}
+
+// ─── Catalog ─────────────────────────────────────────────────────────────────
+
+export interface CatalogItem {
+  id: string;
+  sku: string;
+  description: string;
+  category: string;
+  defaultVendor?: string;
+  listPrice: number;
+  /** Billing / commercial type — drives which section the item lands in when added to a quote. */
+  partType?: PartType;
+  /** IDs of related catalog items shown as "frequently bought together" when added to a quote. */
+  relatedIds?: string[];
+}
+
+// ─── Rate Cards ──────────────────────────────────────────────────────────────
+
+export interface RateCard {
+  id: string;
+  role: string;
+  costRate: number;
+  sellRate: number;
+  currency: Currency;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  /** Whether 1.5× and 2× overtime rates are available for this role. */
+  overtimeEnabled?: boolean;
+}
+
+// ─── Version history ─────────────────────────────────────────────────────────
+
+export interface ProposalVersion {
+  id: string;
+  proposalId: string;
+  savedBy: string;
+  savedAt: string;
+}
+
+// ─── Shareable links ─────────────────────────────────────────────────────────
+
+export interface ProposalShare {
+  token: string;
+  proposalId: string;
+  createdBy: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
+// ─── Derived helpers ─────────────────────────────────────────────────────────
+
+export interface ProposalTotals {
+  partsCost: number;
+  partsSell: number;
+  /** Sum of all authored phases (excludes Project Management). */
+  baseConsultancySell: number;
+  /** Auto-calculated: 20% of baseConsultancySell. */
+  pmValue: number;
+  /** baseConsultancySell + pmValue */
+  consultancySell: number;
+  consultancyCost: number;
+  markupAmount: number;
+  grandTotal: number;
+  marginPct: number;
+}

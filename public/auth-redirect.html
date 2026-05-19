@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Authentication</title>
+</head>
+<body>
+  <!--
+    This page is only ever loaded inside the MSAL popup window during
+    Microsoft 365 sign-in. It intentionally has no content and no scripts.
+
+    MSAL reads the auth code from this page's URL before the popup closes —
+    no code needs to run here. The blank page ensures the app's auth guard
+    does not redirect away and destroy the code before MSAL can extract it.
+
+    Register this URL as a Single-page application redirect URI in your
+    Azure AD app registration:
+      https://<your-app-origin>/auth-redirect.html
+  -->
+</body>
+</html>

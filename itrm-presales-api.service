@@ -1,0 +1,29 @@
+[Unit]
+Description=ITRM PreSales API Server
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=itrm
+Group=itrm
+WorkingDirectory=/opt/itrm-presales
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=itrm-presales
+
+# Load environment from .env file
+EnvironmentFile=/opt/itrm-presales/.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/itrm-presales
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
