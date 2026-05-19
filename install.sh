@@ -259,41 +259,41 @@ for i in $(seq 1 10); do
 done
 success "systemd service 'itrm-presales' enabled and started"
 
-# ─── Step 8: nginx configuration ─────────────────────────────────────────────
+# ─── Step 8: nginx configuration (HTTP only — certbot upgrades to HTTPS) ─────
 info "Step 8/9 — Configuring nginx..."
 
 NGINX_CONF="/etc/nginx/sites-available/itrm-presales"
 
-sed \
-  -e "s|__DOMAIN__|${DOMAIN}|g" \
-  -e "s|__PORT__|${APP_PORT}|g" \
-  -e "s|__APP_DIR__|${APP_DIR}|g" \
-  "$SCRIPT_DIR/nginx.conf.template" > "$NGINX_CONF"
-
-ln -sfn "$NGINX_CONF" /etc/nginx/sites-enabled/itrm-presales
-
-# Disable default site if present
-[[ -f /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
-
-if [[ "$SKIP_SSL" == true ]]; then
-  # Strip the HTTPS server block and TLS directives for a plain HTTP config
-  sed -i '/ssl_/d; /listen 443/d; /listen \[::\]:443/d; /return 301/d; /Strict-Transport/d' "$NGINX_CONF"
-  # Replace the redirect-only HTTP block with a full serving block
-  cat > "$NGINX_CONF" <<NGINXEOF
+# Always start with a plain HTTP config so nginx -t passes before certbot runs.
+# certbot --nginx will add the SSL server block and all TLS directives itself.
+cat > "$NGINX_CONF" <<NGINXEOF
 server {
     listen 80;
     listen [::]:80;
     server_name ${DOMAIN};
+
+    ## Certbot ACME challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    ## Compression
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
+
+    ## API proxy → Express server
     location /api/ {
         proxy_pass         http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
-        proxy_set_header   Host             \$host;
-        proxy_set_header   X-Real-IP        \$remote_addr;
-        proxy_set_header   X-Forwarded-For  \$proxy_add_x_forwarded_for;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 120s;
         client_max_body_size 25M;
     }
+
+    ## Frontend static files
     root ${APP_DIR}/dist;
     index index.html;
     location / { try_files \$uri \$uri/ /index.html; }
@@ -303,25 +303,35 @@ server {
     }
 }
 NGINXEOF
-fi
+
+ln -sfn "$NGINX_CONF" /etc/nginx/sites-enabled/itrm-presales
+
+# Disable default site if present
+[[ -f /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
 
 nginx -t && systemctl reload nginx
-success "nginx configured"
+success "nginx configured (HTTP)"
 
 # ─── Step 9: Let's Encrypt certificate ───────────────────────────────────────
 if [[ "$SKIP_SSL" == false ]]; then
   info "Step 9/9 — Obtaining Let's Encrypt certificate for ${DOMAIN}..."
+  # certbot --nginx reads the existing HTTP config, obtains a cert, and
+  # automatically rewrites the config to add the HTTPS server block.
   certbot --nginx \
     --non-interactive \
     --agree-tos \
     --register-unsafely-without-email \
-    -d "$DOMAIN" || {
-    warn "Certbot failed — you can retry later with:"
+    -d "$DOMAIN" && {
+    # Add HSTS header that certbot doesn't set by default
+    sed -i '/ssl_certificate/a\    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;' "$NGINX_CONF"
+    nginx -t && systemctl reload nginx
+    # Set up automatic renewal
+    (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sort -u | crontab -
+    success "TLS certificate obtained and auto-renewal configured"
+  } || {
+    warn "Certbot failed — the app is running on HTTP. Retry TLS later with:"
     warn "  sudo certbot --nginx -d ${DOMAIN}"
   }
-  # Set up automatic renewal
-  (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sort -u | crontab -
-  success "TLS certificate obtained and auto-renewal configured"
 else
   info "Step 9/9 — Skipping SSL (--skip-ssl)"
 fi
