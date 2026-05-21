@@ -20,9 +20,40 @@ import {
 } from '../repositories/userRepo';
 import { createSession, deleteSession, exchangeAuthCode, createAuthCode, validateSession } from '../repositories/sessionRepo';
 import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
+import { query } from '../shared/db';
 import type { User } from '../types/index';
 
 const router = Router();
+
+// ─── MFA enrollment token helpers ────────────────────────────────────────────
+
+async function createMfaEnrollmentToken(userId: string): Promise<string> {
+  const token = uuid();
+  await query(
+    `INSERT INTO mfa_enrollment_tokens (token, user_id, expires_at)
+     VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+    [token, userId]
+  );
+  return token;
+}
+
+async function consumeMfaEnrollmentToken(token: string): Promise<string | null> {
+  const rows = await query<{ user_id: string }>(
+    `DELETE FROM mfa_enrollment_tokens WHERE token = $1 AND expires_at > NOW()
+     RETURNING user_id`, [token]
+  );
+  return rows[0]?.user_id ?? null;
+}
+
+async function peekMfaEnrollmentToken(token: string): Promise<{ userId: string; email: string } | null> {
+  const rows = await query<{ user_id: string; email: string }>(
+    `SELECT t.user_id, u.email FROM mfa_enrollment_tokens t
+     JOIN users u ON t.user_id = u.id
+     WHERE t.token = $1 AND t.expires_at > NOW()`,
+    [token]
+  );
+  return rows[0] ? { userId: rows[0].user_id, email: rows[0].email } : null;
+}
 
 async function buildSamlInstance() {
   let cfg: Record<string, string> = {};
@@ -97,6 +128,13 @@ router.post('/login', async (req, res) => {
   if (record.totpSecret) {
     const challengeToken = await createTotpChallenge(record.user.id);
     res.json({ requireTotp: true, challengeToken }); return;
+  }
+  // If MFA is required org-wide and user hasn't enrolled, force setup
+  const cfg        = await getAppSettingsDirect().catch(() => ({} as Record<string, string>));
+  const requireMfa = cfg[SETTING_KEYS.REQUIRE_MFA] === 'true';
+  if (requireMfa) {
+    const enrollToken = await createMfaEnrollmentToken(record.user.id);
+    res.json({ requireMfaSetup: true, enrollToken, userName: record.user.name, userEmail: email }); return;
   }
   const token = await createSession(record.user.id);
   res.json({ token, user: record.user });
@@ -198,6 +236,35 @@ router.post('/password-reset/confirm', async (req, res) => {
   if (!userId) { res.status(400).json({ error: 'Invalid or expired reset link. Please request a new one.' }); return; }
   await updateUserPassword(userId, await bcrypt.hash(password as string, 12));
   res.json({ message: 'Password updated. You can now sign in.' });
+});
+
+// POST /api/auth/totp/start-enrollment
+router.post('/totp/start-enrollment', async (req, res) => {
+  const token = (req.body?.enrollToken as string ?? '').trim();
+  if (!token) { res.status(400).json({ error: 'enrollToken is required' }); return; }
+  const info = await peekMfaEnrollmentToken(token);
+  if (!info) { res.status(401).json({ error: 'Invalid or expired enrollment token' }); return; }
+  const secret     = totpGenerateSecret();
+  const otpauthUrl = totpGenerateURI({ issuer: 'ITRM PreSales', label: info.email, secret });
+  const qrCode     = await QRCode.toDataURL(otpauthUrl);
+  res.json({ secret, formattedSecret: secret.match(/.{1,4}/g)?.join(' ') ?? secret, qrCode });
+});
+
+// POST /api/auth/totp/complete-enrollment
+router.post('/totp/complete-enrollment', async (req, res) => {
+  const { enrollToken, secret, code } = req.body ?? {};
+  if (!enrollToken || !secret || !code) { res.status(400).json({ error: 'enrollToken, secret and code are required' }); return; }
+  const userId = await consumeMfaEnrollmentToken(enrollToken as string);
+  if (!userId) { res.status(401).json({ error: 'Invalid or expired enrollment token' }); return; }
+  const valid = await totpVerify({ secret: secret as string, token: (code as string).replace(/\s/g, '') });
+  if (!valid) {
+    const newToken = await createMfaEnrollmentToken(userId);
+    res.status(400).json({ error: 'Invalid authenticator code', newEnrollToken: newToken }); return;
+  }
+  await setUserTotpSecret(userId, secret as string);
+  const sessionToken = await createSession(userId);
+  const user = await validateSession(sessionToken);
+  res.json({ token: sessionToken, user });
 });
 
 // GET /api/auth/saml/init

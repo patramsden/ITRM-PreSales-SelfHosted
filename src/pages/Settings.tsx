@@ -546,6 +546,25 @@ function SecurityTab({ settings, onChange, isAdmin }: {
           settingKey="security.pw.requireSpecial" />
       </div>
 
+      <SectionHeader icon={Smartphone} title="Multi-Factor Authentication"
+        subtitle="Applies to local accounts only — SSO users are authenticated by their identity provider"
+        adminOnly={!isAdmin} />
+
+      <div className="border border-gray-200 dark:border-slate-700 rounded-xl px-4 divide-y divide-gray-100 dark:divide-slate-700">
+        <ToggleRow label="Require MFA for all local users"
+          desc="Users without an authenticator app enrolled will be forced to set one up on their next login. SSO users are unaffected." settingKey="security.requireMfa" />
+      </div>
+
+      {settings['security.requireMfa'] === 'true' && (
+        <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+          <span>
+            Any local user without 2FA will be prompted to enrol next time they log in.
+            Admins are included — make sure you have an authenticator app ready before saving.
+          </span>
+        </div>
+      )}
+
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
     </div>
   );

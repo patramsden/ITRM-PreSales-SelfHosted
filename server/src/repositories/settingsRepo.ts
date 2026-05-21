@@ -22,6 +22,7 @@ export const SETTING_KEYS = {
   APP_URL:            'sso.appUrl',
   SLACK_WEBHOOK:     'notifications.slackWebhook',
   TEAMS_WEBHOOK:     'notifications.teamsWebhook',
+  REQUIRE_MFA:       'security.requireMfa',
 } as const;
 
 export async function getAppSettings(): Promise<Record<string, string>> {

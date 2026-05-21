@@ -44,6 +44,13 @@ import type { AppLookups } from '../store';
 
 const BASE_URL = import.meta.env.DEV ? 'http://localhost:7071' : '';
 
+export const mfaEnrollApi = {
+  start:    (enrollToken: string) =>
+    api.post<{ secret: string; formattedSecret: string; qrCode: string }>('auth/totp/start-enrollment', { enrollToken }),
+  complete: (enrollToken: string, secret: string, code: string) =>
+    api.post<{ token: string; user: User } | { error: string; newEnrollToken: string }>('auth/totp/complete-enrollment', { enrollToken, secret, code }),
+};
+
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<{ token: string; user: User }>('auth/login', { email, password }),
@@ -155,6 +162,8 @@ export interface AppSettings {
   'security.pw.requireLowercase'?: string;
   'security.pw.requireNumber'?:    string;
   'security.pw.requireSpecial'?:   string;
+  // MFA enforcement
+  'security.requireMfa'?:          string;  // 'true'|'false'
 
   // Branding
   'branding.logo'?:         string;   // base64 data URL

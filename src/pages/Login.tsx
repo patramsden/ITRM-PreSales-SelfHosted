@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, FlaskConical, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store';
-import { api, authApi, totpApi } from '../lib/api';
+import { api, authApi, totpApi, mfaEnrollApi } from '../lib/api';
 import { useBranding } from '../contexts/BrandingContext';
 
-type Phase = 'email' | 'password' | 'sso' | 'totp';
+type Phase = 'email' | 'password' | 'sso' | 'totp' | 'mfa-enroll';
 
 // Microsoft logo SVG (inline, no external dependency)
 function MicrosoftLogo() {
@@ -36,10 +36,18 @@ export function Login() {
   const [ssoRedirecting, setSsoRedirecting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
-  // TOTP challenge state
+  // TOTP challenge state (existing enrolment)
   const [totpChallenge, setTotpChallenge] = useState<string | null>(null);
   const [totpCode, setTotpCode]           = useState('');
   const [totpLoading, setTotpLoading]     = useState(false);
+
+  // Forced MFA enrolment state
+  const [enrollToken,  setEnrollToken]    = useState('');
+  const [enrollSecret, setEnrollSecret]   = useState('');
+  const [enrollQr,     setEnrollQr]       = useState('');
+  const [enrollFormatted, setEnrollFormatted] = useState('');
+  const [enrollCode,   setEnrollCode]     = useState('');
+  const [enrollLoading, setEnrollLoading] = useState(false);
 
   // Load public config to know whether to show SSO button
   useEffect(() => {
@@ -113,6 +121,18 @@ export function Login() {
       if (result && 'requireTotp' in result && result.requireTotp) {
         setTotpChallenge((result as { challengeToken: string }).challengeToken);
         setPhase('totp');
+      } else if (result && 'requireMfaSetup' in result && result.requireMfaSetup) {
+        // MFA required but not enrolled — fetch QR then show enrolment screen
+        const r = result as { enrollToken: string };
+        setEnrollToken(r.enrollToken);
+        setEnrollLoading(true);
+        try {
+          const setup = await mfaEnrollApi.start(r.enrollToken);
+          setEnrollSecret(setup.secret);
+          setEnrollQr(setup.qrCode);
+          setEnrollFormatted(setup.formattedSecret);
+          setPhase('mfa-enroll');
+        } finally { setEnrollLoading(false); }
       } else {
         navigate('/');
       }
@@ -120,6 +140,29 @@ export function Login() {
       setError(e instanceof Error ? e.message : 'Login failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── MFA forced enrolment: verify code + get session ──────────────────────
+  const handleEnrollSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setEnrollLoading(true);
+    try {
+      const result = await mfaEnrollApi.complete(enrollToken, enrollSecret, enrollCode);
+      if ('error' in result && result.error) {
+        // Wrong code — backend issues a fresh enrollToken so they can retry
+        if ('newEnrollToken' in result) setEnrollToken(result.newEnrollToken as string);
+        setEnrollCode('');
+        throw new Error(result.error);
+      }
+      const { token, user } = result as { token: string; user: import('../types').User };
+      await login(email, password, { preVerified: true, token, user });
+      navigate('/');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Enrolment failed');
+    } finally {
+      setEnrollLoading(false);
     }
   };
 
@@ -213,6 +256,77 @@ export function Login() {
                 <ArrowLeft size={13} /> Back to sign in
               </button>
             </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Forced MFA enrolment phase ────────────────────────────────────────────
+  if (phase === 'mfa-enroll') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={bgStyle}>
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+              <ShieldCheck size={28} className="text-white" />
+            </div>
+            <p className="text-white font-semibold">Two-factor authentication required</p>
+            <p className="text-sm text-white/60 mt-1">Your organisation requires 2FA. Set it up now to continue.</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8">
+            {enrollLoading && !enrollQr ? (
+              <div className="flex justify-center py-6">
+                <Loader2 size={28} className="animate-spin text-gray-300" />
+              </div>
+            ) : (
+              <form onSubmit={handleEnrollSubmit} className="space-y-5">
+                <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  1. Scan with your authenticator app
+                </div>
+                <div className="flex gap-4 items-start">
+                  {enrollQr && (
+                    <img src={enrollQr} alt="QR code" className="w-32 h-32 rounded-lg border border-gray-200 flex-shrink-0" />
+                  )}
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      Or enter this key manually:
+                    </p>
+                    <code className="block text-xs font-mono bg-gray-100 dark:bg-slate-700 px-2 py-1.5 rounded break-all">
+                      {enrollFormatted}
+                    </code>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                    2. Enter the 6-digit code to confirm
+                  </label>
+                  <input
+                    autoFocus type="text" inputMode="numeric" maxLength={6}
+                    value={enrollCode}
+                    onChange={e => setEnrollCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2.5 text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    placeholder="000000"
+                  />
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <AlertCircle size={15} className="flex-shrink-0" />{error}
+                  </div>
+                )}
+
+                <button type="submit"
+                  disabled={enrollLoading || enrollCode.length !== 6}
+                  className="w-full text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ backgroundColor: primaryColor }}>
+                  {enrollLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {enrollLoading ? 'Activating…' : 'Activate 2FA & sign in'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>

@@ -266,6 +266,13 @@ export async function ensureSchema(): Promise<void> {
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS ticket_ref       VARCHAR(100)`,
     // Status rename: 'In Review' → 'In Progress'
     `UPDATE proposals SET status = 'In Progress' WHERE status = 'In Review'`,
+    // MFA enforcement — enrollment token table
+    `CREATE TABLE IF NOT EXISTS mfa_enrollment_tokens (
+       token      VARCHAR(100)  NOT NULL PRIMARY KEY,
+       user_id    VARCHAR(100)  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       expires_at TIMESTAMPTZ   NOT NULL,
+       created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+     )`,
   ];
 
   for (const stmt of migrations) {
