@@ -73,6 +73,20 @@ export interface ConsultancyPhase {
   tasks: ConsultancyTask[];
 }
 
+// ─── Billing milestones ──────────────────────────────────────────────────────
+
+export type MilestoneStatus = 'pending' | 'invoiced' | 'paid';
+
+export interface BillingMilestone {
+  id: string;
+  name: string;
+  percentage: number;
+  dueDate?: string;
+  phaseId?: string;
+  notes?: string;
+  status: MilestoneStatus;
+}
+
 // ─── Proposal ────────────────────────────────────────────────────────────────
 
 export interface Proposal {
@@ -104,6 +118,7 @@ export interface Proposal {
   trbReviewedBy?: string;
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+  milestones?: BillingMilestone[];
   clientContact?: string;
   crmCompanyId?: string;
 }

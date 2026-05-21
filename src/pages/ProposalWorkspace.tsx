@@ -15,6 +15,7 @@ import { PartsTab } from '../components/proposals/tabs/PartsTab';
 import { ConsultancyTab } from '../components/proposals/tabs/ConsultancyTab';
 import { SowTab } from '../components/proposals/tabs/SowTab';
 import { TotalsTab } from '../components/proposals/tabs/TotalsTab';
+import { BillingTab } from '../components/proposals/tabs/BillingTab';
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VersionHistoryPanel } from '../components/proposals/VersionHistoryPanel';
 import { ShareModal } from '../components/proposals/ShareModal';
@@ -24,7 +25,7 @@ const DownloadProposalPdfButton = lazy(() =>
   import('../components/proposals/ProposalPdf').then(m => ({ default: m.DownloadProposalPdfButton }))
 );
 
-const TABS = ['Summary', 'Parts', 'Consultancy', 'Statement of Work', 'Totals & Approval'] as const;
+const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Statement of Work', 'Totals & Approval'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProposalWorkspace() {
@@ -258,6 +259,9 @@ export function ProposalWorkspace() {
         )}
         {activeTab === 'Consultancy' && (
           <ConsultancyTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+        )}
+        {activeTab === 'Billing' && (
+          <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
         )}
         {activeTab === 'Statement of Work' && (
           <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />

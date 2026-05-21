@@ -80,6 +80,23 @@ export interface ConsultancyPhase {
   tasks: ConsultancyTask[];
 }
 
+// ─── Billing milestones ──────────────────────────────────────────────────────
+
+export type MilestoneStatus = 'pending' | 'invoiced' | 'paid';
+
+export interface BillingMilestone {
+  id: string;
+  name: string;
+  /** Percentage of the proposal grand total (0–100). Amount is derived. */
+  percentage: number;
+  /** Optional due date (ISO date string) */
+  dueDate?: string;
+  /** Optional link to a consultancy phase — displayed for context */
+  phaseId?: string;
+  notes?: string;
+  status: MilestoneStatus;
+}
+
 // ─── Proposal ────────────────────────────────────────────────────────────────
 
 export interface Proposal {
@@ -118,6 +135,9 @@ export interface Proposal {
 
   // template source
   templateId?: string;
+
+  // Billing milestones
+  milestones?: BillingMilestone[];
 
   // CRM
   /** Name of the primary contact at the client company */
