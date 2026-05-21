@@ -71,7 +71,12 @@ async function buildSamlInstance() {
     callbackUrl: `${appUrl}/api/auth/saml/callback`,
     entryPoint, issuer,
     idpCert: splitCerts(cert),   // supports single cert or array for key rotation
-    wantAssertionsSigned: false,
+    // Entra ID signs the Assertion by default, NOT the outer Response envelope.
+    // wantAuthnResponseSigned defaults to true in node-saml v5, which causes
+    // "Invalid document signature" when Entra omits the response-level signature.
+    wantAuthnResponseSigned: false,
+    // Validate the assertion signature — this is where Entra puts its signature.
+    wantAssertionsSigned: true,
   });
 }
 
