@@ -156,6 +156,31 @@ interface ItemFormProps {
 }
 
 function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProps) {
+  // Track whether the sell price has been manually set.
+  // On initial mount: if costPrice > 0 and listPrice differs from the auto value by more
+  // than a penny, the user previously entered a custom price — lock it in.
+  const autoSell = (cost: number) => parseFloat((cost * 1.2).toFixed(2));
+  const [sellOverridden, setSellOverridden] = useState(
+    () => item.costPrice > 0 && item.listPrice > 0 &&
+          Math.abs(item.listPrice - autoSell(item.costPrice)) > 0.005,
+  );
+
+  const handleCostChange = (cost: number) => {
+    onChange({
+      ...item,
+      costPrice: cost,
+      // Auto-fill sell at +20% unless the user has manually set their own sell price
+      listPrice: sellOverridden ? item.listPrice : autoSell(cost),
+    });
+  };
+
+  const handleSellChange = (sell: number) => {
+    setSellOverridden(true);
+    onChange({ ...item, listPrice: sell });
+  };
+
+  const cadenceSuffix = item.partType === 'Monthly' ? 'per month' : item.partType === 'Annual' ? 'per year' : null;
+
   return (
     <div className="space-y-4">
       {/* Billing type selector */}
@@ -223,12 +248,7 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            Buy Price (£)
-            {(item.partType === 'Monthly' || item.partType === 'Annual') && (
-              <span className="ml-1 text-xs font-normal text-gray-400">
-                · {item.partType === 'Monthly' ? 'per month' : 'per year'}
-              </span>
-            )}
+            Buy Price (£){cadenceSuffix && <span className="ml-1 text-xs font-normal text-gray-400">· {cadenceSuffix}</span>}
           </label>
           <input
             type="number"
@@ -236,16 +256,14 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
             step={0.01}
             className={INPUT_CLS}
             value={item.costPrice}
-            onChange={e => onChange({ ...item, costPrice: parseFloat(e.target.value) || 0 })}
+            onChange={e => handleCostChange(parseFloat(e.target.value) || 0)}
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            Sell Price (£)
-            {(item.partType === 'Monthly' || item.partType === 'Annual') && (
-              <span className="ml-1 text-xs font-normal text-gray-400">
-                · {item.partType === 'Monthly' ? 'per month' : 'per year'}
-              </span>
+            Sell Price (£){cadenceSuffix && <span className="ml-1 text-xs font-normal text-gray-400">· {cadenceSuffix}</span>}
+            {!sellOverridden && item.costPrice > 0 && (
+              <span className="ml-1.5 text-xs font-normal text-brand-500">auto (+20%)</span>
             )}
           </label>
           <input
@@ -254,8 +272,17 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
             step={0.01}
             className={INPUT_CLS}
             value={item.listPrice}
-            onChange={e => onChange({ ...item, listPrice: parseFloat(e.target.value) || 0 })}
+            onChange={e => handleSellChange(parseFloat(e.target.value) || 0)}
           />
+          {sellOverridden && item.costPrice > 0 && item.listPrice > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSellOverridden(false); onChange({ ...item, listPrice: autoSell(item.costPrice) }); }}
+              className="mt-1 text-xs text-brand-500 hover:text-brand-700 underline"
+            >
+              Reset to auto (+20%)
+            </button>
+          )}
           {item.costPrice > 0 && item.listPrice > 0 && (
             <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
               Margin:{' '}
@@ -487,6 +514,7 @@ export function Catalog() {
       {editing && (
         <Modal open onClose={() => setEditing(null)} title="Edit Catalog Item">
           <ItemForm
+            key={editing.id}
             item={editing}
             itemId={editing.id}
             categories={categories}
