@@ -13,7 +13,7 @@ type Stage = 'upload' | 'preview' | 'result';
 
 interface ParsedRow { [key: string]: string }
 
-const FIELD_KEYS = ['sku', 'description', 'category', 'defaultVendor', 'costPrice', 'listPrice'] as const;
+const FIELD_KEYS = ['sku', 'description', 'category', 'defaultVendor', 'costPrice', 'listPrice', 'partType'] as const;
 type FieldKey = typeof FIELD_KEYS[number];
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -23,12 +23,14 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   defaultVendor: 'Default Vendor',
   costPrice:     'Buy Price',
   listPrice:     'Sell Price',
+  partType:      'Billing Type',
 };
 
 function fuzzyMatch(header: string): FieldKey | '' {
   const h = header.toLowerCase();
   if (h.includes('sku') || h.includes('part no') || h.includes('part_no')) return 'sku';
   if (h.includes('desc')) return 'description';
+  if (h.includes('billing') || h.includes('part_type') || h === 'type') return 'partType';
   if (h.includes('cat')) return 'category';
   if (h.includes('vendor') || h.includes('supplier') || h.includes('manufacturer')) return 'defaultVendor';
   if (h.includes('buy') || h.includes('cost')) return 'costPrice';
@@ -36,17 +38,25 @@ function fuzzyMatch(header: string): FieldKey | '' {
   return '';
 }
 
+function parsePartType(raw: string): CatalogItem['partType'] {
+  const v = raw.toLowerCase().trim();
+  if (v.includes('monthly') || v === 'monthly sub' || v === 'monthly subscription') return 'Monthly';
+  if (v.includes('annual') || v === 'annual sub' || v === 'annual subscription') return 'Annual';
+  if (v.includes('software')) return 'Software';
+  return 'Hardware';
+}
+
 // ─── Example CSV ──────────────────────────────────────────────────────────────
 
 const EXAMPLE_CSV = [
-  ['SKU', 'Description', 'Category', 'Vendor', 'Buy Price', 'Sell Price'],
-  ['C9300-48P-A',     'Cisco Catalyst 9300 48P PoE+',               'Switching', 'Cisco',     '8400',   '11200'],
-  ['C9300-24P-A',     'Cisco Catalyst 9300 24P PoE+',               'Switching', 'Cisco',     '5850',   '7800'],
-  ['FPR2140-NGFW-K9', 'Cisco Firepower 2140 NGFW',                  'Security',  'Cisco',     '21375',  '28500'],
-  ['AAA-10624',       'Microsoft 365 Business Premium (per user/yr)','Software',  'Microsoft', '16.50',  '22.00'],
-  ['EX4300-48P',      'Juniper EX4300 48P PoE',                     'Switching', 'Juniper',   '7200',   '9600'],
-  ['SRX345-SYS-JB',  'Juniper SRX345 Services Gateway',            'Security',  'Juniper',   '3150',   '4200'],
-  ['VNX-2000',        'Veeam Backup & Replication (per socket)',     'Software',  'Veeam',     '1390',   '1850'],
+  ['SKU', 'Description', 'Category', 'Vendor', 'Buy Price', 'Sell Price', 'Billing Type'],
+  ['C9300-48P-A',     'Cisco Catalyst 9300 48P PoE+',               'Switching', 'Cisco',     '8400',   '11200', 'Hardware'],
+  ['C9300-24P-A',     'Cisco Catalyst 9300 24P PoE+',               'Switching', 'Cisco',     '5850',   '7800',  'Hardware'],
+  ['FPR2140-NGFW-K9', 'Cisco Firepower 2140 NGFW',                  'Security',  'Cisco',     '21375',  '28500', 'Hardware'],
+  ['AAA-10624',       'Microsoft 365 Business Premium (per user/yr)','Software',  'Microsoft', '16.50',  '22.00', 'Annual'],
+  ['EX4300-48P',      'Juniper EX4300 48P PoE',                     'Switching', 'Juniper',   '7200',   '9600',  'Hardware'],
+  ['SRX345-SYS-JB',  'Juniper SRX345 Services Gateway',            'Security',  'Juniper',   '3150',   '4200',  'Hardware'],
+  ['VNX-2000',        'Veeam Backup & Replication (per socket)',     'Software',  'Veeam',     '1390',   '1850',  'Software'],
 ].map(row => row.map(cell => /[,"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell).join(',')).join('\n');
 
 function downloadExampleCsv() {
@@ -70,7 +80,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
   const [rows, setRows]           = useState<ParsedRow[]>([]);
   const [headers, setHeaders]     = useState<string[]>([]);
   const [mapping, setMapping]     = useState<Record<FieldKey, string>>({
-    sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '',
+    sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '', partType: '',
   });
   const [importing, setImporting] = useState(false);
   const [imported, setImported]   = useState(0);
@@ -86,7 +96,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
         setHeaders(hdrs);
         setRows(results.data);
         const autoMap: Record<FieldKey, string> = {
-          sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '',
+          sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '', partType: '',
         };
         for (const hdr of hdrs) {
           const k = fuzzyMatch(hdr);
@@ -121,6 +131,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
         defaultVendor: mapping.defaultVendor ? (row[mapping.defaultVendor] ?? '') : '',
         costPrice:     mapping.costPrice ? (parseFloat(row[mapping.costPrice] ?? '0') || 0) : 0,
         listPrice:     mapping.listPrice ? (parseFloat(row[mapping.listPrice] ?? '0') || 0) : 0,
+        partType:      mapping.partType ? parsePartType(row[mapping.partType] ?? '') : 'Hardware',
       })).filter(i => i.description.trim());
 
       const result = await catalogImportApi.import(items);

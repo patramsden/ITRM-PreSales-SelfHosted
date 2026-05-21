@@ -239,4 +239,27 @@ export async function ensureSchema(): Promise<void> {
   for (const stmt of tables) {
     await pool.query(stmt);
   }
+
+  // ── Additive column migrations (idempotent ADD COLUMN IF NOT EXISTS) ─────────
+  // These handle the case where a table already existed before a column was added.
+  const migrations = [
+    // catalog_items columns added after initial release
+    `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS cost_price  NUMERIC(18,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS part_type   VARCHAR(50)   NOT NULL DEFAULT 'Hardware'`,
+    `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS related_ids TEXT          NOT NULL DEFAULT '[]'`,
+    // proposals columns added over time
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_status       VARCHAR(50)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_review_notes TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_reviewed_by  VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_reviewed_at  TIMESTAMPTZ`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_status    VARCHAR(50)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS planner_url      VARCHAR(500)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS template_id      VARCHAR(100)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS sow_content      TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS ticket_ref       VARCHAR(100)`,
+  ];
+
+  for (const stmt of migrations) {
+    await pool.query(stmt);
+  }
 }
