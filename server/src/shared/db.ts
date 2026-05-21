@@ -286,8 +286,9 @@ export async function ensureSchema(): Promise<void> {
     // Last modified tracking on proposals
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(255)`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_modified_at TIMESTAMPTZ`,
-    // 4-tier role model — drop old 2-role constraint, add new one
+    // 4-tier role model — migrate existing 'user' rows to 'sales', then update constraint
     `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_app_role_check`,
+    `UPDATE users SET app_role = 'sales' WHERE app_role = 'user'`,
     `ALTER TABLE users ADD CONSTRAINT users_app_role_check
        CHECK (app_role IN ('admin','sales_admin','presales','sales'))`,
 
