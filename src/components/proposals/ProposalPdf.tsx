@@ -300,7 +300,7 @@ export function DownloadProposalPdfButton({ proposal, menuStyle = false }: { pro
           : <FileDown size={15} className="text-red-500 flex-shrink-0" />
         }
         {loading ? 'Generating PDF…' : 'Export to PDF'}
-        {error && <AlertCircle size={13} className="text-red-500 ml-auto" title={error} />}
+        {error && <span title={error} className="ml-auto"><AlertCircle size={13} className="text-red-500" /></span>}
       </button>
     );
   }
