@@ -144,19 +144,25 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
         <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-5">Narrative</h2>
         <div className="space-y-4">
           {([
-            ['objectives', 'Objectives', 'What is the customer trying to achieve?'],
-            ['businessRequirements', 'Business Requirements', 'Specific measurable requirements'],
-            ['justification', 'Justification', 'Why is this investment needed?'],
-            ['constraints', 'Constraints', 'Any restrictions or limitations'],
-            ['assumptions', 'Assumptions', 'What are we assuming to be true?'],
-            ['notes', 'Notes', 'Internal notes and observations'],
+            ['objectives', 'Objectives',
+              `Describe the high-level business goals this project is intended to achieve. Consider:\n• What does success look like for the client?\n• How does this align with their wider IT or business strategy?\n• What key outcomes or improvements are they expecting?\n• Are there any strategic drivers (growth, compliance, modernisation)?`],
+            ['businessRequirements', 'Business Requirements',
+              `List the specific, measurable requirements the solution must satisfy. Consider:\n• Functional requirements — what must the solution do?\n• Performance / availability / capacity targets (e.g. 99.9% uptime, <2s response)\n• Compliance, regulatory or security requirements (ISO 27001, Cyber Essentials, GDPR)\n• Integration requirements with existing systems or third parties\n• User or operational requirements`],
+            ['justification', 'Justification',
+              `Make the business case for this investment. Consider:\n• What problem is being solved or opportunity being addressed?\n• What is the cost or risk of doing nothing?\n• What are the expected business benefits — ROI, productivity gains, risk reduction?\n• Have alternatives been considered and why is this the preferred approach?\n• Are there any quick wins or phased benefits?`],
+            ['constraints', 'Constraints',
+              `Document any limitations that affect the solution or its delivery. Consider:\n• Budget ceiling or approved funding envelope\n• Hard deadlines or go-live dates (regulatory, contractual, business events)\n• Technical constraints — existing platforms, legacy systems, standards to comply with\n• Client-side resource or staffing limitations during the project\n• Procurement, legal or approval processes that must be followed`],
+            ['assumptions', 'Assumptions',
+              `State what we are taking as true for the purposes of this proposal. Consider:\n• Client will provide timely access to systems, environments and key stakeholders\n• Existing infrastructure meets the minimum baseline requirements\n• Scope does not include items not explicitly listed in this proposal\n• Third-party licences, services or dependencies will be available as expected\n• Pricing is based on current vendor rate cards and is valid for 30 days\n• Any deviations from these assumptions may require a change request`],
+            ['notes', 'Notes',
+              `Internal presales notes — not included in client-facing outputs. Consider:\n• Key stakeholders, their priorities and any political considerations\n• Incumbent vendors or competitor landscape\n• Pricing sensitivity or budget pressure indicators\n• Special commercial terms, discounting or approval requirements\n• Outstanding actions, open questions or next steps`],
           ] as [keyof Proposal, string, string][]).map(([field, label, placeholder]) => (
             <Field key={field} label={label}>
               <TextArea
                 value={(proposal[field] as string) ?? ''}
                 onChange={v => onUpdate({ [field]: v })}
                 disabled={!editable}
-                rows={3}
+                rows={4}
                 placeholder={editable ? placeholder : undefined}
               />
             </Field>
