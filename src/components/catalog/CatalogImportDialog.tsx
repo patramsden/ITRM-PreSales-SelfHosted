@@ -49,14 +49,20 @@ function parsePartType(raw: string): CatalogItem['partType'] {
 // ─── Example CSV ──────────────────────────────────────────────────────────────
 
 const EXAMPLE_CSV = [
-  ['SKU', 'Description', 'Category', 'Vendor', 'Buy Price', 'Sell Price', 'Billing Type'],
-  ['C9300-48P-A',     'Cisco Catalyst 9300 48P PoE+',               'Switching', 'Cisco',     '8400',   '11200', 'Hardware'],
-  ['C9300-24P-A',     'Cisco Catalyst 9300 24P PoE+',               'Switching', 'Cisco',     '5850',   '7800',  'Hardware'],
-  ['FPR2140-NGFW-K9', 'Cisco Firepower 2140 NGFW',                  'Security',  'Cisco',     '21375',  '28500', 'Hardware'],
-  ['AAA-10624',       'Microsoft 365 Business Premium (per user/yr)','Software',  'Microsoft', '16.50',  '22.00', 'Annual'],
-  ['EX4300-48P',      'Juniper EX4300 48P PoE',                     'Switching', 'Juniper',   '7200',   '9600',  'Hardware'],
-  ['SRX345-SYS-JB',  'Juniper SRX345 Services Gateway',            'Security',  'Juniper',   '3150',   '4200',  'Hardware'],
-  ['VNX-2000',        'Veeam Backup & Replication (per socket)',     'Software',  'Veeam',     '1390',   '1850',  'Software'],
+  ['SKU',              'Description',                                  'Category',  'Vendor',      'Buy Price', 'Sell Price', 'Billing Type'],
+  // Hardware — one-off physical equipment
+  ['C9300-48P-A',      'Cisco Catalyst 9300 48-Port PoE+',            'Switching', 'Cisco',       '8400',      '11200',      'Hardware'],
+  ['FPR2140-NGFW-K9',  'Cisco Firepower 2140 NGFW Appliance',         'Security',  'Cisco',       '21375',     '28500',      'Hardware'],
+  ['EX4300-48P',       'Juniper EX4300 48-Port PoE Switch',           'Switching', 'Juniper',     '7200',      '9600',       'Hardware'],
+  // Software — one-off perpetual licence
+  ['VNX-2000',         'Veeam Backup & Replication (per socket)',      'Software',  'Veeam',       '1390',      '1850',       'Software'],
+  ['WIN-SVR-2025-STD', 'Windows Server 2025 Standard (16-core)',       'Software',  'Microsoft',   '900',       '1200',       'Software'],
+  // Annual subscription — billed per year
+  ['M365-BP',          'Microsoft 365 Business Premium (per user)',    'Cloud',     'Microsoft',   '16.50',     '22.00',      'Annual'],
+  ['AZ-SEC-E5',        'Microsoft Defender for Endpoint Plan 2',       'Security',  'Microsoft',   '4.50',      '6.00',       'Annual'],
+  // Monthly subscription — billed per month
+  ['ZS-INT-ENT',       'Zscaler Internet Access Enterprise (per user)','Cloud',     'Zscaler',     '8.00',      '11.00',      'Monthly'],
+  ['CRW-MDR-25',       'Crowdstrike Falcon Complete MDR (per endpoint)','Security', 'Crowdstrike', '6.50',      '9.00',       'Monthly'],
 ].map(row => row.map(cell => /[,"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell).join(',')).join('\n');
 
 function downloadExampleCsv() {
