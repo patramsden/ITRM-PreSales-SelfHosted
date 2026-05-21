@@ -43,6 +43,16 @@ async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fie
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 401) {
+      throw new Error(
+        `Autotask authentication failed (401). Please verify: ` +
+        `(1) Username is the full email address of the Autotask API user, ` +
+        `(2) Secret matches the API user's password/key in Autotask, ` +
+        `(3) ApiIntegrationCode is correct and active, ` +
+        `(4) the API user's zone matches the Zone URL. ` +
+        `Raw response: ${text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)}`,
+      );
+    }
     throw new Error(`Autotask ${entity} (${res.status}): ${text}`);
   }
   const data = await res.json() as { items?: T[] };
@@ -77,8 +87,36 @@ router.post('/test', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const creds = await getCreds();
     if (!creds) { res.json({ success: false, message: 'CRM credentials not configured.' }); return; }
+
+    // Pre-flight: re-detect the zone and warn if it differs from what is stored
+    let detectedZone: string | null = null;
+    let zoneMismatch = false;
+    try {
+      const zr = await fetch(
+        `https://webservices2.autotask.net/atservicesrest/v1.0/zoneInformation?user=${encodeURIComponent(creds.username)}`,
+        { headers: { 'Content-Type': 'application/json' } },
+      );
+      if (zr.ok) {
+        const zd = await zr.json() as { url?: string };
+        if (zd.url) {
+          detectedZone = zd.url.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+          zoneMismatch = detectedZone.toLowerCase() !== creds.zoneUrl.toLowerCase();
+        }
+      }
+    } catch { /* zone lookup failure is non-fatal */ }
+
+    if (zoneMismatch) {
+      res.json({
+        success: false,
+        message: `Zone URL mismatch. Stored: "${creds.zoneUrl}" but your username resolves to "${detectedZone}". Click "Detect Zone" and save to fix this.`,
+        zoneUrl: creds.zoneUrl,
+        detectedZone,
+        username: creds.username,
+      }); return;
+    }
+
     const items = await atQuery(creds, 'Companies', [{ field: 'isActive', op: 'eq', value: true }], ['id', 'companyName'], 1);
-    res.json({ success: true, message: `Connected to Autotask successfully.${items.length ? ' Companies found.' : ''}` });
+    res.json({ success: true, message: `Connected to Autotask successfully.${items.length ? ' Companies found.' : ''}`, zoneUrl: creds.zoneUrl, username: creds.username });
   } catch (e) {
     res.json({ success: false, message: e instanceof Error ? e.message : String(e) });
   }
