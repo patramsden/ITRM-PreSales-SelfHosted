@@ -20,6 +20,12 @@ async function getCreds(): Promise<AtCreds | null> {
   return { zoneUrl, username, secret, integrationCode };
 }
 
+// ─── Verbose logger (always on for CRM — helps diagnose auth issues) ─────────
+
+function crmLog(msg: string, ...args: unknown[]) {
+  console.log(`[CRM] ${new Date().toISOString()} ${msg}`, ...args);
+}
+
 // ─── Autotask query helper ────────────────────────────────────────────────────
 
 async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fields?: string[], max = 25): Promise<T[]> {
@@ -27,10 +33,18 @@ async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fie
   // zone URL (zone detection returns the full API base on some tenants) so we
   // always construct the URL from the bare hostname.
   const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-  const body: Record<string, unknown> = { filter, maxRecords: max };
-  if (fields?.length) body.includeFields = fields;
+  const url  = `${host}/atservicesrest/v1.0/${entity}/query`;
+  const requestBody: Record<string, unknown> = { filter, maxRecords: max };
+  if (fields?.length) requestBody.includeFields = fields;
 
-  const res = await fetch(`${host}/atservicesrest/v1.0/${entity}/query`, {
+  crmLog(`→ POST ${url}`);
+  crmLog(`  UserName:           ${creds.username}`);
+  crmLog(`  ApiIntegrationCode: ${creds.integrationCode}`);
+  crmLog(`  Secret length:      ${creds.secret.length} chars`);
+  crmLog(`  Secret first/last:  ${creds.secret.slice(0, 2)}…${creds.secret.slice(-2)}`);
+  crmLog(`  Request body:       ${JSON.stringify(requestBody)}`);
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -38,15 +52,20 @@ async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fie
       'Secret': creds.secret,
       'ApiIntegrationCode': creds.integrationCode,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
+
+  crmLog(`← ${res.status} ${res.statusText}`);
+  crmLog(`  Response headers: ${JSON.stringify(Object.fromEntries(res.headers.entries()))}`);
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    crmLog(`  Response body: ${text.slice(0, 500)}`);
+
     if (res.status === 401) {
-      const body = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      const hint = body
-        ? `Autotask responded: ${body.slice(0, 200)}`
+      const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const hint = stripped
+        ? `Autotask responded: ${stripped.slice(0, 200)}`
         : `The request reached Autotask but was rejected with no detail — ` +
           `this almost always means the Integration Code or Secret is wrong. ` +
           `In Autotask go to Admin → Integrations → Tracking Identifiers and ` +
@@ -56,7 +75,9 @@ async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fie
     }
     throw new Error(`Autotask ${entity} (${res.status}): ${text}`);
   }
+
   const data = await res.json() as { items?: T[] };
+  crmLog(`  Items returned: ${data.items?.length ?? 0}`);
   return data.items ?? [];
 }
 
