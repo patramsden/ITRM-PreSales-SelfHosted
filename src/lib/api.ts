@@ -167,6 +167,11 @@ export interface AppSettings {
   'crm.autotask.username'?:              string;
   'crm.autotask.secret'?:                string;  // write-only
   'crm.autotask.secret.configured'?:     string;  // 'true'|'false' read-only indicator
+
+  // SCIM 2.0 provisioning
+  'scim.enabled'?:             string;  // 'true'|'false'
+  'scim.token'?:               string;  // write-only bearer token
+  'scim.token.configured'?:    string;  // 'true'|'false' read-only indicator
 }
 
 export const settingsApi = {

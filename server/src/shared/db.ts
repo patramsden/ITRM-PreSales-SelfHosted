@@ -243,6 +243,8 @@ export async function ensureSchema(): Promise<void> {
   // ── Additive column migrations (idempotent ADD COLUMN IF NOT EXISTS) ─────────
   // These handle the case where a table already existed before a column was added.
   const migrations = [
+    // users columns — SCIM provisioning
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
     // proposals columns — CRM integration
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_contact  VARCHAR(255)`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS crm_company_id  VARCHAR(100)`,

@@ -3,6 +3,7 @@ import { query } from '../shared/db';
 const SERVER_ONLY_KEYS = new Set([
   'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key', 'system.serviceApiKey',
   'crm.autotask.secret',
+  'scim.token',
 ]);
 
 export const SETTING_KEYS = {

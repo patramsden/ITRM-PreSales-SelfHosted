@@ -17,6 +17,8 @@ export interface User {
   authProvider: AuthProvider;
   /** SAML NameID — used to look up the user on subsequent SAML logins. Server-only; never sent to the frontend. */
   samlNameId?: string;
+  /** False when deprovisioned via SCIM. Defaults to true. */
+  isActive?: boolean;
 }
 
 // ─── Proposal roles ──────────────────────────────────────────────────────────

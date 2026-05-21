@@ -12,7 +12,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2, Building2,
+  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck,
 } from 'lucide-react';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
@@ -31,6 +31,7 @@ const TABS: Tab[] = [
   { id: 'sso',          label: 'Single Sign-On',      icon: Globe,         adminOnly: true  },
   { id: 'planner',      label: 'Microsoft Planner',   icon: CalendarCheck, adminOnly: true  },
   { id: 'crm',          label: 'CRM',                 icon: Building2,     adminOnly: true  },
+  { id: 'provisioning', label: 'Provisioning',        icon: UserCheck,     adminOnly: true  },
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
@@ -948,6 +949,157 @@ function PlannerTab({ settings, onChange, isAdmin }: {
   );
 }
 
+// ─── Provisioning tab ─────────────────────────────────────────────────────────
+
+function ProvisioningTab({ settings, onChange, isAdmin }: {
+  settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean;
+}) {
+  const [saving,     setSaving]     = useState(false);
+  const [saved,      setSaved]      = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [copied,     setCopied]     = useState(false);
+
+  const scimConfigured = settings['scim.token.configured'] === 'true';
+  const appUrl         = (settings['sso.appUrl'] ?? '').trim();
+  const scimEndpoint   = appUrl ? `${appUrl}/api/scim/v2` : `${window.location.origin}/api/scim/v2`;
+
+  const handleGenerateToken = async () => {
+    if (!window.confirm(scimConfigured
+      ? 'This will replace the existing SCIM token. Entra ID will need to be updated with the new token. Continue?'
+      : 'Generate a new SCIM bearer token?')) return;
+    setGenerating(true); setError(null);
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    setTokenInput(token);
+    setGenerating(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false); setError(null);
+    try {
+      const patch: AppSettings = { ...settings };
+      if (tokenInput.trim()) patch['scim.token'] = tokenInput.trim();
+      await settingsApi.update(patch);
+      setTokenInput('');
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+      onChange({ ...settings, 'scim.token.configured': 'true' });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={UserCheck} title="SCIM Provisioning"
+        subtitle="Automatic user provisioning via Microsoft Entra ID (Azure AD)"
+        adminOnly={!isAdmin} />
+
+      {/* Setup guide */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-3">
+        <div className="font-semibold text-sm">Setting up Entra ID automatic provisioning</div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 1 — Open your Enterprise Application</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>In <strong>Microsoft Entra ID</strong>, go to <strong>Enterprise Applications</strong> and open the app you created for SAML SSO (or create a new one).</li>
+            <li>Click <strong>Provisioning</strong> in the left menu, then click <strong>Get started</strong>.</li>
+          </ol>
+        </div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 2 — Configure provisioning</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Set <strong>Provisioning Mode</strong> to <strong>Automatic</strong>.</li>
+            <li>Under <strong>Admin Credentials</strong>, enter:
+              <ul className="list-disc ml-4 mt-0.5 space-y-0.5">
+                <li><strong>Tenant URL:</strong> <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{scimEndpoint}</code></li>
+                <li><strong>Secret Token:</strong> the token generated below</li>
+              </ul>
+            </li>
+            <li>Click <strong>Test Connection</strong> to verify, then <strong>Save</strong>.</li>
+          </ol>
+        </div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 3 — Assign users or groups</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Go to <strong>Users and groups → Add user/group</strong> and assign the users or groups to provision.</li>
+            <li>Return to <strong>Provisioning</strong> and click <strong>Start provisioning</strong>. Entra will push users on the next cycle (up to 40 minutes for first sync).</li>
+            <li>Provisioned users are automatically created with <strong>Standard User</strong> access. Administrators can promote them in <strong>User Management</strong>.</li>
+          </ol>
+        </div>
+      </div>
+
+      {/* SCIM endpoint URL */}
+      <div>
+        <div className="text-xs font-medium text-gray-600 dark:text-slate-300 mb-1">SCIM Tenant URL</div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-xs font-mono text-gray-700 dark:text-slate-300 break-all select-all">
+            {scimEndpoint}
+          </div>
+          <button onClick={() => handleCopy(scimEndpoint)}
+            className="flex-shrink-0 p-2 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 transition-colors">
+            {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Enter this as the <strong>Tenant URL</strong> in Entra ID Provisioning settings.</p>
+      </div>
+
+      {/* Token status */}
+      <div className={clsx(
+        'flex items-center justify-between p-4 rounded-xl border-2',
+        scimConfigured
+          ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+          : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/40'
+      )}>
+        <div className="flex items-center gap-2">
+          <div className={clsx('w-2 h-2 rounded-full', scimConfigured ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-500')} />
+          <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+            {scimConfigured ? 'Bearer token configured' : 'No token configured'}
+          </span>
+        </div>
+        {isAdmin && (
+          <Button variant="secondary" size="sm" onClick={handleGenerateToken} disabled={generating}>
+            {generating ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {scimConfigured ? 'Regenerate token' : 'Generate token'}
+          </Button>
+        )}
+      </div>
+
+      {/* Newly generated token — shown until saved */}
+      {tokenInput && (
+        <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">Copy this token before saving</div>
+              <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                After saving, this token will no longer be shown in full. Copy it now and paste it into Entra ID Provisioning → Secret Token.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+            <code className="flex-1 text-xs font-mono text-gray-800 dark:text-slate-200 break-all select-all">{tokenInput}</code>
+            <button onClick={() => handleCopy(tokenInput)}
+              className="flex-shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400">
+              {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
+    </div>
+  );
+}
+
 function ApiAccessTab({ isAdmin }: { isAdmin: boolean }) {
   const [configured, setConfigured]   = useState<boolean | null>(null);
   const [newKey, setNewKey]           = useState<string | null>(null);
@@ -1185,6 +1337,7 @@ export function Settings() {
           {activeTab === 'sso'           && settingsLoaded && <SsoTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'planner'       && settingsLoaded && <PlannerTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'crm'           && settingsLoaded && <CrmTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
+          {activeTab === 'provisioning'  && settingsLoaded && <ProvisioningTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'api'           && <ApiAccessTab isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>

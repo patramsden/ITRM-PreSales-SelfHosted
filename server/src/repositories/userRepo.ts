@@ -13,6 +13,7 @@ function toUser(r: Record<string, unknown>): User {
     appRole:      ((r.app_role as string) ?? 'user') as User['appRole'],
     authProvider: ((r.auth_provider as string) ?? 'local') as User['authProvider'],
     samlNameId:   (r.saml_name_id as string) ?? undefined,
+    isActive:     r.is_active !== false,  // treat NULL as active for backward compat
   };
 }
 
@@ -34,7 +35,7 @@ export async function getUserById(id: string): Promise<User | null> {
 export async function getUserByEmail(email: string): Promise<{
   user: User; passwordHash: string | null; totpSecret: string | null;
 } | null> {
-  const rows = await query('SELECT * FROM users WHERE email=$1', [email]);
+  const rows = await query('SELECT * FROM users WHERE email=$1 AND is_active IS NOT FALSE', [email]);
   if (!rows.length) return null;
   const r = rows[0];
   return {
@@ -46,7 +47,7 @@ export async function getUserByEmail(email: string): Promise<{
 
 export async function getUserBySamlNameId(nameId: string): Promise<User | null> {
   const rows = await query(
-    'SELECT id,name,email,department,app_role,auth_provider FROM users WHERE saml_name_id=$1',
+    'SELECT id,name,email,department,app_role,auth_provider FROM users WHERE saml_name_id=$1 AND is_active IS NOT FALSE',
     [nameId],
   );
   return rows.length ? toUser(rows[0]) : null;
@@ -143,4 +144,23 @@ export async function consumePasswordResetToken(token: string): Promise<string |
 
 export async function deleteUser(id: string): Promise<void> {
   await query('DELETE FROM users WHERE id=$1', [id]);
+}
+
+/** Includes inactive users — used by SCIM to locate deprovisioned accounts. */
+export async function getUserByEmailAll(email: string): Promise<User | null> {
+  const rows = await query('SELECT * FROM users WHERE email=$1', [email]);
+  return rows.length ? toUser(rows[0]) : null;
+}
+
+export async function setUserActive(id: string, active: boolean): Promise<void> {
+  await query('UPDATE users SET is_active=$2 WHERE id=$1', [id, active]);
+}
+
+export async function updateUserFromScim(id: string, updates: { name?: string; isActive?: boolean }): Promise<void> {
+  if (updates.name !== undefined) {
+    await query('UPDATE users SET name=$2 WHERE id=$1', [id, updates.name]);
+  }
+  if (updates.isActive !== undefined) {
+    await query('UPDATE users SET is_active=$2 WHERE id=$1', [id, updates.isActive]);
+  }
 }
