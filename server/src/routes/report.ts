@@ -16,7 +16,7 @@
  */
 
 import { Router } from 'express';
-import { requireAdmin } from '../shared/auth';
+import { requireAuth, requireAdmin } from '../shared/auth';
 import { getAllProposals } from '../repositories/proposalRepo';
 import { getAllUsers } from '../repositories/userRepo';
 
@@ -60,7 +60,7 @@ const STATUSES = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'W
 
 // ─── GET /api/report/proposals ────────────────────────────────────────────────
 
-router.get('/proposals', requireAdmin, async (_req, res) => {
+router.get('/proposals', requireAuth, requireAdmin, async (_req, res) => {
   const [proposals, users] = await Promise.all([getAllProposals(), getAllUsers()]);
   const userMap = Object.fromEntries((users as Array<{ id: string; name: string }>).map(u => [u.id, u.name]));
 
@@ -98,7 +98,7 @@ router.get('/proposals', requireAdmin, async (_req, res) => {
 
 // ─── GET /api/report/pipeline ─────────────────────────────────────────────────
 
-router.get('/pipeline', requireAdmin, async (_req, res) => {
+router.get('/pipeline', requireAuth, requireAdmin, async (_req, res) => {
   const proposals = await getAllProposals();
 
   const summary = STATUSES.map(status => {

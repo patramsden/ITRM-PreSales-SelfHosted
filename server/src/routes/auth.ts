@@ -208,7 +208,7 @@ router.post('/saml/exchange', async (req, res) => {
 });
 
 // POST /api/auth/saml/refresh-metadata — admin: force metadata cert refresh
-router.post('/saml/refresh-metadata', requireAdmin, async (req, res) => {
+router.post('/saml/refresh-metadata', requireAuth, requireAdmin, async (req, res) => {
   const cfg         = await getAppSettingsDirect();
   const metadataUrl = (cfg[SETTING_KEYS.SSO_METADATA_URL] ?? '').trim();
   if (!metadataUrl) { res.status(400).json({ error: 'sso.metadataUrl is not configured' }); return; }

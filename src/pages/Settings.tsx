@@ -12,7 +12,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck,
+  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload,
 } from 'lucide-react';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
@@ -612,6 +612,72 @@ function AiTab({ settings, onChange, isAdmin }: {
   );
 }
 
+// ─── Certificate file upload ──────────────────────────────────────────────────
+
+function CertFileUpload({ onCert }: { onCert: (body: string) => void }) {
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [err, setErr]           = useState<string | null>(null);
+  const inputRef                = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File) => {
+    setErr(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = (reader.result as string).trim();
+      const body = text
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g,   '')
+        .replace(/\s+/g, '');
+      if (!body) { setErr('Could not read certificate from file'); return; }
+      setFileName(file.name);
+      onCert(body);
+    };
+    reader.onerror = () => setErr('Failed to read file');
+    reader.readAsText(file);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Upload certificate file</div>
+      <div
+        onDrop={handleDrop}
+        onDragOver={e => e.preventDefault()}
+        onClick={() => inputRef.current?.click()}
+        className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-brand-400 dark:hover:border-brand-500 transition-colors group"
+      >
+        <Upload size={16} className="text-gray-400 group-hover:text-brand-500 flex-shrink-0 transition-colors" />
+        <div className="flex-1 min-w-0">
+          {fileName
+            ? <span className="text-xs text-green-600 dark:text-green-400 font-medium truncate block">{fileName} — loaded</span>
+            : <span className="text-xs text-gray-400 dark:text-slate-500">Click or drag a <code>.cer</code>, <code>.crt</code> or <code>.pem</code> file here</span>
+          }
+        </div>
+        {fileName && (
+          <button type="button" onClick={e => { e.stopPropagation(); setFileName(null); onCert(''); }}
+            className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0">
+            Clear
+          </button>
+        )}
+      </div>
+      {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+      <input ref={inputRef} type="file" className="hidden"
+        accept=".cer,.crt,.pem,.cert,application/x-x509-ca-cert,application/pkix-cert,application/pem-certificate-chain" onChange={handleChange} />
+    </div>
+  );
+}
+
 function SsoTab({ settings, onChange, isAdmin }: {
   settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean;
 }) {
@@ -795,13 +861,17 @@ function SsoTab({ settings, onChange, isAdmin }: {
               <span className="ml-1 text-amber-500">(required if no Metadata URL)</span>
             )}
           </summary>
-          <div className="mt-3 space-y-2 pl-4 border-l-2 border-gray-100 dark:border-slate-700">
+          <div className="mt-3 space-y-3 pl-4 border-l-2 border-gray-100 dark:border-slate-700">
             <p className="text-xs text-gray-400 dark:text-slate-500">
-              Only needed if you prefer not to use the Metadata URL. Leave blank to keep the existing certificate.
+              Only needed if you prefer not to use the Metadata URL above. Upload a <code>.cer</code> / <code>.crt</code> / <code>.pem</code> file, or paste the Base64 certificate body directly.
             </p>
-            <textarea rows={5} value={certInput} onChange={e => setCertInput(e.target.value)}
-              placeholder={'Paste the Base64 certificate body (without -----BEGIN/END CERTIFICATE----- lines).\nLeave blank to keep the existing certificate.'}
-              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+            <CertFileUpload onCert={setCertInput} />
+            <div>
+              <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Or paste the certificate body</div>
+              <textarea rows={4} value={certInput} onChange={e => setCertInput(e.target.value)}
+                placeholder={'Base64 body only — no -----BEGIN/END CERTIFICATE----- lines.\nLeave blank to keep the existing certificate.'}
+                className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+            </div>
             <p className="text-xs text-gray-400 flex items-center gap-1">
               <Lock size={10} /> Stored server-side only — never returned to the browser.
             </p>
