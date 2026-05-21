@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +34,7 @@ export function ProposalWorkspace() {
   const { currentUser } = useAuth();
 
   const proposal = proposals.find(p => p.id === id);
+  useDocumentTitle(proposal?.projectName);
   const [activeTab, setActiveTab] = useState<Tab>('Summary');
   const [showDelete, setShowDelete] = useState(false);
   const [plannerLoading, setPlannerLoading] = useState(false);

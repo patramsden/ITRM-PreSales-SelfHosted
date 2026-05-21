@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Clock, Download } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -159,6 +160,7 @@ function CardForm({ card, onChange }: { card: Omit<RateCard, 'id'>; onChange: (v
 // ─── RateCards page ───────────────────────────────────────────────────────────
 
 export function RateCards() {
+  useDocumentTitle('Rate Cards');
   const { rateCards, addRateCard, updateRateCard, deleteRateCard } = useStore();
   const { currentUser } = useAuth();
   const isAdmin = isPresalesAdmin(currentUser);

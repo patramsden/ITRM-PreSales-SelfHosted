@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -23,6 +24,7 @@ const statusIcons: Record<ProposalStatus, { icon: typeof FileText; color: string
 };
 
 export function Dashboard() {
+  useDocumentTitle();
   const { proposals } = useStore();
   const { currentUser } = useAuth();
   const navigate = useNavigate();

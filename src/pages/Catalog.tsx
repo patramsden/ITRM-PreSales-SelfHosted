@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Search, Link2, Download } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -315,6 +316,7 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
 // ─── Catalog page ─────────────────────────────────────────────────────────────
 
 export function Catalog() {
+  useDocumentTitle('Product Catalog');
   const { catalog, addCatalogItem, updateCatalogItem, deleteCatalogItem, lookups } = useStore();
   const { currentUser } = useAuth();
   const isAdmin = isPresalesAdmin(currentUser);

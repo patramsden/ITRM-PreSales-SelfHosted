@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   Camera, Save, Loader2, CheckCircle, AlertCircle, Eye, EyeOff,
   KeyRound, Smartphone, ShieldCheck, User as UserIcon, Trash2,
@@ -62,6 +63,7 @@ const inputCls = 'w-full border border-gray-300 dark:border-slate-600 dark:bg-sl
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function Profile() {
+  useDocumentTitle('Profile');
   const { currentUser, refreshCurrentUser } = useAuth();
   const { lookups } = useStore();
   const navigate = useNavigate();

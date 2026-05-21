@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   Plus, Edit2, Trash2, Save, X, ShieldCheck, Shield,
   Search, AlertTriangle, KeyRound, Smartphone, Copy, Check, RefreshCw,
@@ -148,6 +149,7 @@ function UserForm({ value, onChange, isSelf, departments, isNew }: UserFormProps
 }
 
 export function UserManagement() {
+  useDocumentTitle('Users');
   const { users, addUser, updateUser, deleteUser, lookups } = useStore();
   const departments = lookups.departments ?? [];
   const { currentUser } = useAuth();

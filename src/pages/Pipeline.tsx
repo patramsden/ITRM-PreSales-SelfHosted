@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   DndContext,
   DragOverlay,
@@ -169,6 +170,7 @@ function KanbanColumn({ config, proposals }: { config: ColumnConfig; proposals: 
 // ─── Pipeline page ────────────────────────────────────────────────────────────
 
 export function Pipeline() {
+  useDocumentTitle('Pipeline');
   const { proposals, updateProposal } = useStore();
   const [activeId, setActiveId]       = useState<string | null>(null);
   const [dateRange, setDateRange]     = useState<DateRange>('all');

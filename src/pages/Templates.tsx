@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Plus, Edit2, Trash2, BookTemplate, Save, Package, Users } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
@@ -10,6 +11,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 
 export function Templates() {
+  useDocumentTitle('Templates');
   const { templates, addTemplate, deleteTemplate } = useStore();
   const { currentUser } = useAuth();
   const navigate = useNavigate();

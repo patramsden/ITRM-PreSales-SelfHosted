@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Plus, Search, Filter, ArrowRight, Copy } from 'lucide-react';
 import { useStore } from '../store';
 import { calcTotals } from '../utils/totals';
@@ -12,6 +13,7 @@ import type { ProposalStatus } from '../types';
 const ALL_STATUSES: ProposalStatus[] = ['Draft', 'In Review', 'Approved', 'Won', 'Lost'];
 
 export function Proposals() {
+  useDocumentTitle('Proposals');
   const { proposals, cloneProposal } = useStore();
   const users = useStore(s => s.users);
   const navigate = useNavigate();

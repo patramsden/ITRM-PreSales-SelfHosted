@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useStore } from '../store';
 import { settingsApi, authApi, totpApi, serviceKeyApi, crmApi } from '../lib/api';
 import type { AppSettings } from '../lib/api';
@@ -1120,6 +1121,7 @@ function SectionHeader({ icon: Icon, title, subtitle, adminOnly }: {
 // ─── Main Settings page ───────────────────────────────────────────────────────
 
 export function Settings() {
+  useDocumentTitle('Settings');
   const { currentUser } = useAuth();
   const { lookups, updateLookup } = useStore();
   const isAdmin = isPresalesAdmin(currentUser);

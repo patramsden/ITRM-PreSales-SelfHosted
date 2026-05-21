@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -19,6 +20,7 @@ export function TemplateWorkspace() {
   const { currentUser } = useAuth();
 
   const template = templates.find(t => t.id === id);
+  useDocumentTitle(template?.name);
   const [activeTab, setActiveTab] = useState<Tab>('Parts');
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaName, setMetaName] = useState(template?.name ?? '');
