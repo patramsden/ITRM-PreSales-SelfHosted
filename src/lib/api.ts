@@ -185,6 +185,11 @@ export const settingsApi = {
 export const ssoApi = {
   refreshMetadata: () =>
     api.post<{ success: boolean; certsFound: number; refreshedAt: string }>('auth/saml/refresh-metadata', {}),
+  certInfo: () =>
+    api.get<{
+      configured: boolean; certsCount?: number; thumbprints?: string[];
+      metadataUrl: boolean; lastRefreshed: string | null;
+    }>('auth/saml/cert-info'),
 };
 
 // ─── Version history ──────────────────────────────────────────────────────────

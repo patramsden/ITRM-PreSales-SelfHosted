@@ -44,6 +44,32 @@ async function buildSamlInstance() {
   });
 }
 
+// GET /api/auth/saml/cert-info — admin: cert thumbprint for diagnostics
+router.get('/saml/cert-info', requireAuth, requireAdmin, async (_req, res) => {
+  const cfg         = await getAppSettingsDirect();
+  const certRaw     = (cfg[SETTING_KEYS.SSO_IDP_CERT]    ?? '').trim();
+  const metadataUrl = (cfg[SETTING_KEYS.SSO_METADATA_URL] ?? '').trim();
+  const lastRefresh = cfg[SETTING_KEYS.SSO_CERT_REFRESHED] ?? '';
+
+  if (!certRaw) { res.json({ configured: false, metadataUrl: !!metadataUrl }); return; }
+
+  const { createHash } = await import('crypto');
+  const certs = certRaw.split('\n').map((s: string) => s.trim()).filter(Boolean);
+  const thumbprints = certs.map((c: string) => {
+    const der = Buffer.from(c, 'base64');
+    return createHash('sha1').update(der).digest('hex').toUpperCase()
+             .match(/.{2}/g)!.join(':');
+  });
+
+  res.json({
+    configured:    true,
+    certsCount:    certs.length,
+    thumbprints,
+    metadataUrl:   !!metadataUrl,
+    lastRefreshed: lastRefresh ? new Date(Number(lastRefresh)).toISOString() : null,
+  });
+});
+
 // GET /api/auth/config — public: tells the login page whether SSO is on
 router.get('/config', async (_req, res) => {
   const cfg = await getAppSettingsDirect().catch(() => ({} as Record<string, string>));

@@ -624,6 +624,7 @@ function CertFileUpload({ onCert }: { onCert: (body: string) => void }) {
     const reader = new FileReader();
     reader.onload = () => {
       const text = (reader.result as string).trim();
+      // Strip PEM headers/footers and any whitespace between base64 chunks
       const body = text
         .replace(/-----BEGIN CERTIFICATE-----/g, '')
         .replace(/-----END CERTIFICATE-----/g,   '')
@@ -687,9 +688,23 @@ function SsoTab({ settings, onChange, isAdmin }: {
   const [certInput,   setCertInput]   = useState('');
   const [refreshing,  setRefreshing]  = useState(false);
   const [refreshMsg,  setRefreshMsg]  = useState<{ ok: boolean; text: string } | null>(null);
+  const [certInfo,    setCertInfo]    = useState<{
+    configured: boolean; certsCount?: number; thumbprints?: string[];
+    metadataUrl: boolean; lastRefreshed: string | null;
+  } | null>(null);
+  const [certInfoLoading, setCertInfoLoading] = useState(false);
 
   const enabled = settings['sso.enabled'] === 'true';
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
+
+  // Load cert fingerprint whenever this tab is shown
+  useEffect(() => {
+    setCertInfoLoading(true);
+    ssoApi.certInfo()
+      .then(setCertInfo)
+      .catch(() => setCertInfo(null))
+      .finally(() => setCertInfoLoading(false));
+  }, []);
 
   const handleSave = async () => {
     setSaving(true); setSaved(false); setError(null);
@@ -711,15 +726,17 @@ function SsoTab({ settings, onChange, isAdmin }: {
       const when = new Date(r.refreshedAt).toLocaleString();
       setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${when}` });
       onChange({ ...settings, 'sso.certLastRefreshed': r.refreshedAt, 'sso.idpCert.configured': 'true' });
+      // Reload thumbprint display
+      ssoApi.certInfo().then(setCertInfo).catch(() => {});
     } catch (e) {
       setRefreshMsg({ ok: false, text: e instanceof Error ? e.message : 'Refresh failed' });
     } finally { setRefreshing(false); }
   };
 
-  const appUrl         = (settings['sso.appUrl'] ?? '').trim();
-  const callbackUrl    = appUrl ? `${appUrl}/api/auth/saml/callback` : '<your-app-url>/api/auth/saml/callback';
-  const metadataUrl    = (settings['sso.metadataUrl'] ?? '').trim();
-  const lastRefreshed  = settings['sso.certLastRefreshed'];
+  const appUrl      = (settings['sso.appUrl'] ?? '').trim();
+  const callbackUrl = appUrl ? `${appUrl}/api/auth/saml/callback` : '<your-app-url>/api/auth/saml/callback';
+  const metadataUrl = (settings['sso.metadataUrl'] ?? '').trim();
+  const lastRefreshed = settings['sso.certLastRefreshed'];
   const certConfigured = settings['sso.idpCert.configured'] === 'true';
 
   return (
@@ -805,17 +822,22 @@ function SsoTab({ settings, onChange, isAdmin }: {
 
       {/* ── Metadata URL — auto certificate ──────────────────────────────── */}
       <div className="space-y-3">
-        <FieldRow label="App Federation Metadata URL (recommended)">
-          <TextInput value={metadataUrl}
-            onChange={v => set('sso.metadataUrl', v)}
-            placeholder="https://login.microsoftonline.com/{tenant-id}/federationmetadata/2007-06/federationmetadata.xml"
-            readOnly={!isAdmin} />
-        </FieldRow>
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <FieldRow label="App Federation Metadata URL (recommended)">
+              <TextInput value={metadataUrl}
+                onChange={v => set('sso.metadataUrl', v)}
+                placeholder="https://login.microsoftonline.com/{tenant-id}/federationmetadata/2007-06/federationmetadata.xml"
+                readOnly={!isAdmin} />
+            </FieldRow>
+          </div>
+        </div>
         <p className="text-xs text-gray-400">
           Found in Entra ID → your app → <strong>Single sign-on → SAML Certificates → App Federation Metadata Url</strong>.
           When set, certificates are fetched automatically and refreshed daily — no manual certificate management needed.
         </p>
 
+        {/* Status + refresh button */}
         {metadataUrl && (
           <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-700/40 border border-gray-200 dark:border-slate-600">
             <div className="flex items-center gap-2 text-xs">
@@ -851,6 +873,40 @@ function SsoTab({ settings, onChange, isAdmin }: {
         )}
       </div>
 
+      {/* ── Certificate fingerprint ──────────────────────────────────────── */}
+      {isAdmin && (
+        <div className="rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">Certificate fingerprint (SHA-1)</span>
+            {certInfoLoading && <Loader2 size={12} className="animate-spin text-gray-400" />}
+          </div>
+          <div className="px-4 py-3 space-y-2">
+            {!certInfo || !certInfo.configured ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertCircle size={13} />
+                {certInfoLoading ? 'Loading…' : 'No certificate configured — SSO logins will fail.'}
+              </p>
+            ) : (
+              <>
+                {certInfo.thumbprints?.map((tp, i) => (
+                  <code key={i} className="block text-xs font-mono bg-gray-100 dark:bg-slate-800 px-3 py-2 rounded-lg text-gray-700 dark:text-slate-300 break-all select-all">
+                    {tp}
+                  </code>
+                ))}
+                {(certInfo.certsCount ?? 0) > 1 && (
+                  <p className="text-xs text-gray-400">{certInfo.certsCount} certificates loaded (key rotation supported)</p>
+                )}
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  Verify this matches the thumbprint shown in{' '}
+                  <strong>Entra ID → your app → Single sign-on → SAML Certificates → Thumbprint</strong>.
+                  A mismatch causes <em>"Invalid document signature"</em> errors.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Manual certificate override ───────────────────────────────────── */}
       {isAdmin && (
         <details className="group">
@@ -865,13 +921,18 @@ function SsoTab({ settings, onChange, isAdmin }: {
             <p className="text-xs text-gray-400 dark:text-slate-500">
               Only needed if you prefer not to use the Metadata URL above. Upload a <code>.cer</code> / <code>.crt</code> / <code>.pem</code> file, or paste the Base64 certificate body directly.
             </p>
+
+            {/* File upload */}
             <CertFileUpload onCert={setCertInput} />
+
+            {/* Paste fallback */}
             <div>
               <div className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Or paste the certificate body</div>
               <textarea rows={4} value={certInput} onChange={e => setCertInput(e.target.value)}
                 placeholder={'Base64 body only — no -----BEGIN/END CERTIFICATE----- lines.\nLeave blank to keep the existing certificate.'}
                 className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
             </div>
+
             <p className="text-xs text-gray-400 flex items-center gap-1">
               <Lock size={10} /> Stored server-side only — never returned to the browser.
             </p>
@@ -1108,6 +1169,7 @@ function ProvisioningTab({ settings, onChange, isAdmin }: {
       ? 'This will replace the existing SCIM token. Entra ID will need to be updated with the new token. Continue?'
       : 'Generate a new SCIM bearer token?')) return;
     setGenerating(true); setError(null);
+    // Generate a random token client-side and save it
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
