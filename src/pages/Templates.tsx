@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, BookTemplate, Save, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit2, Trash2, BookTemplate, Save, Package, Users } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -7,30 +8,25 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
-import type { Template } from '../types';
 
 export function Templates() {
-  const { templates, addTemplate, updateTemplate, deleteTemplate } = useStore();
+  const { templates, addTemplate, deleteTemplate } = useStore();
   const { currentUser } = useAuth();
-  const [editing, setEditing] = useState<Template | null>(null);
+  const navigate = useNavigate();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
-  const canManage = (t: Template) =>
+  const canManage = (t: { ownerId: string }) =>
     isPresalesAdmin(currentUser) || t.ownerId === currentUser?.id;
 
   const handleCreate = () => {
     if (!newName.trim() || !currentUser) return;
-    addTemplate({ id: uuid(), name: newName, description: newDesc, ownerId: currentUser.id, dateCreated: new Date().toISOString().split('T')[0], parts: [], phases: [] });
+    const id = uuid();
+    addTemplate({ id, name: newName, description: newDesc, ownerId: currentUser.id, dateCreated: new Date().toISOString().split('T')[0], parts: [], phases: [] });
     setShowNew(false); setNewName(''); setNewDesc('');
-  };
-
-  const handleSave = () => {
-    if (!editing) return;
-    updateTemplate(editing.id, { name: editing.name, description: editing.description });
-    setEditing(null);
+    navigate(`/templates/${id}`);
   };
 
   const users = useStore(s => s.users);
@@ -62,20 +58,20 @@ export function Templates() {
                 </div>
               </div>
               <div className="text-xs text-gray-400 dark:text-slate-500 flex gap-3">
-                <span>{t.parts.length} parts</span>
-                <span>{t.phases.length} phases</span>
+                <span className="flex items-center gap-1"><Package size={11} />{t.parts.length} parts</span>
+                <span className="flex items-center gap-1"><Users size={11} />{t.phases.reduce((n, p) => n + p.tasks.length, 0)} tasks</span>
                 <span>by {owner?.name ?? '—'}</span>
               </div>
-              {canManage(t) && (
-                <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-slate-700">
-                  <Button variant="ghost" size="sm" onClick={() => setEditing({ ...t })}>
-                    <Edit2 size={13} /> Edit
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteId(t.id)} className="text-red-500 hover:bg-red-50">
+              <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-slate-700">
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/templates/${t.id}`)}>
+                  <Edit2 size={13} /> Edit
+                </Button>
+                {canManage(t) && (
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteId(t.id)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
                     <Trash2 size={13} /> Delete
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
@@ -100,28 +96,6 @@ export function Templates() {
           <Button onClick={handleCreate} disabled={!newName.trim()}><Save size={14} /> Create</Button>
         </div>
       </Modal>
-
-      {/* Edit modal */}
-      {editing && (
-        <Modal open onClose={() => setEditing(null)} title="Edit Template" size="sm">
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-                rows={3} value={editing.description ?? ''} onChange={e => setEditing({ ...editing, description: e.target.value })} />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditing(null)}><X size={14} /> Cancel</Button>
-            <Button onClick={handleSave}><Save size={14} /> Save</Button>
-          </div>
-        </Modal>
-      )}
 
       <ConfirmDialog
         open={!!deleteId}

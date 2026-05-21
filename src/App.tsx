@@ -11,6 +11,7 @@ import { Pipeline } from './pages/Pipeline';
 import { Proposals } from './pages/Proposals';
 import { ProposalWorkspace } from './pages/ProposalWorkspace';
 import { Templates } from './pages/Templates';
+import { TemplateWorkspace } from './pages/TemplateWorkspace';
 import { Catalog } from './pages/Catalog';
 import { RateCards } from './pages/RateCards';
 import { Settings } from './pages/Settings';
@@ -53,6 +54,7 @@ function AppRoutes() {
         <Route path="/proposals/new" element={<Navigate to="/proposals" replace />} />
         <Route path="/proposals/:id" element={<ProposalWorkspace />} />
         <Route path="/templates" element={<Templates />} />
+        <Route path="/templates/:id" element={<TemplateWorkspace />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/rate-cards" element={<RateCards />} />
         <Route path="/users" element={<UserManagement />} />
