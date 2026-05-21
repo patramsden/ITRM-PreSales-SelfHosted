@@ -47,7 +47,7 @@ function toScimUser(u: User, baseUrl: string) {
     name: {
       formatted:  u.name,
       givenName:  nameParts[0] ?? '',
-      familyName: nameParts.slice(1).join(' ') || nameParts[0] ?? '',
+      familyName: nameParts.slice(1).join(' ') || (nameParts[0] ?? ''),
     },
     displayName: u.name,
     emails: [{ value: u.email, primary: true, type: 'work' }],
