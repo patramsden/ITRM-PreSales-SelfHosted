@@ -22,6 +22,10 @@ import settingsRouter  from './routes/settings';
 import templatesRouter from './routes/templates';
 import usersRouter     from './routes/users';
 import lookupsRouter   from './routes/lookups';
+import sharesRouter      from './routes/shares';
+import publicShareRouter from './routes/publicShare';
+import versionsRouter    from './routes/versions';
+import sowRouter         from './routes/sow';
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -51,9 +55,13 @@ app.use('/api/scim/v2',   scimRouter);
 app.use('/api/report',    reportRouter);
 app.use('/api/me',         meRouter);
 app.use('/api/proposals',  proposalsRouter);
+app.use('/api/proposals',  versionsRouter);   // /api/proposals/:id/versions/*
+app.use('/api/proposals',  sharesRouter);     // /api/proposals/:id/share(s)
+app.use('/api/share',      publicShareRouter); // /api/share/:token  (public GET + authed DELETE)
 app.use('/api/rate-cards', rateCardsRouter);
 app.use('/api/seed',       seedRouter);
 app.use('/api/settings',   settingsRouter);
+app.use('/api/sow',        sowRouter);
 app.use('/api/templates',  templatesRouter);
 app.use('/api/users',      usersRouter);
 app.use('/api/lookups',    lookupsRouter);
