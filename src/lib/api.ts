@@ -88,6 +88,7 @@ export const rateCardApi = {
   create: (r: RateCard)                     => api.post<RateCard>('rate-cards', r),
   update: (id: string, r: RateCard)         => api.put<RateCard>(`rate-cards/${id}`, r),
   delete: (id: string)                      => api.delete<void>(`rate-cards/${id}`),
+  import: (cards: Partial<RateCard>[])      => api.post<{ imported: number }>('rate-cards/import', cards),
 };
 
 export const lookupsApi = {
