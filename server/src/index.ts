@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getPool } from './shared/db';
+import { getPool, ensureSchema } from './shared/db';
 
 import authRouter      from './routes/auth';
 import catalogRouter   from './routes/catalog';
@@ -71,11 +71,13 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 async function start() {
-  // Warm up the database pool
+  // Connect and run schema migrations
   try {
     const pool = getPool();
     await pool.query('SELECT 1');
     console.log('[db] PostgreSQL connected');
+    await ensureSchema();
+    console.log('[db] Schema up to date');
   } catch (e) {
     console.error('[db] Cannot connect to PostgreSQL:', e);
     if (process.env.DATABASE_URL) {
