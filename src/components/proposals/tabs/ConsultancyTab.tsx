@@ -194,7 +194,7 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
                       {/* Role selector */}
                       <div className="col-span-3">
                         <select
-                          className="w-full border-0 border-b border-transparent hover:border-gray-300 dark:hover:border-slate-500 focus:border-brand-500 outline-none text-sm py-0.5 bg-transparent text-gray-900 dark:text-slate-100 disabled:opacity-70"
+                          className="w-full border-0 border-b border-transparent hover:border-gray-300 dark:hover:border-slate-500 focus:border-brand-500 outline-none text-sm py-0.5 bg-transparent dark:bg-slate-800 text-gray-900 dark:text-slate-100 disabled:opacity-70"
                           value={task.role}
                           onChange={e => {
                             const newRc = rateCards.find(r => r.role === e.target.value);
