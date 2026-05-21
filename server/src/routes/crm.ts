@@ -44,14 +44,15 @@ async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fie
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     if (res.status === 401) {
-      throw new Error(
-        `Autotask authentication failed (401). Please verify: ` +
-        `(1) Username is the full email address of the Autotask API user, ` +
-        `(2) Secret matches the API user's password/key in Autotask, ` +
-        `(3) ApiIntegrationCode is correct and active, ` +
-        `(4) the API user's zone matches the Zone URL. ` +
-        `Raw response: ${text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)}`,
-      );
+      const body = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const hint = body
+        ? `Autotask responded: ${body.slice(0, 200)}`
+        : `The request reached Autotask but was rejected with no detail — ` +
+          `this almost always means the Integration Code or Secret is wrong. ` +
+          `In Autotask go to Admin → Integrations → Tracking Identifiers and ` +
+          `copy the exact code shown there. Also re-enter the API user's password ` +
+          `in the Secret field and save before testing again.`;
+      throw new Error(`Autotask 401 — ${hint}`);
     }
     throw new Error(`Autotask ${entity} (${res.status}): ${text}`);
   }
@@ -115,10 +116,13 @@ router.post('/test', requireAuth, requireAdmin, async (_req, res) => {
       }); return;
     }
 
+    const mask = (s: string) => s.length <= 8 ? '••••' : `${s.slice(0, 4)}${'•'.repeat(Math.min(s.length - 8, 8))}${s.slice(-4)}`;
     const items = await atQuery(creds, 'Companies', [{ field: 'isActive', op: 'eq', value: true }], ['id', 'companyName'], 1);
-    res.json({ success: true, message: `Connected to Autotask successfully.${items.length ? ' Companies found.' : ''}`, zoneUrl: creds.zoneUrl, username: creds.username });
+    res.json({ success: true, message: `Connected to Autotask successfully.${items.length ? ' Companies found.' : ''}`, zoneUrl: creds.zoneUrl, username: creds.username, integrationCodeHint: mask(creds.integrationCode) });
   } catch (e) {
-    res.json({ success: false, message: e instanceof Error ? e.message : String(e) });
+    const cr = await getCreds().catch(() => null);
+    const mask = (s: string) => s.length <= 8 ? '••••' : `${s.slice(0, 4)}${'•'.repeat(Math.min(s.length - 8, 8))}${s.slice(-4)}`;
+    res.json({ success: false, message: e instanceof Error ? e.message : String(e), ...(cr ? { zoneUrl: cr.zoneUrl, username: cr.username, integrationCodeHint: mask(cr.integrationCode) } : {}) });
   }
 });
 
