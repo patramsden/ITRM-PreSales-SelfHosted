@@ -3,10 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, FlaskConical, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store';
-import { api, totpApi } from '../lib/api';
+import { api, authApi, totpApi } from '../lib/api';
 import { useBranding } from '../contexts/BrandingContext';
 
 type Phase = 'email' | 'password' | 'sso' | 'totp';
+
+// Microsoft logo SVG (inline, no external dependency)
+function MicrosoftLogo() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1"  y="1"  width="9" height="9" fill="#F25022"/>
+      <rect x="11" y="1"  width="9" height="9" fill="#7FBA00"/>
+      <rect x="1"  y="11" width="9" height="9" fill="#00A4EF"/>
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    </svg>
+  );
+}
 
 export function Login() {
   const { login, loginWithSamlCode, signIn } = useAuth();
@@ -20,6 +32,8 @@ export function Login() {
   const [password, setPassword]   = useState('');
   const [loading, setLoading]     = useState(false);
   const [samlLoading, setSamlLoading] = useState(false);
+  const [ssoEnabled, setSsoEnabled]   = useState(false);
+  const [ssoRedirecting, setSsoRedirecting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
   // TOTP challenge state
@@ -27,13 +41,17 @@ export function Login() {
   const [totpCode, setTotpCode]           = useState('');
   const [totpLoading, setTotpLoading]     = useState(false);
 
+  // Load public config to know whether to show SSO button
+  useEffect(() => {
+    authApi.config().then(r => setSsoEnabled(r.ssoEnabled)).catch(() => {});
+  }, []);
+
   // Handle SAML redirect-back: ?saml_code=...
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('saml_code');
     if (!code) return;
 
-    // Remove the code from the URL immediately
     const url = new URL(window.location.href);
     url.searchParams.delete('saml_code');
     window.history.replaceState({}, '', url.toString());
@@ -48,6 +66,19 @@ export function Login() {
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── SSO: redirect to IdP directly (no email needed) ──────────────────────
+  const handleSsoSignIn = async () => {
+    setSsoRedirecting(true);
+    setError(null);
+    try {
+      const { redirectUrl } = await api.get<{ redirectUrl: string }>('auth/saml/init');
+      window.location.href = redirectUrl;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'SSO is not configured. Contact your administrator.');
+      setSsoRedirecting(false);
+    }
+  };
+
   // ── Phase 1: lookup email → determine method ──────────────────────────────
   const handleEmailContinue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +91,6 @@ export function Login() {
       const { method } = await api.post<{ method: 'local' | 'saml' }>('auth/lookup', { email: trimmed });
       if (method === 'saml') {
         setPhase('sso');
-        // Kick off SSO redirect immediately
         const { redirectUrl } = await api.get<{ redirectUrl: string }>('auth/saml/init');
         window.location.href = redirectUrl;
       } else {
@@ -112,7 +142,7 @@ export function Login() {
 
   const bgStyle = { backgroundColor: primaryColor };
 
-  // ── Full-screen spinner states ─────────────────────────────────────────────
+  // ── Full-screen spinner: completing SAML exchange ─────────────────────────
   if (samlLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
@@ -160,11 +190,7 @@ export function Login() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Authenticator code</label>
                 <input
-                  autoFocus
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
+                  autoFocus type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
                   value={totpCode}
                   onChange={e => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2.5 text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -206,6 +232,29 @@ export function Login() {
         {/* Card */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8">
 
+          {/* ── SSO button (shown when SSO is enabled) ── */}
+          {ssoEnabled && phase === 'email' && (
+            <>
+              <button
+                type="button"
+                onClick={handleSsoSignIn}
+                disabled={ssoRedirecting}
+                className="w-full flex items-center justify-center gap-2.5 border border-gray-300 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              >
+                {ssoRedirecting
+                  ? <Loader2 size={16} className="animate-spin text-gray-400" />
+                  : <MicrosoftLogo />}
+                {ssoRedirecting ? 'Redirecting…' : 'Sign in with Microsoft'}
+              </button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-gray-200 dark:bg-slate-600" />
+                <span className="text-xs text-gray-400 dark:text-slate-500">or sign in with email</span>
+                <div className="flex-1 h-px bg-gray-200 dark:bg-slate-600" />
+              </div>
+            </>
+          )}
+
           {/* ── Step 1: Email ── */}
           {phase === 'email' && (
             <form onSubmit={handleEmailContinue} className="space-y-5">
@@ -214,12 +263,8 @@ export function Login() {
                   Email address
                 </label>
                 <input
-                  autoFocus
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  autoFocus type="email" autoComplete="email" required
+                  value={email} onChange={e => setEmail(e.target.value)}
                   className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   placeholder="you@company.com"
                 />
@@ -227,17 +272,13 @@ export function Login() {
 
               {error && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <AlertCircle size={15} className="flex-shrink-0" />
-                  {error}
+                  <AlertCircle size={15} className="flex-shrink-0" />{error}
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading || !email.trim()}
+              <button type="submit" disabled={loading || !email.trim()}
                 className="w-full text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ backgroundColor: primaryColor }}
-              >
+                style={{ backgroundColor: primaryColor }}>
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                 {loading ? 'Checking…' : 'Continue'}
               </button>
@@ -247,18 +288,15 @@ export function Login() {
           {/* ── Step 2: Password ── */}
           {phase === 'password' && (
             <form onSubmit={handleLogin} className="space-y-5">
-              {/* Locked email display */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
                   Email address
                 </label>
                 <div className="flex items-center gap-2 w-full border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2.5 text-sm text-gray-500 dark:text-slate-400">
                   <span className="flex-1 truncate">{email}</span>
-                  <button
-                    type="button"
+                  <button type="button"
                     onClick={() => { setPhase('email'); setPassword(''); setError(null); }}
-                    className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 font-medium shrink-0"
-                  >
+                    className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 font-medium shrink-0">
                     Change
                   </button>
                 </div>
@@ -269,12 +307,8 @@ export function Login() {
                   Password
                 </label>
                 <input
-                  autoFocus
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  autoFocus type="password" autoComplete="current-password" required
+                  value={password} onChange={e => setPassword(e.target.value)}
                   className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   placeholder="••••••••"
                 />
@@ -282,17 +316,13 @@ export function Login() {
 
               {error && (
                 <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  <AlertCircle size={15} className="flex-shrink-0" />
-                  {error}
+                  <AlertCircle size={15} className="flex-shrink-0" />{error}
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading || !password}
+              <button type="submit" disabled={loading || !password}
                 className="w-full text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ backgroundColor: primaryColor }}
-              >
+                style={{ backgroundColor: primaryColor }}>
                 {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
@@ -319,11 +349,8 @@ export function Login() {
             </div>
             <div className="space-y-1.5">
               {users.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => { signIn(u.id); navigate('/'); }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-left"
-                >
+                <button key={u.id} onClick={() => { signIn(u.id); navigate('/'); }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-left">
                   <span className="text-sm text-white">{u.name}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${u.appRole === 'admin' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/60'}`}>
                     {u.appRole === 'admin' ? 'Admin' : 'User'}

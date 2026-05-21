@@ -52,6 +52,7 @@ export const authApi = {
     api.post<{ token: string; user: User }>('auth/saml/exchange', { code }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<void>('auth/change-password', { currentPassword, newPassword }),
+  config: () => api.get<{ ssoEnabled: boolean }>('auth/config'),
   samlEnabled: () => import.meta.env.VITE_SAML_ENABLED === 'true',
 };
 
@@ -162,6 +163,11 @@ export interface AppSettings {
   'branding.companyName'?:  string;
   'branding.subtitle'?:     string;
 
+  // SCIM provisioning
+  'scim.enabled'?:             string;  // 'true'|'false'
+  'scim.token'?:               string;  // write-only bearer token
+  'scim.token.configured'?:    string;  // 'true'|'false' read-only indicator
+
   // CRM — Autotask
   'crm.provider'?:                       string;  // 'autotask' | 'none'
   'crm.autotask.zoneUrl'?:               string;
@@ -169,11 +175,6 @@ export interface AppSettings {
   'crm.autotask.username'?:              string;
   'crm.autotask.secret'?:                string;  // write-only
   'crm.autotask.secret.configured'?:     string;  // 'true'|'false' read-only indicator
-
-  // SCIM 2.0 provisioning
-  'scim.enabled'?:             string;  // 'true'|'false'
-  'scim.token'?:               string;  // write-only bearer token
-  'scim.token.configured'?:    string;  // 'true'|'false' read-only indicator
 }
 
 export const settingsApi = {

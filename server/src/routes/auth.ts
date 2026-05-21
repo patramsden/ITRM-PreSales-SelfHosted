@@ -44,6 +44,12 @@ async function buildSamlInstance() {
   });
 }
 
+// GET /api/auth/config — public: tells the login page whether SSO is on
+router.get('/config', async (_req, res) => {
+  const cfg = await getAppSettingsDirect().catch(() => ({} as Record<string, string>));
+  res.json({ ssoEnabled: cfg[SETTING_KEYS.SSO_ENABLED] === 'true' });
+});
+
 // POST /api/auth/lookup
 router.post('/lookup', async (req, res) => {
   const email = ((req.body?.email as string) ?? '').trim().toLowerCase();
