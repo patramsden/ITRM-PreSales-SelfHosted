@@ -296,7 +296,9 @@ router.post('/saml/callback', async (req, res) => {
   }
   const code = await createAuthCode(user.id);
   res.set('Content-Type', 'text/html').send(
-    `<!DOCTYPE html><html><body><script>window.location.href='/?saml_code=${encodeURIComponent(code)}';</script></body></html>`
+    // Redirect to /login (not /) so the auth guard doesn't strip the code
+    // before the Login component can read it from the URL.
+    `<!DOCTYPE html><html><body><script>window.location.href='/login?saml_code=${encodeURIComponent(code)}';</script></body></html>`
   );
 });
 
