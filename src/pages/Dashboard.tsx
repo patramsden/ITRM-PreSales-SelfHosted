@@ -71,7 +71,7 @@ export function Dashboard() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
-            Good {greeting()}, {currentUser?.name.split(' ')[0]} 👋
+            Good {greeting()}, {currentUser ? firstNameFromEmail(currentUser.email) : ''} 👋
           </h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Here's what's happening with your proposals today.</p>
         </div>
@@ -175,6 +175,16 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
       <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{sub}</div>
     </div>
   );
+}
+
+/** Extract a first name from an email address.
+ *  pat.ramsden@company.com  → Pat
+ *  pratramsden@company.com  → Pratramsden  (no dot before @)
+ */
+function firstNameFromEmail(email: string): string {
+  const local   = email.split('@')[0] ?? email;          // everything before @
+  const first   = local.split('.')[0] ?? local;           // everything before first .
+  return first.charAt(0).toUpperCase() + first.slice(1); // capitalise
 }
 
 function greeting() {
