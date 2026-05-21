@@ -165,8 +165,8 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
       </div>
 
       {/* Collaborators */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Collaborators</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-4">Collaborators</h2>
 
         {/* Owner */}
         <div className="flex items-center gap-3 mb-4">
@@ -181,7 +181,7 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
 
         {collaborators.map(u => (
           <div key={u.id} className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center text-gray-600 dark:text-slate-300 text-xs font-bold">
               {u.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
             <div className="flex-1">
@@ -189,7 +189,7 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               <div className="text-xs text-gray-400 dark:text-slate-500">Collaborator</div>
             </div>
             {canManageCollabs && (
-              <button onClick={() => removeCollab(u.id)} className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500">
+              <button onClick={() => removeCollab(u.id)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-red-500">
                 <X size={14} />
               </button>
             )}
