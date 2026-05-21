@@ -27,10 +27,10 @@ const SEED_RATE_CARDS: RateCard[] = [
 ];
 
 const SEED_CATALOG: CatalogItem[] = [
-  { id: 'c1', sku: 'C9300-48P-A',     description: 'Cisco Catalyst 9300 48P PoE+',         category: 'Switching', defaultVendor: 'Cisco',     listPrice: 11200 },
-  { id: 'c2', sku: 'FPR2140-NGFW-K9', description: 'Cisco Firepower 2140 NGFW',            category: 'Security',  defaultVendor: 'Cisco',     listPrice: 28500 },
-  { id: 'c3', sku: 'AAA-10624',       description: 'Microsoft 365 Business Premium (p/u/yr)', category: 'Software', defaultVendor: 'Microsoft', listPrice: 22, partType: 'Annual' },
-  { id: 'c4', sku: 'VNX-2000',        description: 'Veeam Backup & Replication',           category: 'Software',  defaultVendor: 'Veeam',     listPrice: 1850 },
+  { id: 'c1', sku: 'C9300-48P-A',     description: 'Cisco Catalyst 9300 48P PoE+',            category: 'Switching', defaultVendor: 'Cisco',     costPrice: 8400,  listPrice: 11200 },
+  { id: 'c2', sku: 'FPR2140-NGFW-K9', description: 'Cisco Firepower 2140 NGFW',               category: 'Security',  defaultVendor: 'Cisco',     costPrice: 21375, listPrice: 28500 },
+  { id: 'c3', sku: 'AAA-10624',       description: 'Microsoft 365 Business Premium (p/u/yr)', category: 'Cloud',     defaultVendor: 'Microsoft', costPrice: 16.50, listPrice: 22,   partType: 'Annual' },
+  { id: 'c4', sku: 'VNX-2000',        description: 'Veeam Backup & Replication',              category: 'Software',  defaultVendor: 'Veeam',     costPrice: 1390,  listPrice: 1850 },
 ];
 
 const router = Router();
