@@ -631,15 +631,67 @@ function SsoTab({ settings, onChange, isAdmin }: {
     finally { setSaving(false); }
   };
 
+  const appUrl      = (settings['sso.appUrl'] ?? '').trim();
+  const callbackUrl = appUrl ? `${appUrl}/api/auth/saml/callback` : '<your-app-url>/api/auth/saml/callback';
+
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Globe} title="Single Sign-On (SAML)" subtitle="Connect an enterprise Identity Provider" adminOnly={!isAdmin} />
+      <SectionHeader icon={Globe} title="Single Sign-On (SAML)" subtitle="Connect Microsoft Entra ID (Azure AD) or any SAML 2.0 identity provider" adminOnly={!isAdmin} />
+
+      {/* ── Entra ID setup guide ─────────────────────────────────────────── */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-3">
+        <div className="font-semibold text-sm">Setting up with Microsoft Entra ID</div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 1 — Create an Enterprise Application</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Open <strong>Microsoft Entra ID</strong> (portal.azure.com → Entra ID)</li>
+            <li>Go to <strong>Enterprise Applications → New application → Create your own application</strong></li>
+            <li>Name it (e.g. <em>ITRM PreSales</em>), select <strong>"Integrate any other application you don't find in the gallery (Non-gallery)"</strong> and click Create</li>
+          </ol>
+        </div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 2 — Configure SAML</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Open the application → <strong>Single sign-on → SAML</strong></li>
+            <li>Click <strong>Edit</strong> on "Basic SAML Configuration" and set:
+              <ul className="list-disc ml-4 mt-0.5 space-y-0.5">
+                <li><strong>Identifier (Entity ID):</strong> your App URL (e.g. <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{appUrl || 'https://your-app.azurestaticapps.net'}</code>)</li>
+                <li><strong>Reply URL (ACS URL):</strong> <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{callbackUrl}</code></li>
+                <li><strong>Sign on URL:</strong> same as your App URL</li>
+              </ul>
+            </li>
+            <li>Under <strong>Attributes &amp; Claims</strong>, ensure the Unique User Identifier (Name ID) is set to <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">user.mail</code> (email address)</li>
+          </ol>
+        </div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 3 — Copy values into the fields below</div>
+          <ul className="list-disc ml-4 space-y-0.5">
+            <li><strong>IdP Entry Point</strong> → "Login URL" from the <em>Set up {'{app name}'}</em> section</li>
+            <li><strong>SP Issuer</strong> → same value as the Identifier (Entity ID) you set above</li>
+            <li><strong>Certificate</strong> → download <em>Certificate (Base64)</em>, open in a text editor, and paste the content <em>without</em> the <code>-----BEGIN/END CERTIFICATE-----</code> lines</li>
+          </ul>
+        </div>
+
+        <div>
+          <div className="font-semibold mb-1">Step 4 — Assign users</div>
+          <ol className="list-decimal ml-4 space-y-0.5">
+            <li>Go to the application → <strong>Users and groups → Add user/group</strong></li>
+            <li>Add the users or groups who should be able to sign in via SSO</li>
+            <li>Users must also have a local account in ITRM with a matching email address</li>
+          </ol>
+        </div>
+      </div>
+
+      {/* ── Enable toggle ─────────────────────────────────────────────────── */}
       <div className={clsx('flex items-center justify-between p-4 rounded-xl border-2 transition-colors',
         enabled ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20'
                 : 'border-gray-200 bg-gray-50 dark:border-slate-600 dark:bg-slate-700')}>
         <div>
           <div className="text-sm font-semibold text-gray-800 dark:text-slate-200">Enable SSO</div>
-          <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Shows "Sign in with SSO" on the login page</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Shows "Sign in with SSO" on the login page. Configure all fields below before enabling.</div>
         </div>
         <button type="button" disabled={!isAdmin} onClick={() => set('sso.enabled', enabled ? 'false' : 'true')}
           className={clsx('relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
@@ -647,25 +699,45 @@ function SsoTab({ settings, onChange, isAdmin }: {
           <span className={clsx('pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition duration-200 ease-in-out', enabled ? 'translate-x-5' : 'translate-x-0')} />
         </button>
       </div>
-      <FieldRow label="App URL"><TextInput value={(settings['sso.appUrl'] ?? '') as string}
-        onChange={v => set('sso.appUrl', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} /></FieldRow>
-      <FieldRow label="IdP Entry Point (SSO URL)"><TextInput value={(settings['sso.entryPoint'] ?? '') as string}
-        onChange={v => set('sso.entryPoint', v)} placeholder="https://your-idp.com/saml2/sso" readOnly={!isAdmin} /></FieldRow>
-      <FieldRow label="SP Issuer / Entity ID"><TextInput value={(settings['sso.issuer'] ?? '') as string}
-        onChange={v => set('sso.issuer', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} /></FieldRow>
+
+      {/* ── Fields ───────────────────────────────────────────────────────── */}
+      <FieldRow label="App URL">
+        <TextInput value={(settings['sso.appUrl'] ?? '') as string}
+          onChange={v => set('sso.appUrl', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} />
+        <p className="text-xs text-gray-400 mt-1">The public root URL of this application. Used as the SAML Entity ID and to derive the callback URL.</p>
+      </FieldRow>
+
+      <FieldRow label="Callback URL (ACS URL)">
+        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-xs text-gray-600 dark:text-slate-300 font-mono break-all select-all border border-gray-200 dark:border-slate-600">
+          {callbackUrl}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Enter this as the <strong>Reply URL (Assertion Consumer Service URL)</strong> in Entra ID.</p>
+      </FieldRow>
+
+      <FieldRow label="IdP Entry Point (Login URL)">
+        <TextInput value={(settings['sso.entryPoint'] ?? '') as string}
+          onChange={v => set('sso.entryPoint', v)} placeholder="https://login.microsoftonline.com/{tenant-id}/saml2" readOnly={!isAdmin} />
+        <p className="text-xs text-gray-400 mt-1">Found in Entra ID under <em>Set up {'{app name}'}</em> → <strong>Login URL</strong>.</p>
+      </FieldRow>
+
+      <FieldRow label="SP Issuer / Entity ID">
+        <TextInput value={(settings['sso.issuer'] ?? '') as string}
+          onChange={v => set('sso.issuer', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} />
+        <p className="text-xs text-gray-400 mt-1">Must exactly match the <strong>Identifier (Entity ID)</strong> you entered in Entra ID. Usually the same as your App URL.</p>
+      </FieldRow>
+
       {isAdmin && (
-        <FieldRow label="IdP Signing Certificate (PEM body, no headers)">
-          <textarea rows={4} value={certInput} onChange={e => setCertInput(e.target.value)}
-            placeholder={'Paste base64 certificate body to set or update.\nLeave blank to keep existing.'}
+        <FieldRow label="IdP Signing Certificate">
+          <textarea rows={5} value={certInput} onChange={e => setCertInput(e.target.value)}
+            placeholder={'Paste the Base64 certificate body here (without -----BEGIN/END CERTIFICATE----- lines).\nLeave blank to keep the existing certificate.'}
             className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
-          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Lock size={10} /> Stored server-side only.</p>
+          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+            <Lock size={10} /> Stored server-side only — never returned to the browser.
+            Download <em>Certificate (Base64)</em> from Entra ID → SAML Certificates and paste the content without the header/footer lines.
+          </p>
         </FieldRow>
       )}
-      {settings['sso.appUrl'] && (
-        <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 text-xs text-gray-500 font-mono break-all">
-          Callback URL: {settings['sso.appUrl'] as string}/api/auth/saml/callback
-        </div>
-      )}
+
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
     </div>
   );
