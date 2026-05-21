@@ -2,20 +2,47 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Authentication</title>
-</head>
-<body>
+  <title>Signing in…</title>
   <!--
-    This page is only ever loaded inside the MSAL popup window during
-    Microsoft 365 sign-in. It intentionally has no content and no scripts.
+    This page is loaded inside the MSAL popup window after Microsoft redirects
+    back with the auth code.  MSAL in the parent window is waiting for a
+    postMessage from this popup — that message is sent by calling
+    handleRedirectPromise() below.
 
-    MSAL reads the auth code from this page's URL before the popup closes —
-    no code needs to run here. The blank page ensures the app's auth guard
-    does not redirect away and destroy the code before MSAL can extract it.
-
-    Register this URL as a Single-page application redirect URI in your
-    Azure AD app registration:
-      https://<your-app-origin>/auth-redirect.html
+    The clientId is written to sessionStorage by planner.ts before the popup
+    opens; we read it here so MSAL can match the cached auth state.
   -->
+  <script>
+    // Synchronously read clientId before MSAL script loads so it is available
+    // in the inline init block below.
+    window.__msalClientId = sessionStorage.getItem('itrm.planner.clientId') || '';
+  </script>
+  <!-- Pinned to the same major version used in the app bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5/dist/msal-browser.min.js"></script>
+  <script>
+    (function () {
+      var clientId = window.__msalClientId;
+      if (!clientId) {
+        // Nothing to do — this page was not opened as part of a Planner sign-in.
+        return;
+      }
+
+      var pca = new msal.PublicClientApplication({
+        auth: {
+          clientId: clientId,
+          authority: 'https://login.microsoftonline.com/organizations',
+          redirectUri: window.location.origin + '/auth-redirect.html',
+        },
+        cache: { cacheLocation: 'sessionStorage' },
+      });
+
+      pca.initialize()
+        .then(function () { return pca.handleRedirectPromise(); })
+        .catch(function (e) { console.error('[auth-redirect] handleRedirectPromise error:', e); });
+    })();
+  </script>
+</head>
+<body style="background:#fff;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;">
+  <p style="font-family:sans-serif;color:#6b7280;font-size:14px;">Completing sign-in…</p>
 </body>
 </html>

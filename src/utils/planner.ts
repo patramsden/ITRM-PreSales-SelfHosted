@@ -155,7 +155,10 @@ export async function convertToPlannerProject(proposal: Proposal): Promise<strin
     );
   }
 
-  // 2. Authenticate — opens M365 login popup if no cached session
+  // 2. Authenticate — opens M365 login popup if no cached session.
+  //    Store the clientId so auth-redirect.html can initialise MSAL and
+  //    post the auth code back to this window (required by MSAL popup flow).
+  sessionStorage.setItem('itrm.planner.clientId', clientId);
   const pca   = await getMsal(clientId);
   const token = await getToken(pca);
 
