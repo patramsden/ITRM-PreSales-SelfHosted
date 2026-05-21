@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, BookTemplate, Upload } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { AutotaskCompanyPicker } from '../crm/AutotaskPicker';
 import { useStore, createBlankProposal, createProposalFromTemplate } from '../../store';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Currency } from '../../types';
@@ -20,10 +21,11 @@ export function NewProposalModal({ open, onClose }: Props) {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState<Mode>('scratch');
+  const [mode, setMode]             = useState<Mode>('scratch');
   const [projectName, setProjectName] = useState('');
-  const [client, setClient] = useState('');
-  const [currency, setCurrency] = useState<Currency>('GBP');
+  const [client, setClient]           = useState('');
+  const [crmCompanyId, setCrmCompanyId] = useState<string | undefined>();
+  const [currency, setCurrency]       = useState<Currency>('GBP');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
 
   const handleCreate = () => {
@@ -34,10 +36,11 @@ export function NewProposalModal({ open, onClose }: Props) {
       if (tmpl) proposal = createProposalFromTemplate(tmpl, projectName, client, currency, currentUser.id);
     }
     if (!proposal) proposal = createBlankProposal(projectName, client, currency, currentUser.id);
+    if (crmCompanyId) proposal = { ...proposal, crmCompanyId };
     addProposal(proposal);
     navigate(`/proposals/${proposal.id}`);
     onClose();
-    setProjectName(''); setClient(''); setMode('scratch'); setSelectedTemplateId('');
+    setProjectName(''); setClient(''); setCrmCompanyId(undefined); setMode('scratch'); setSelectedTemplateId('');
   };
 
   return (
@@ -114,12 +117,11 @@ export function NewProposalModal({ open, onClose }: Props) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
-          <input
-            className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Client name"
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Client *</label>
+          <AutotaskCompanyPicker
             value={client}
-            onChange={e => setClient(e.target.value)}
+            crmId={crmCompanyId}
+            onChange={(name, id) => { setClient(name); setCrmCompanyId(id); }}
           />
         </div>
         <div>

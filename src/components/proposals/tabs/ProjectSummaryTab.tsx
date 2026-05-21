@@ -4,6 +4,7 @@ import type { Proposal } from '../../../types';
 import { useAuth, isPresalesAdmin } from '../../../contexts/AuthContext';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
+import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
 import type { ProposalStatus, Currency } from '../../../types';
 
 interface Props {
@@ -93,7 +94,27 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
             <TextInput value={proposal.projectName} onChange={v => onUpdate({ projectName: v })} disabled={!editable} />
           </Field>
           <Field label="Client">
-            <TextInput value={proposal.client} onChange={v => onUpdate({ client: v })} disabled={!editable} />
+            {editable ? (
+              <AutotaskCompanyPicker
+                value={proposal.client}
+                crmId={proposal.crmCompanyId}
+                onChange={(name, id) => onUpdate({ client: name, crmCompanyId: id })}
+                placeholder="Search Autotask or type client name…"
+              />
+            ) : (
+              <TextInput value={proposal.client} onChange={() => {}} disabled />
+            )}
+          </Field>
+          <Field label="Client Contact">
+            {editable ? (
+              <AutotaskContactPicker
+                value={proposal.clientContact ?? ''}
+                crmCompanyId={proposal.crmCompanyId}
+                onChange={v => onUpdate({ clientContact: v })}
+              />
+            ) : (
+              <TextInput value={proposal.clientContact ?? ''} onChange={() => {}} disabled placeholder="—" />
+            )}
           </Field>
           <Field label="Account Manager">
             <TextInput value={proposal.accountManager} onChange={v => onUpdate({ accountManager: v })} disabled={!editable} placeholder="Name" />

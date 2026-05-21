@@ -119,6 +119,12 @@ export interface Proposal {
   // template source
   templateId?: string;
 
+  // CRM
+  /** Name of the primary contact at the client company */
+  clientContact?: string;
+  /** Autotask company ID — enables contact lookup within the proposal */
+  crmCompanyId?: string;
+
   // Approval reviews (driven by GP thresholds)
   trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived';
   trbReviewNotes?: string;

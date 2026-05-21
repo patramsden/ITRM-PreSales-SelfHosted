@@ -9,6 +9,7 @@ import { getPool, ensureSchema } from './shared/db';
 
 import authRouter      from './routes/auth';
 import catalogRouter   from './routes/catalog';
+import crmRouter       from './routes/crm';
 import meRouter        from './routes/me';
 import proposalsRouter from './routes/proposals';
 import rateCardsRouter from './routes/rateCards';
@@ -40,6 +41,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth',       authRouter);
 app.use('/api/catalog',    catalogRouter);
+app.use('/api/crm',        crmRouter);
 app.use('/api/me',         meRouter);
 app.use('/api/proposals',  proposalsRouter);
 app.use('/api/rate-cards', rateCardsRouter);

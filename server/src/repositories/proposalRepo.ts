@@ -60,6 +60,8 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     trbReviewedBy:  (r.trb_reviewed_by  as string) ?? undefined,
     trbReviewedAt:  r.trb_reviewed_at ? (r.trb_reviewed_at as Date).toISOString() : undefined,
     fiveKStatus: (r.five_k_status as Proposal['fiveKStatus']) ?? undefined,
+    clientContact: (r.client_contact as string) ?? undefined,
+    crmCompanyId:  (r.crm_company_id  as string) ?? undefined,
     parts, phases,
   };
 }
@@ -172,8 +174,9 @@ export async function createProposal(p: Proposal): Promise<void> {
     `INSERT INTO proposals (id,project_name,client,account_manager,status,currency,
        date_created,date_modified,ticket_ref,markup_pct,objectives,business_requirements,
        justification,constraints,assumptions,notes,owner_id,collaborator_ids,sow_content,
-       planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,five_k_status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+       planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,
+       five_k_status,client_contact,crm_company_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -181,7 +184,8 @@ export async function createProposal(p: Proposal): Promise<void> {
      p.ownerId, JSON.stringify(p.collaboratorIds), p.sowContent ?? null,
      p.plannerUrl ?? null, p.templateId ?? null, p.trbStatus ?? null,
      p.trbReviewNotes ?? null, p.trbReviewedBy ?? null,
-     p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null],
+     p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
+     p.clientContact ?? null, p.crmCompanyId ?? null],
   );
   await writeNested(p);
 }
@@ -192,7 +196,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        date_created=$7,date_modified=$8,ticket_ref=$9,markup_pct=$10,objectives=$11,
        business_requirements=$12,justification=$13,constraints=$14,assumptions=$15,notes=$16,
        owner_id=$17,collaborator_ids=$18,sow_content=$19,planner_url=$20,template_id=$21,
-       trb_status=$22,trb_review_notes=$23,trb_reviewed_by=$24,trb_reviewed_at=$25,five_k_status=$26
+       trb_status=$22,trb_review_notes=$23,trb_reviewed_by=$24,trb_reviewed_at=$25,
+       five_k_status=$26,client_contact=$27,crm_company_id=$28
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -201,7 +206,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      p.ownerId, JSON.stringify(p.collaboratorIds), p.sowContent ?? null,
      p.plannerUrl ?? null, p.templateId ?? null, p.trbStatus ?? null,
      p.trbReviewNotes ?? null, p.trbReviewedBy ?? null,
-     p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null],
+     p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
+     p.clientContact ?? null, p.crmCompanyId ?? null],
   );
   await writeNested(p);
 }

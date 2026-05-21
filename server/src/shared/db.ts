@@ -243,6 +243,9 @@ export async function ensureSchema(): Promise<void> {
   // ── Additive column migrations (idempotent ADD COLUMN IF NOT EXISTS) ─────────
   // These handle the case where a table already existed before a column was added.
   const migrations = [
+    // proposals columns — CRM integration
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_contact  VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS crm_company_id  VARCHAR(100)`,
     // catalog_items columns added after initial release
     `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS cost_price  NUMERIC(18,2) NOT NULL DEFAULT 0`,
     `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS part_type   VARCHAR(50)   NOT NULL DEFAULT 'Hardware'`,

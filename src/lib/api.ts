@@ -91,6 +91,31 @@ export const rateCardApi = {
   import: (cards: Partial<RateCard>[])      => api.post<{ imported: number }>('rate-cards/import', cards),
 };
 
+// ─── CRM (Autotask proxy) ─────────────────────────────────────────────────────
+
+export interface CrmCompany {
+  id: number;
+  companyName: string;
+  phone?: string;
+  city?: string;
+}
+
+export interface CrmContact {
+  id: number;
+  firstName: string;
+  lastName: string;
+  emailAddress?: string;
+  title?: string;
+}
+
+export const crmApi = {
+  status:          ()                  => api.get<{ configured: boolean }>('crm/status'),
+  searchCompanies: (search: string)    => api.get<CrmCompany[]>(`crm/companies?search=${encodeURIComponent(search)}`),
+  getContacts:     (companyId: number) => api.get<CrmContact[]>(`crm/contacts?companyId=${companyId}`),
+  testConnection:  ()                  => api.post<{ success: boolean; message: string }>('crm/test', {}),
+  detectZone:      (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
+};
+
 export const lookupsApi = {
   get:    ()                    => api.get<AppLookups>('lookups'),
   update: (l: AppLookups)       => api.put<AppLookups>('lookups', l),
@@ -134,6 +159,14 @@ export interface AppSettings {
   'branding.primaryColor'?: string;   // hex e.g. #2B3990
   'branding.companyName'?:  string;
   'branding.subtitle'?:     string;
+
+  // CRM — Autotask
+  'crm.provider'?:                       string;  // 'autotask' | 'none'
+  'crm.autotask.zoneUrl'?:               string;
+  'crm.autotask.integrationCode'?:       string;
+  'crm.autotask.username'?:              string;
+  'crm.autotask.secret'?:                string;  // write-only
+  'crm.autotask.secret.configured'?:     string;  // 'true'|'false' read-only indicator
 }
 
 export const settingsApi = {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
 import { useStore } from '../store';
-import { settingsApi, authApi, totpApi, serviceKeyApi } from '../lib/api';
+import { settingsApi, authApi, totpApi, serviceKeyApi, crmApi } from '../lib/api';
 import type { AppSettings } from '../lib/api';
 import { LookupEditor } from '../components/ui/LookupEditor';
 import { Button } from '../components/ui/Button';
@@ -11,7 +11,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2,
+  Plug, Copy, Check, RefreshCw, Trash2, Building2,
 } from 'lucide-react';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
@@ -29,6 +29,7 @@ const TABS: Tab[] = [
   { id: 'ai',           label: 'AI / SoW',            icon: Zap,           adminOnly: true  },
   { id: 'sso',          label: 'Single Sign-On',      icon: Globe,         adminOnly: true  },
   { id: 'planner',      label: 'Microsoft Planner',   icon: CalendarCheck, adminOnly: true  },
+  { id: 'crm',          label: 'CRM',                 icon: Building2,     adminOnly: true  },
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
@@ -773,6 +774,131 @@ function NotificationsTab({ settings, onChange }: { settings: AppSettings; onCha
   );
 }
 
+// ─── CRM tab ──────────────────────────────────────────────────────────────────
+
+function CrmTab({ settings, onChange, isAdmin }: {
+  settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean;
+}) {
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [secretInput, setSecretInput] = useState('');
+  const [testing,     setTesting]     = useState(false);
+  const [testResult,  setTestResult]  = useState<{ success: boolean; message: string } | null>(null);
+  const [detecting,   setDetecting]   = useState(false);
+
+  const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false); setError(null); setTestResult(null);
+    try {
+      const patch: AppSettings = { ...settings };
+      if (secretInput.trim()) patch['crm.autotask.secret'] = secretInput.trim();
+      await settingsApi.update(patch);
+      setSecretInput('');
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDetectZone = async () => {
+    const username = (settings['crm.autotask.username'] ?? '').trim();
+    if (!username) { setError('Enter your Autotask username (email) first.'); return; }
+    setDetecting(true); setError(null);
+    try {
+      const { zoneUrl } = await crmApi.detectZone(username);
+      onChange({ ...settings, 'crm.autotask.zoneUrl': zoneUrl });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Zone detection failed'); }
+    finally { setDetecting(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true); setTestResult(null);
+    try { setTestResult(await crmApi.testConnection()); }
+    catch (e) { setTestResult({ success: false, message: e instanceof Error ? e.message : 'Test failed' }); }
+    finally { setTesting(false); }
+  };
+
+  const secretConfigured = settings['crm.autotask.secret.configured'] === 'true';
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={Building2} title="CRM — Autotask"
+        subtitle="Pull company and contact data directly from Autotask when creating proposals"
+        adminOnly={!isAdmin} />
+
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-1.5">
+        <div className="font-semibold">Setup — Autotask API credentials</div>
+        <ol className="list-decimal ml-4 space-y-0.5">
+          <li>In Autotask, go to <strong>Admin → Resources / Users (HR) → API Users → New API User</strong></li>
+          <li>Set a username (email format) and generate a secret. Note the <strong>Integration Code</strong> shown after creation.</li>
+          <li>Give the API user the minimum security level required to read <strong>Companies</strong> and <strong>Contacts</strong>.</li>
+          <li>Enter the username below and click <strong>Detect Zone</strong> — this auto-fills the API URL for your Autotask instance.</li>
+        </ol>
+      </div>
+
+      <FieldRow label="Autotask Username (API user email)">
+        <TextInput value={(settings['crm.autotask.username'] ?? '') as string}
+          onChange={v => set('crm.autotask.username', v)}
+          placeholder="api.user@yourcompany.com" readOnly={!isAdmin} />
+      </FieldRow>
+
+      <FieldRow label="API Zone URL">
+        <div className="flex gap-2">
+          <TextInput value={(settings['crm.autotask.zoneUrl'] ?? '') as string}
+            onChange={v => set('crm.autotask.zoneUrl', v)}
+            placeholder="https://webservices16.autotask.net" readOnly={!isAdmin} />
+          {isAdmin && (
+            <button type="button" onClick={handleDetectZone} disabled={detecting}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-50 whitespace-nowrap">
+              {detecting ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Detect Zone
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Your Autotask data centre URL. Click Detect Zone to auto-fill from your username.</p>
+      </FieldRow>
+
+      <FieldRow label="API Integration Code">
+        <TextInput value={(settings['crm.autotask.integrationCode'] ?? '') as string}
+          onChange={v => set('crm.autotask.integrationCode', v)}
+          placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" readOnly={!isAdmin} />
+        <p className="text-xs text-gray-400 mt-1">Shown when creating the API user in Autotask Admin.</p>
+      </FieldRow>
+
+      {isAdmin && (
+        <FieldRow label="API Secret">
+          <SecretInput value={secretInput} onChange={setSecretInput}
+            placeholder={secretConfigured ? '••••••••  (configured — leave blank to keep)' : 'Paste API user secret'} />
+          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Lock size={10} /> Stored server-side only — never returned to the browser.</p>
+        </FieldRow>
+      )}
+
+      {testResult && (
+        <div className={clsx('flex items-center gap-2 px-3 py-2 rounded-lg text-sm border',
+          testResult.success
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400')}>
+          {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+          {testResult.message}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="flex items-center gap-3 pt-2">
+          <button type="button" onClick={handleTest} disabled={testing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 disabled:opacity-50 transition-colors">
+            {testing ? <Loader2 size={13} className="animate-spin" /> : <Building2 size={13} />}
+            Test Connection
+          </button>
+        </div>
+      )}
+
+      {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
+    </div>
+  );
+}
+
 function PlannerTab({ settings, onChange, isAdmin }: {
   settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean;
 }) {
@@ -1056,6 +1182,7 @@ export function Settings() {
           {activeTab === 'ai'            && settingsLoaded && <AiTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'sso'           && settingsLoaded && <SsoTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'planner'       && settingsLoaded && <PlannerTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
+          {activeTab === 'crm'           && settingsLoaded && <CrmTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'api'           && <ApiAccessTab isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>
