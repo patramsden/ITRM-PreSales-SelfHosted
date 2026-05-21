@@ -17,6 +17,7 @@ import { RateCards } from './pages/RateCards';
 import { Settings } from './pages/Settings';
 import { UserManagement } from './pages/UserManagement';
 import { SharedProposalView } from './pages/SharedProposalView';
+import { CustomerProposalView } from './pages/CustomerProposalView';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { Profile } from './pages/Profile';
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/:token" element={<SharedProposalView />} />
+      <Route path="/customer/:token" element={<CustomerProposalView />} />
       <Route
         element={
           authLoading

@@ -11,12 +11,8 @@ import { Modal } from '../components/ui/Modal';
 import { RateCardImportDialog } from '../components/rateCards/RateCardImportDialog';
 import { downloadCsv } from '../utils/downloadCsv';
 import type { RateCard, Currency } from '../types';
+import { HOURS_PER_DAY, hourlyRate } from '../utils/rates';
 import clsx from 'clsx';
-
-export const HOURS_PER_DAY = 7;
-
-/** Hourly rate = dayRate / 7, rounded up to the nearest £5. */
-export const hourlyRate = (dayRate: number) => Math.ceil((dayRate / HOURS_PER_DAY) / 5) * 5;
 
 const BLANK: Omit<RateCard, 'id'> = {
   role: '', costRate: 0, sellRate: 0, currency: 'GBP',

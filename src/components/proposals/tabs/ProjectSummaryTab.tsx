@@ -5,6 +5,7 @@ import { useAuth, isPresalesAdmin } from '../../../contexts/AuthContext';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
 import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
+import { crmApi } from '../../../lib/api';
 import type { ProposalStatus, Currency } from '../../../types';
 
 interface Props {
@@ -98,7 +99,17 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               <AutotaskCompanyPicker
                 value={proposal.client}
                 crmId={proposal.crmCompanyId}
-                onChange={(name, id) => onUpdate({ client: name, crmCompanyId: id })}
+                onChange={async (name, id) => {
+                  onUpdate({ client: name, crmCompanyId: id });
+                  if (id) {
+                    try {
+                      const { name: amName } = await crmApi.getAccountManager(parseInt(id));
+                      if (amName && !proposal.accountManager) {
+                        onUpdate({ client: name, crmCompanyId: id, accountManager: amName });
+                      }
+                    } catch { /* non-fatal — AM lookup is best-effort */ }
+                  }
+                }}
                 placeholder="Search Autotask or type client name…"
               />
             ) : (

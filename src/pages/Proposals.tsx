@@ -29,7 +29,8 @@ export function Proposals() {
       list = list.filter(p =>
         p.projectName.toLowerCase().includes(q) ||
         p.client.toLowerCase().includes(q) ||
-        (p.ticketRef ?? '').toLowerCase().includes(q)
+        (p.ticketRef ?? '').toLowerCase().includes(q) ||
+        (p.reference ?? '').toLowerCase().includes(q)
       );
     }
     return list;
@@ -85,6 +86,7 @@ export function Proposals() {
           <thead>
             <tr className="bg-gray-50 dark:bg-slate-700/40 border-b border-gray-200 dark:border-slate-700">
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Project</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Ref</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Client</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Owner</th>
@@ -97,7 +99,7 @@ export function Proposals() {
           <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-400 dark:text-slate-500 text-sm">No proposals match your filter.</td>
+                <td colSpan={8} className="text-center py-12 text-gray-400 dark:text-slate-500 text-sm">No proposals match your filter.</td>
               </tr>
             )}
             {filtered.map(p => {
@@ -112,6 +114,15 @@ export function Proposals() {
                   <td className="px-5 py-3.5">
                     <div className="font-medium text-gray-900 dark:text-slate-100 group-hover:text-brand-600">{p.projectName}</div>
                     {p.ticketRef && <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{p.ticketRef}</div>}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {p.reference ? (
+                      <span className="text-xs font-mono text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                        {p.reference}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300 dark:text-slate-600">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400">{p.client}</td>
                   <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>

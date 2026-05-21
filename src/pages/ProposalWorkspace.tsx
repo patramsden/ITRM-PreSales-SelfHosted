@@ -4,7 +4,10 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
-import { getProposalRole, canEdit, canDelete } from '../utils/permissions';
+import { getProposalRole, canEdit, canDelete, canAccessAdmin } from '../utils/permissions';
+import { getExportBlockers } from '../utils/exportGuard';
+import type { ExportBlocker } from '../utils/exportGuard';
+import { ExportGuardModal } from '../components/proposals/ExportGuardModal';
 import { exportProposalToExcel } from '../utils/exportExcel';
 import { convertToPlannerProject } from '../utils/planner';
 import { Button } from '../components/ui/Button';
@@ -43,6 +46,8 @@ export function ProposalWorkspace() {
   const [showHistory, setShowHistory] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportBlockers, setExportBlockers] = useState<ExportBlocker[]>([]);
+  const [pendingExport, setPendingExport] = useState<(() => void) | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Keep a ref to the latest proposal so the unmount cleanup can access it
@@ -54,9 +59,7 @@ export function ProposalWorkspace() {
     return () => {
       const p = proposalRef.current;
       if (p && canEdit(p, currentUser)) {
-        // Fire-and-forget version snapshot — 'save' may not exist on older API clients
-        const save = (versionApi as { save?: (id: string) => Promise<void> }).save;
-        if (save) save(p.id).catch(() => {});
+        versionApi.save(p.id).catch(() => {/* fire and forget */});
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -83,6 +86,18 @@ export function ProposalWorkspace() {
   const role = getProposalRole(proposal, currentUser);
   const editable = canEdit(proposal, currentUser);
   const deletable = canDelete(proposal, currentUser);
+  const isAdminUser = canAccessAdmin(currentUser);
+  const rateCards = useStore(s => s.rateCards);
+
+  const guardedExport = (action: () => void) => {
+    const blockers = getExportBlockers(proposal, rateCards);
+    if (blockers.length > 0) {
+      setExportBlockers(blockers);
+      setPendingExport(() => action);
+      return;
+    }
+    action();
+  };
 
   const handleDelete = () => {
     deleteProposal(proposal.id);
@@ -96,7 +111,7 @@ export function ProposalWorkspace() {
     setPlannerError(null);
     try {
       const url = await convertToPlannerProject(proposal);
-      updateProposal(proposal.id, { plannerUrl: url });
+      updateProposal(proposal.id, { plannerUrl: url }, currentUser?.name ?? currentUser?.email);
       window.open(url, '_blank');
     } catch (e) {
       setPlannerError(e instanceof Error ? e.message : 'Failed to create Planner plan');
@@ -117,11 +132,18 @@ export function ProposalWorkspace() {
             <ArrowLeft size={18} />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{proposal.projectName}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{proposal.projectName}</h1>
+              {proposal.reference && (
+                <span className="text-xs font-mono text-gray-400 dark:text-slate-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                  {proposal.reference}
+                </span>
+              )}
+            </div>
             <div className="text-sm text-gray-500 dark:text-slate-400">{proposal.client}</div>
-            {(proposal as { lastModifiedBy?: string }).lastModifiedBy && (
+            {proposal.lastModifiedBy && (
               <div className="text-xs text-gray-400 dark:text-slate-500">
-                Last modified by {(proposal as { lastModifiedBy?: string }).lastModifiedBy} · {(proposal as { lastModifiedAt?: string }).lastModifiedAt ? new Date((proposal as { lastModifiedAt?: string }).lastModifiedAt!).toLocaleString('en-GB') : ''}
+                Last modified by {proposal.lastModifiedBy} · {proposal.lastModifiedAt ? new Date(proposal.lastModifiedAt).toLocaleString('en-GB') : ''}
               </div>
             )}
           </div>
@@ -155,13 +177,23 @@ export function ProposalWorkspace() {
                       <Loader2 size={14} className="animate-spin" /> Preparing PDF…
                     </div>
                   }>
-                    <div onClick={() => setShowExportMenu(false)}>
+                    <div onClick={(e) => {
+                      const blockers = getExportBlockers(proposal, rateCards);
+                      if (blockers.length > 0) {
+                        e.preventDefault(); e.stopPropagation();
+                        setExportBlockers(blockers);
+                        setPendingExport(null); // PDF button handles its own click
+                        setShowExportMenu(false);
+                      } else {
+                        setShowExportMenu(false);
+                      }
+                    }}>
                       <DownloadProposalPdfButton proposal={proposal} menuStyle />
                     </div>
                   </Suspense>
                   {/* Excel */}
                   <button
-                    onClick={() => { exportProposalToExcel(proposal); setShowExportMenu(false); }}
+                    onClick={() => { guardedExport(() => exportProposalToExcel(proposal)); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 text-left"
                   >
                     <FileSpreadsheet size={15} className="text-green-600 flex-shrink-0" />
@@ -203,7 +235,7 @@ export function ProposalWorkspace() {
             </div>
 
             {/* Share */}
-            <Button variant="secondary" size="sm" onClick={() => setShowShare(true)} title="Share">
+            <Button variant="secondary" size="sm" onClick={() => guardedExport(() => setShowShare(true))} title="Share">
               <Share2 size={14} /> Share
             </Button>
 
@@ -270,27 +302,27 @@ export function ProposalWorkspace() {
       </div>
 
       {/* TRB review banner — visible to all when review is in flight or decided */}
-      <TrbReviewBanner proposal={proposal} onUpdate={u => updateProposal(proposal.id, u)} />
+      <TrbReviewBanner proposal={proposal} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
 
       {/* Tab content */}
       <div className="flex-1 p-8 bg-gray-50 dark:bg-slate-900">
         {activeTab === 'Summary' && (
-          <ProjectSummaryTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <ProjectSummaryTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Parts' && (
-          <PartsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <PartsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Consultancy' && (
-          <ConsultancyTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <ConsultancyTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Billing' && (
-          <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Statement of Work' && (
-          <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Totals & Approval' && (
-          <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u)} />
+          <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
       </div>
 
@@ -310,6 +342,20 @@ export function ProposalWorkspace() {
 
       {showShare && (
         <ShareModal proposalId={proposal.id} onClose={() => setShowShare(false)} />
+      )}
+
+      {exportBlockers.length > 0 && (
+        <ExportGuardModal
+          blockers={exportBlockers}
+          isAdmin={isAdminUser}
+          onCancel={() => { setExportBlockers([]); setPendingExport(null); }}
+          onForce={() => {
+            const action = pendingExport;
+            setExportBlockers([]);
+            setPendingExport(null);
+            if (action) action();
+          }}
+        />
       )}
     </div>
   );

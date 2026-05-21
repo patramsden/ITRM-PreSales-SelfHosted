@@ -1,9 +1,10 @@
 /**
- * Thin fetch wrapper for the Azure Functions API.
- * Base URL is empty in dev (Vite proxy) and in production (same origin via SWA routing).
+ * Thin fetch wrapper for the Express API (self-hosted).
+ * In dev, points to the Express server on port 3001.
+ * In production, uses same-origin routing via nginx.
  */
 
-const BASE = import.meta.env.DEV ? 'http://localhost:7071' : '';
+const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 function getToken(): string | null {
   return localStorage.getItem('auth_token');
@@ -42,7 +43,7 @@ import type {
 } from '../types';
 import type { AppLookups } from '../store';
 
-const BASE_URL = import.meta.env.DEV ? 'http://localhost:7071' : '';
+const BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 export const mfaEnrollApi = {
   start:    (enrollToken: string) =>
@@ -117,11 +118,12 @@ export interface CrmContact {
 }
 
 export const crmApi = {
-  status:          ()                  => api.get<{ configured: boolean }>('crm/status'),
-  searchCompanies: (search: string)    => api.get<CrmCompany[]>(`crm/companies?search=${encodeURIComponent(search)}`),
-  getContacts:     (companyId: number) => api.get<CrmContact[]>(`crm/contacts?companyId=${companyId}`),
-  testConnection:  ()                  => api.post<{ success: boolean; message: string }>('crm/test', {}),
-  detectZone:      (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
+  status:             ()                  => api.get<{ configured: boolean }>('crm/status'),
+  searchCompanies:    (search: string)    => api.get<CrmCompany[]>(`crm/companies?search=${encodeURIComponent(search)}`),
+  getContacts:        (companyId: number) => api.get<CrmContact[]>(`crm/contacts?companyId=${companyId}`),
+  getAccountManager:  (companyId: number) => api.get<{ name: string | null; contactId: number | null }>(`crm/account-manager?companyId=${companyId}`),
+  testConnection:     ()                  => api.post<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string }>('crm/test', {}),
+  detectZone:         (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
 };
 
 export const lookupsApi = {
@@ -179,6 +181,16 @@ export interface AppSettings {
   'scim.token'?:               string;  // write-only bearer token
   'scim.token.configured'?:    string;  // 'true'|'false' read-only indicator
 
+  // Email (SMTP)
+  'email.enabled'?:              string;  // 'true'|'false'
+  'email.host'?:                 string;
+  'email.port'?:                 string;
+  'email.secure'?:               string;  // 'true'|'false'
+  'email.user'?:                 string;
+  'email.password'?:             string;  // write-only
+  'email.password.configured'?:  string;  // 'true'|'false' read-only indicator
+  'email.from'?:                 string;  // "ITRM PreSales <noreply@example.com>"
+
   // CRM — Autotask
   'crm.provider'?:                       string;  // 'autotask' | 'none'
   'crm.autotask.zoneUrl'?:               string;
@@ -210,6 +222,8 @@ export const versionApi = {
     api.get<{ id: string; proposalId: string; savedBy: string; savedAt: string }[]>(`proposals/${pid}/versions`),
   restore: (pid: string, vid: string) =>
     api.post<Proposal>(`proposals/${pid}/versions/${vid}/restore`, {}),
+  save:    (pid: string) => api.post<void>(`proposals/${pid}/versions`, {}),
+  get:     (pid: string, vid: string) => api.get<Proposal>(`proposals/${pid}/versions/${vid}`),
 };
 
 // ─── Shareable links ──────────────────────────────────────────────────────────
@@ -225,6 +239,40 @@ export const shareApi = {
       if (!r.ok) throw new Error('Not found');
       return r.json() as Promise<Proposal>;
     }),
+};
+
+// ─── Customer links ───────────────────────────────────────────────────────────
+
+export interface CustomerLink {
+  token: string;
+  proposalId: string;
+  createdBy: string;
+  createdAt: string;
+  expiresAt?: string;
+  defaultTheme: 'light' | 'dark';
+  approvalStatus: 'pending' | 'approved' | 'rejected';
+  signedAt?: string;
+  signedByName?: string;
+  signerIp?: string;
+  signerNotes?: string;
+}
+
+export const customerApi = {
+  create:    (pid: string, opts?: { expiresAt?: string; defaultTheme?: 'light' | 'dark' }) =>
+    api.post<{ token: string; url: string }>(`proposals/${pid}/customer-link`, opts ?? {}),
+  list:      (pid: string) => api.get<CustomerLink[]>(`proposals/${pid}/customer-links`),
+  delete:    (token: string) => api.delete<void>(`customer-link/${token}`),
+  getPublic: (token: string) =>
+    fetch(`${BASE_URL}/api/customer/${token}`).then(r => {
+      if (!r.ok) throw new Error('Not found');
+      return r.json() as Promise<{ proposal: Proposal; link: CustomerLink }>;
+    }),
+  sign: (token: string, data: { status: 'approved' | 'rejected'; notes?: string; signerName?: string }) =>
+    fetch(`${BASE_URL}/api/customer/${token}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => r.json() as Promise<{ signed: boolean; status: string }>),
 };
 
 // ─── Service API key ──────────────────────────────────────────────────────────

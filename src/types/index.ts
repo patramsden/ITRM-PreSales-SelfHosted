@@ -1,6 +1,6 @@
 // ─── Users & Auth ───────────────────────────────────────────────────────────
 
-export type AppRole = 'admin' | 'user';
+export type AppRole = 'admin' | 'sales_admin' | 'presales' | 'sales';
 export type AuthProvider = 'local' | 'saml';
 
 export interface User {
@@ -153,6 +153,14 @@ export interface Proposal {
   trbReviewedBy?: string;
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+
+  /** When true, consultancy GP uses the actual rate card costRate instead of the default 70% of sell */
+  useRateCardCost?: boolean;
+
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
+
+  reference?: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────

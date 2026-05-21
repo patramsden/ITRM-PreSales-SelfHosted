@@ -6,13 +6,15 @@ import {
 } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
-import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { canAccessAdmin } from '../utils/permissions';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { adminUserApi } from '../lib/api';
-import type { User } from '../types';
+import type { User, AppRole } from '../types';
+import { ROLE_LABELS } from '../utils/permissions';
 import clsx from 'clsx';
 
 // Departments are managed in Settings → Reference Data
@@ -21,10 +23,12 @@ const BLANK_USER: Omit<User, 'id'> & { password: string } = {
   name: '',
   email: '',
   department: 'PreSales',
-  appRole: 'user',
+  appRole: 'sales',
   authProvider: 'local',
   password: '',
 };
+
+const ALL_ROLES: AppRole[] = ['admin', 'sales_admin', 'presales', 'sales'];
 
 import { UserAvatar } from './Profile';
 // Use UserAvatar directly — it shows photo if present, initials otherwise
@@ -38,12 +42,6 @@ interface UserFormProps {
 }
 
 function UserForm({ value, onChange, isSelf, departments, isNew }: UserFormProps) {
-  const isAdmin = value.appRole === 'admin';
-
-  const toggleAdmin = () => {
-    onChange({ ...value, appRole: isAdmin ? 'user' : 'admin' });
-  };
-
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
@@ -102,47 +100,31 @@ function UserForm({ value, onChange, isSelf, departments, isNew }: UserFormProps
 
       {/* Application Role */}
       <div>
-        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">Application Role</div>
-        <div className={clsx(
-          'flex items-start justify-between p-4 rounded-xl border-2 transition-colors',
-          isAdmin ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20' : 'border-gray-200 bg-gray-50 dark:border-slate-600 dark:bg-slate-700/50'
-        )}>
-          <div className="flex items-start gap-3">
-            <div className={clsx(
-              'p-2 rounded-lg mt-0.5',
-              isAdmin ? 'bg-amber-100' : 'bg-gray-200'
-            )}>
-              <ShieldCheck size={16} className={isAdmin ? 'text-amber-600' : 'text-gray-400'} />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-gray-800 dark:text-slate-200">Administrator</div>
-              <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                Can edit Templates, Catalog, Rate Cards and has admin-override on all proposals
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={toggleAdmin}
-            disabled={isSelf}
-            title={isSelf ? "You can't remove your own admin access" : undefined}
-            className={clsx(
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 mt-1',
-              isAdmin ? 'bg-amber-500' : 'bg-gray-300',
-              isSelf && 'opacity-50 cursor-not-allowed'
-            )}
-          >
-            <span className={clsx(
-              'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              isAdmin ? 'translate-x-5' : 'translate-x-0'
-            )} />
-          </button>
-        </div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Application Role</label>
+        <select
+          value={value.appRole}
+          onChange={e => onChange({ ...value, appRole: e.target.value as AppRole })}
+          disabled={isSelf}
+          className={clsx(
+            'w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500',
+            isSelf && 'opacity-50 cursor-not-allowed'
+          )}
+        >
+          {ALL_ROLES.map(r => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
         {isSelf && (
           <p className="text-xs text-amber-700 mt-2 flex items-center gap-1">
             <AlertTriangle size={11} /> You cannot modify your own role.
           </p>
         )}
+        <div className="mt-2 text-xs text-gray-500 dark:text-slate-400 space-y-0.5">
+          <div><span className="font-medium">Admin:</span> Full access — settings, user management, catalog, all proposals</div>
+          <div><span className="font-medium">Sales Admin:</span> Can edit catalog; admin-override on proposals</div>
+          <div><span className="font-medium">Pre-Sales:</span> Can create and edit proposals; no catalog/settings access</div>
+          <div><span className="font-medium">Sales:</span> Read-only access to shared proposals</div>
+        </div>
       </div>
     </div>
   );
@@ -153,7 +135,7 @@ export function UserManagement() {
   const { users, addUser, updateUser, deleteUser, lookups } = useStore();
   const departments = lookups.departments ?? [];
   const { currentUser } = useAuth();
-  const isAdmin = isPresalesAdmin(currentUser);
+  const isAdmin = canAccessAdmin(currentUser);
 
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -200,7 +182,7 @@ export function UserManagement() {
     (u.department ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const adminCount = users.filter(u => u.appRole === 'admin').length;
+  const adminCount = users.filter(u => u.appRole === 'admin' || u.appRole === 'sales_admin').length;
 
   const handleCreate = () => {
     if (!newUser.name.trim() || !newUser.email.trim()) return;
@@ -276,6 +258,7 @@ export function UserManagement() {
             {filtered.map(user => {
               const isSelf = user.id === currentUser?.id;
               const admin = user.appRole === 'admin';
+              const roleLabel = ROLE_LABELS[user.appRole] ?? user.appRole;
               return (
                 <tr key={user.id} className={clsx('hover:bg-gray-50 dark:hover:bg-slate-700/50', isSelf && 'bg-brand-50/40 dark:bg-brand-900/20')}>
                   <td className="px-5 py-3.5">
@@ -298,10 +281,12 @@ export function UserManagement() {
                   <td className="px-4 py-3.5">
                     {admin ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700">
-                        <ShieldCheck size={11} /> Admin
+                        <ShieldCheck size={11} /> {roleLabel}
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400 dark:text-slate-500">Standard user</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600">
+                        {roleLabel}
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3.5">

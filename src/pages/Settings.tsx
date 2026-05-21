@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { canAccessAdmin } from '../utils/permissions';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useStore } from '../store';
-import { settingsApi, authApi, totpApi, serviceKeyApi, crmApi, ssoApi } from '../lib/api';
+import { api, settingsApi, authApi, totpApi, serviceKeyApi, crmApi, ssoApi } from '../lib/api';
 import type { AppSettings } from '../lib/api';
 import { LookupEditor } from '../components/ui/LookupEditor';
 import { Button } from '../components/ui/Button';
@@ -12,7 +13,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock,
+  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
 } from 'lucide-react';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
@@ -33,6 +34,7 @@ const TABS: Tab[] = [
   { id: 'crm',          label: 'CRM',                 icon: Building2,     adminOnly: true  },
   { id: 'provisioning', label: 'Provisioning',        icon: UserCheck,     adminOnly: true  },
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
+  { id: 'email',        label: 'Email',               icon: Mail,          adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
 
@@ -1057,7 +1059,7 @@ function CrmTab({ settings, onChange, isAdmin }: {
   const [error,       setError]       = useState<string | null>(null);
   const [secretInput, setSecretInput] = useState('');
   const [testing,     setTesting]     = useState(false);
-  const [testResult,  setTestResult]  = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult,  setTestResult]  = useState<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string } | null>(null);
   const [detecting,   setDetecting]   = useState(false);
 
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
@@ -1148,12 +1150,22 @@ function CrmTab({ settings, onChange, isAdmin }: {
       )}
 
       {testResult && (
-        <div className={clsx('flex items-center gap-2 px-3 py-2 rounded-lg text-sm border',
+        <div className={clsx('px-3 py-2 rounded-lg text-sm border',
           testResult.success
             ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
             : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400')}>
-          {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-          {testResult.message}
+          <div className="flex items-start gap-2">
+            {testResult.success ? <CheckCircle size={14} className="mt-0.5 shrink-0" /> : <AlertCircle size={14} className="mt-0.5 shrink-0" />}
+            <span>{testResult.message}</span>
+          </div>
+          {(testResult.zoneUrl || testResult.username) && (
+            <div className="mt-1.5 ml-5 text-xs opacity-70 space-y-0.5">
+              {testResult.username          && <div>API User: <span className="font-mono">{testResult.username}</span></div>}
+              {testResult.zoneUrl           && <div>Zone URL (stored): <span className="font-mono">{testResult.zoneUrl}</span></div>}
+              {testResult.detectedZone      && <div>Zone URL (detected): <span className="font-mono">{testResult.detectedZone}</span></div>}
+              {testResult.integrationCodeHint && <div>Integration Code: <span className="font-mono">{testResult.integrationCodeHint}</span></div>}
+            </div>
+          )}
         </div>
       )}
 
@@ -1542,13 +1554,128 @@ function SectionHeader({ icon: Icon, title, subtitle, adminOnly }: {
   );
 }
 
+// ─── Email tab ────────────────────────────────────────────────────────────────
+
+function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
+  const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false); setError(null);
+    try {
+      await settingsApi.update(settings);
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true); setTestMsg(null);
+    try {
+      const r = await api.post<{ success: boolean; message: string }>('settings/test-email', {});
+      setTestMsg({ ok: r.success, msg: r.message });
+    } catch (e) { setTestMsg({ ok: false, msg: e instanceof Error ? e.message : 'Test failed' }); }
+    finally { setTesting(false); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={Mail} title="Email (SMTP)" subtitle="Send password reset links and customer approval notifications" adminOnly={!isAdmin} />
+
+      <div className="space-y-4">
+        {/* Enable toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium text-gray-800 dark:text-slate-200">Enable email sending</div>
+            <div className="text-xs text-gray-400 dark:text-slate-500">Send emails for password resets and proposal approvals</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => set('email.enabled', settings['email.enabled'] === 'true' ? 'false' : 'true')}
+            disabled={!isAdmin}
+            className={clsx(
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200',
+              settings['email.enabled'] === 'true' ? 'bg-brand-500' : 'bg-gray-300 dark:bg-slate-600',
+              !isAdmin && 'opacity-50 cursor-not-allowed',
+            )}
+          >
+            <span className={clsx(
+              'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200',
+              settings['email.enabled'] === 'true' ? 'translate-x-5' : 'translate-x-0',
+            )} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <FieldRow label="SMTP Host">
+              <TextInput value={settings['email.host'] ?? ''} onChange={v => set('email.host', v)} placeholder="smtp.example.com" readOnly={!isAdmin} />
+            </FieldRow>
+          </div>
+          <FieldRow label="Port">
+            <TextInput value={settings['email.port'] ?? '587'} onChange={v => set('email.port', v)} placeholder="587" readOnly={!isAdmin} />
+          </FieldRow>
+          <div className="flex items-center gap-3 pt-5">
+            <input
+              type="checkbox"
+              id="email-secure"
+              checked={settings['email.secure'] === 'true'}
+              onChange={e => set('email.secure', e.target.checked ? 'true' : 'false')}
+              disabled={!isAdmin}
+              className="rounded border-gray-300 text-brand-600"
+            />
+            <label htmlFor="email-secure" className="text-sm text-gray-700 dark:text-slate-300">Use TLS (port 465)</label>
+          </div>
+          <div className="col-span-2">
+            <FieldRow label="From Address">
+              <TextInput value={settings['email.from'] ?? ''} onChange={v => set('email.from', v)} placeholder='ITRM PreSales <noreply@example.com>' readOnly={!isAdmin} />
+            </FieldRow>
+          </div>
+          <FieldRow label="Username">
+            <TextInput value={settings['email.user'] ?? ''} onChange={v => set('email.user', v)} placeholder="smtp-user@example.com" readOnly={!isAdmin} />
+          </FieldRow>
+          <FieldRow label="Password">
+            <SecretInput
+              value={settings['email.password'] ?? ''}
+              onChange={v => set('email.password', v)}
+              placeholder={settings['email.password.configured'] === 'true' ? '••••••••' : 'Enter SMTP password'}
+              readOnly={!isAdmin}
+            />
+          </FieldRow>
+        </div>
+
+        {isAdmin && (
+          <div className="flex items-center gap-3 pt-2">
+            <Button variant="secondary" onClick={handleTest} disabled={testing}>
+              {testing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+              Send test email
+            </Button>
+            {testMsg && (
+              <span className={clsx('text-sm', testMsg.ok ? 'text-green-600' : 'text-red-600')}>
+                {testMsg.ok ? <CheckCircle size={14} className="inline mr-1" /> : <AlertCircle size={14} className="inline mr-1" />}
+                {testMsg.msg}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />
+    </div>
+  );
+}
+
 // ─── Main Settings page ───────────────────────────────────────────────────────
 
 export function Settings() {
   useDocumentTitle('Settings');
   const { currentUser } = useAuth();
   const { lookups, updateLookup } = useStore();
-  const isAdmin = isPresalesAdmin(currentUser);
+  const isAdmin = canAccessAdmin(currentUser);
   const [activeTab, setActiveTab] = useState('profile');
   const [appSettings, setAppSettings] = useState<AppSettings>({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1611,6 +1738,7 @@ export function Settings() {
           {activeTab === 'crm'           && settingsLoaded && <CrmTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'provisioning'  && settingsLoaded && <ProvisioningTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'api'           && <ApiAccessTab isAdmin={isAdmin} />}
+          {activeTab === 'email'         && settingsLoaded && <EmailTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>
       </div>

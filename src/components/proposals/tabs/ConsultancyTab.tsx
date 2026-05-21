@@ -4,8 +4,8 @@ import { v4 as uuid } from 'uuid';
 import type { Proposal, ConsultancyPhase, ConsultancyTask } from '../../../types';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
-import { PM_RATE } from '../../../utils/totals';
-import { HOURS_PER_DAY } from '../../../pages/RateCards';
+import { PM_RATE, calcTotals } from '../../../utils/totals';
+import { HOURS_PER_DAY, hourlyRate } from '../../../utils/rates';
 import clsx from 'clsx';
 
 interface Props {
@@ -29,6 +29,9 @@ const MULTIPLIER_COLORS: Record<1 | 1.5 | 2, string> = {
 export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
   const { rateCards } = useStore();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // Recalculate local totals using calcTotals (includes rate card cost if toggled)
+  const _totals = calcTotals(proposal, rateCards);
 
   const setPhases = (phases: ConsultancyPhase[]) => onUpdate({ phases });
 
@@ -85,13 +88,18 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
     .flatMap(ph => ph.tasks)
     .some(t => rateCards.find(rc => rc.role === t.role)?.overtimeEnabled);
 
-  const taskTotal = (t: ConsultancyTask) => t.days * t.dayRate * (t.rateMultiplier ?? 1);
+  const taskTotal = (t: ConsultancyTask) => {
+    const multiplier = t.rateMultiplier ?? 1;
+    if (t.unit === 'hours') {
+      const hours = t.days * HOURS_PER_DAY;
+      return hours * hourlyRate(t.dayRate) * multiplier;
+    }
+    return t.days * t.dayRate * multiplier;
+  };
 
-  const baseTotal = proposal.phases.reduce((s, ph) =>
-    s + ph.tasks.reduce((ts, t) => ts + taskTotal(t), 0), 0
-  );
-  const pmValue   = baseTotal * PM_RATE;
-  const grandTotal = baseTotal + pmValue;
+  const baseTotal = _totals.baseConsultancySell;
+  const pmValue   = _totals.pmValue;
+  const grandTotal = _totals.consultancySell;
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -104,6 +112,7 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
       {proposal.phases.map(phase => {
         const phTotal = phase.tasks.reduce((s, t) => s + taskTotal(t), 0);
         const isCollapsed = collapsed.has(phase.id);
+        const phaseHasHours = phase.tasks.some(t => (t.unit ?? 'days') === 'hours');
 
         return (
           <div key={phase.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
@@ -140,7 +149,7 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
                   <div className="col-span-2 text-center">Duration</div>
                   {anyOvertimeEnabled && <div className="col-span-1 text-center">Rate</div>}
                   <div className={clsx('text-right flex items-center justify-end gap-1', anyOvertimeEnabled ? 'col-span-2' : 'col-span-2')}>
-                    <Lock size={10} className="text-gray-300" /> Rate / Day
+                    <Lock size={10} className="text-gray-300" /> {phaseHasHours ? 'Rate / Hr' : 'Rate / Day'}
                   </div>
                   <div className="col-span-1 text-right">Total</div>
                 </div>
@@ -154,7 +163,9 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
                   const overtimeAvailable = rc?.overtimeEnabled ?? false;
                   const multiplier = (task.rateMultiplier ?? 1) as 1 | 1.5 | 2;
                   const unit = task.unit ?? 'days';
-                  const effectiveRate = task.dayRate * multiplier;
+                  const effectiveRate = unit === 'hours'
+                    ? hourlyRate(task.dayRate) * multiplier
+                    : task.dayRate * multiplier;
 
                   // Display value: if hours, show hours; if days show days
                   const displayQty = unit === 'hours'

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { CheckCircle, AlertCircle, Users, CalendarCheck, ShieldAlert, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Proposal, ProposalStatus, PartType } from '../../../types';
-import { calcTotals, PM_RATE } from '../../../utils/totals';
-import { HOURS_PER_DAY } from '../../../pages/RateCards';
+import { calcTotals } from '../../../utils/totals';
+import { HOURS_PER_DAY } from '../../../utils/rates';
+import { useStore } from '../../../store';
 import { requiredReviews, REVIEW_THRESHOLDS } from '../../../config/approvals';
 import { buildTeamsMeetingUrl, buildOutlookUrl } from '../../../utils/teamsUrl';
 import { buildTrbMailtoUrl } from '../../../utils/mailtoUrl';
@@ -69,7 +70,8 @@ function TableRow({
 
 export function TotalsTab({ proposal, editable, onUpdate }: Props) {
   const [confirmStatus, setConfirmStatus] = useState<ProposalStatus | null>(null);
-  const totals = calcTotals(proposal);
+  const { rateCards } = useStore();
+  const totals = calcTotals(proposal, rateCards);
   const fmt = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
 
   // Category breakdowns
@@ -146,6 +148,16 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
           <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-teal-600">
             <div className="text-white font-bold text-base">Commercial Summary</div>
             <div className="text-blue-200 text-xs mt-0.5">Auto-calculated from parts and consultancy.</div>
+            <label className="flex items-center gap-2 text-xs text-blue-200 cursor-pointer select-none mt-2">
+              <input
+                type="checkbox"
+                checked={proposal.useRateCardCost ?? false}
+                onChange={e => editable && onUpdate({ useRateCardCost: e.target.checked })}
+                disabled={!editable}
+                className="rounded"
+              />
+              Use rate card cost in GP calculation
+            </label>
           </div>
 
           <div className="px-6 py-2">

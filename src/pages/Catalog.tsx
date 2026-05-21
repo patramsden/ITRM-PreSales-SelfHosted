@@ -3,7 +3,8 @@ import { Plus, Edit2, Trash2, Save, X, Search, Link2, Download } from 'lucide-re
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
-import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { canEditCatalog } from '../utils/permissions';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -319,7 +320,7 @@ export function Catalog() {
   useDocumentTitle('Product Catalog');
   const { catalog, addCatalogItem, updateCatalogItem, deleteCatalogItem, lookups } = useStore();
   const { currentUser } = useAuth();
-  const isAdmin = isPresalesAdmin(currentUser);
+  const isAdmin = canEditCatalog(currentUser);
 
   const [search, setSearch]     = useState('');
   const [editing, setEditing]   = useState<CatalogItem | null>(null);

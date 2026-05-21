@@ -1,8 +1,9 @@
-import type { Proposal, ProposalTotals } from '../types';
+import type { Proposal, ProposalTotals, RateCard } from '../types';
+import { HOURS_PER_DAY, hourlyRate } from './rates';
 
 export const PM_RATE = 0.20;
 
-export function calcTotals(proposal: Proposal): ProposalTotals {
+export function calcTotals(proposal: Proposal, rateCards?: RateCard[]): ProposalTotals {
   let partsCost = 0;
   let partsSell = 0;
 
@@ -19,8 +20,21 @@ export function calcTotals(proposal: Proposal): ProposalTotals {
   for (const phase of proposal.phases) {
     for (const task of phase.tasks) {
       const multiplier = task.rateMultiplier ?? 1;
-      consultancyCost    += task.days * task.dayRate * 0.7 * multiplier;
-      baseConsultancySell += task.days * task.dayRate * multiplier;
+      const rc = (proposal.useRateCardCost && rateCards)
+        ? rateCards.find(r => r.role === task.role)
+        : undefined;
+
+      if (task.unit === 'hours') {
+        const hours = task.days * HOURS_PER_DAY;
+        const hrSell = hourlyRate(task.dayRate);
+        const hrCost = rc ? hourlyRate(rc.costRate) : hrSell * 0.7;
+        baseConsultancySell += hours * hrSell * multiplier;
+        consultancyCost += hours * hrCost * multiplier;
+      } else {
+        const dayCost = rc ? rc.costRate : task.dayRate * 0.7;
+        baseConsultancySell += task.days * task.dayRate * multiplier;
+        consultancyCost += task.days * dayCost * multiplier;
+      }
     }
   }
 

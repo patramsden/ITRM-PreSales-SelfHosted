@@ -9,7 +9,15 @@ import { api, authApi } from '../lib/api';
 
 export function isPresalesAdmin(user: User | null): boolean {
   if (!user) return false;
-  return user.appRole === 'admin';
+  return user.appRole === 'admin' || user.appRole === 'sales_admin' || user.appRole === 'presales';
+}
+
+export function isAdmin(user: User | null): boolean {
+  return user?.appRole === 'admin';
+}
+
+export function canEditCatalogFn(user: User | null): boolean {
+  return user?.appRole === 'admin' || user?.appRole === 'sales_admin';
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
