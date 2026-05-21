@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -17,6 +17,31 @@ import { useStore } from '../store';
 import { calcTotals } from '../utils/totals';
 import { PageHeader } from '../components/ui/PageHeader';
 import type { Proposal, ProposalStatus } from '../types';
+
+// ─── Date range filter ────────────────────────────────────────────────────────
+
+type DateRange = '30d' | '3m' | '6m' | '12m' | 'ytd' | 'all';
+
+const DATE_RANGES: { value: DateRange; label: string }[] = [
+  { value: 'all',  label: 'All time' },
+  { value: '30d',  label: 'Last 30 days' },
+  { value: '3m',   label: '3 months' },
+  { value: '6m',   label: '6 months' },
+  { value: '12m',  label: '12 months' },
+  { value: 'ytd',  label: 'This year' },
+];
+
+function getCutoff(range: DateRange): Date | null {
+  const now = new Date();
+  switch (range) {
+    case '30d': { const d = new Date(now); d.setDate(d.getDate() - 30);    return d; }
+    case '3m':  { const d = new Date(now); d.setMonth(d.getMonth() - 3);   return d; }
+    case '6m':  { const d = new Date(now); d.setMonth(d.getMonth() - 6);   return d; }
+    case '12m': { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return d; }
+    case 'ytd': { return new Date(now.getFullYear(), 0, 1); }
+    default:    return null;
+  }
+}
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
@@ -145,7 +170,8 @@ function KanbanColumn({ config, proposals }: { config: ColumnConfig; proposals: 
 
 export function Pipeline() {
   const { proposals, updateProposal } = useStore();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId]       = useState<string | null>(null);
+  const [dateRange, setDateRange]     = useState<DateRange>('all');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -153,7 +179,13 @@ export function Pipeline() {
 
   const activeProposal = activeId ? proposals.find(p => p.id === activeId) : null;
 
-  const grouped = (status: ProposalStatus) => proposals.filter(p => p.status === status);
+  const filtered = useMemo(() => {
+    const cutoff = getCutoff(dateRange);
+    if (!cutoff) return proposals;
+    return proposals.filter(p => new Date(p.dateModified) >= cutoff);
+  }, [proposals, dateRange]);
+
+  const grouped = (status: ProposalStatus) => filtered.filter(p => p.status === status);
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveId(active.id as string);
@@ -169,12 +201,37 @@ export function Pipeline() {
     }
   };
 
+  const hiddenCount = proposals.length - filtered.length;
+
   return (
     <div className="p-6 h-full flex flex-col">
       <PageHeader
         title="Pipeline"
-        subtitle={`${proposals.length} proposals across all stages`}
+        subtitle={
+          dateRange === 'all'
+            ? `${proposals.length} proposals across all stages`
+            : `${filtered.length} of ${proposals.length} proposals${hiddenCount > 0 ? ` · ${hiddenCount} hidden by date filter` : ''}`
+        }
       />
+
+      {/* Date range selector */}
+      <div className="flex items-center gap-1.5 mb-5 flex-wrap">
+        {DATE_RANGES.map(r => (
+          <button
+            key={r.value}
+            onClick={() => setDateRange(r.value)}
+            className={clsx(
+              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+              dateRange === r.value
+                ? 'bg-brand-600 text-white shadow-sm'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600',
+            )}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 flex-1 overflow-x-auto pb-4">
           {COLUMNS.map(col => (
