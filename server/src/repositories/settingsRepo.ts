@@ -46,6 +46,12 @@ export async function getAppSettingsDirect(): Promise<Record<string, string>> {
 export async function updateAppSettings(updates: Record<string, string>): Promise<void> {
   for (const [key, value] of Object.entries(updates)) {
     if (value === '***') continue;
+    // Skip synthetic *.configured indicator keys — they are computed from the
+    // real key's value at read-time and must never be persisted as their own rows.
+    if (key.endsWith('.configured')) continue;
+    // Don't blank out a server-only secret with an empty value — the frontend
+    // never receives the real value so it sends nothing; preserve what's in DB.
+    if (value === '' && SERVER_ONLY_KEYS.has(key)) continue;
     await query(
       `INSERT INTO app_settings (key, value) VALUES ($1, $2)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,

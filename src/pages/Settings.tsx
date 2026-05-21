@@ -725,28 +725,51 @@ function SsoTab({ settings, onChange, isAdmin }: {
       .finally(() => setCertInfoLoading(false));
   }, []);
 
+  const doMetadataRefresh = async (currentSettings: AppSettings) => {
+    setRefreshing(true); setRefreshMsg(null);
+    // Save first so the metadata URL is in the DB before we fetch
+    try { await settingsApi.update(currentSettings); } catch { /* best effort */ }
+    const r = await ssoApi.refreshMetadata();
+    const epochMs = String(new Date(r.refreshedAt).getTime());
+    setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${new Date(r.refreshedAt).toLocaleString()}` });
+    // Store epoch ms so ensureFreshCert can parse it correctly
+    onChange({ ...currentSettings, 'sso.certLastRefreshed': epochMs });
+    ssoApi.certInfo().then(setCertInfo).catch(() => {});
+    return r;
+  };
+
   const handleSave = async () => {
-    setSaving(true); setSaved(false); setError(null);
+    setSaving(true); setSaved(false); setError(null); setRefreshMsg(null);
     try {
       const patch: AppSettings = { ...settings };
       if (certInput.trim()) patch['sso.idpCert'] = certInput.trim();
+
+      // If a metadata URL is set but no cert is cached yet, fetch it now as
+      // part of saving — prevents the "saved settings but cert never stored" problem
+      const needsAutoFetch = metadataUrl && !certConfigured && !certInput.trim();
+      if (needsAutoFetch) {
+        try {
+          await doMetadataRefresh(patch);
+          // doMetadataRefresh already saved; just clear certInput and mark saved
+          setCertInput('');
+          setSaved(true); setTimeout(() => setSaved(false), 3000);
+          return;
+        } catch (e) {
+          // Refresh failed — still save the other settings, show a warning
+          setRefreshMsg({ ok: false, text: `Settings saved but certificate fetch failed: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      }
+
       await settingsApi.update(patch);
       setCertInput('');
       setSaved(true); setTimeout(() => setSaved(false), 3000);
     } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
-    finally { setSaving(false); }
+    finally { setSaving(false); setRefreshing(false); }
   };
 
   const handleRefreshMetadata = async () => {
-    setRefreshing(true); setRefreshMsg(null);
-    try { await settingsApi.update(settings); } catch { /* best effort */ }
     try {
-      const r = await ssoApi.refreshMetadata();
-      const when = new Date(r.refreshedAt).toLocaleString();
-      setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${when}` });
-      onChange({ ...settings, 'sso.certLastRefreshed': r.refreshedAt, 'sso.idpCert.configured': 'true' });
-      // Reload thumbprint display
-      ssoApi.certInfo().then(setCertInfo).catch(() => {});
+      await doMetadataRefresh(settings);
     } catch (e) {
       setRefreshMsg({ ok: false, text: e instanceof Error ? e.message : 'Refresh failed' });
     } finally { setRefreshing(false); }

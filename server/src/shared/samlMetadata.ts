@@ -85,7 +85,10 @@ export async function ensureFreshCert(cfg: Record<string, string>): Promise<stri
   // No metadata URL — return whatever is stored (manual paste or empty)
   if (!metadataUrl) return cachedCert || undefined;
 
-  const lastRefreshed = Number(cfg[SETTING_KEYS.SSO_CERT_REFRESHED] ?? '0');
+  // Parse timestamp robustly: stored as epoch-ms string by the backend, but
+  // may have been overwritten as an ISO string by an older frontend save.
+  const raw = (cfg[SETTING_KEYS.SSO_CERT_REFRESHED] ?? '').trim();
+  const lastRefreshed = raw ? (Number(raw) || new Date(raw).getTime() || 0) : 0;
   const stale = Date.now() - lastRefreshed > REFRESH_INTERVAL_MS;
 
   if (!stale && cachedCert) return cachedCert;
