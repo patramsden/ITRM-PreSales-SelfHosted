@@ -1,0 +1,1736 @@
+openapi: 3.0.3
+info:
+  title: ITRM PreSales API
+  version: 1.0.0
+  description: |
+    REST API for the ITRM PreSales proposal management platform.
+
+    ## Authentication
+    Most endpoints require a session Bearer token obtained from `POST /auth/login`.
+    Include it as: `Authorization: Bearer <token>`
+
+    Report endpoints (`/report/*`) also accept a service API key generated in
+    Settings → API Access.
+
+    SCIM endpoints use a separate Bearer token configured in Settings → Provisioning.
+
+servers:
+  - url: /api
+    description: Same-origin (production / SWA)
+  - url: http://localhost:7071/api
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Login, logout, TOTP, SAML SSO, password reset
+  - name: Me
+    description: Current user profile
+  - name: Users
+    description: User management (admin only)
+  - name: Proposals
+    description: Proposal CRUD
+  - name: Versions
+    description: Proposal version history
+  - name: Shares
+    description: Public shareable proposal links
+  - name: Templates
+    description: Proposal templates
+  - name: Catalog
+    description: Product / service catalog
+  - name: Rate Cards
+    description: Consultancy day-rate cards
+  - name: Lookups
+    description: Dropdown lookup values
+  - name: SoW
+    description: AI Statement of Work generation
+  - name: Settings
+    description: Application settings (admin only)
+  - name: CRM
+    description: Autotask CRM integration
+  - name: Report
+    description: Power BI / BI reporting endpoints
+  - name: SCIM
+    description: SCIM 2.0 user provisioning (Entra ID)
+
+# ─── Reusable components ──────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    # ── Primitives ──────────────────────────────────────────────────────────────
+
+    AppRole:
+      type: string
+      enum: [admin, user]
+
+    AuthProvider:
+      type: string
+      enum: [local, saml]
+
+    ProposalStatus:
+      type: string
+      enum: [Draft, In Progress, Approved, With Account Manager, Won, Lost]
+
+    Currency:
+      type: string
+      enum: [GBP, USD, EUR]
+
+    # ── User ────────────────────────────────────────────────────────────────────
+
+    User:
+      type: object
+      required: [id, name, email, appRole, authProvider]
+      properties:
+        id:           { type: string, format: uuid }
+        name:         { type: string }
+        email:        { type: string, format: email }
+        department:   { type: string }
+        jobTitle:     { type: string }
+        avatar:       { type: string, description: Base64 data URL }
+        appRole:      { $ref: '#/components/schemas/AppRole' }
+        authProvider: { $ref: '#/components/schemas/AuthProvider' }
+        totpEnabled:  { type: boolean }
+        isActive:     { type: boolean, default: true }
+
+    # ── Proposal sub-types ──────────────────────────────────────────────────────
+
+    VendorQuote:
+      type: object
+      required: [id, vendor, reference, cost, selected]
+      properties:
+        id:             { type: string, format: uuid }
+        vendor:         { type: string }
+        reference:      { type: string }
+        cost:           { type: number }
+        validUntil:     { type: string, format: date }
+        notes:          { type: string }
+        selected:       { type: boolean }
+        attachmentName: { type: string }
+        attachmentMime: { type: string }
+        attachmentData: { type: string, description: Base64 encoded attachment }
+
+    Part:
+      type: object
+      required: [id, description, quantity, unitCost, unitPrice, quotes]
+      properties:
+        id:          { type: string, format: uuid }
+        description: { type: string }
+        sku:         { type: string }
+        quantity:    { type: integer, minimum: 0 }
+        unitCost:    { type: number }
+        unitPrice:   { type: number }
+        partType:    { type: string, enum: [Hardware, Software, Monthly, Annual] }
+        quotes:
+          type: array
+          items: { $ref: '#/components/schemas/VendorQuote' }
+
+    ConsultancyTask:
+      type: object
+      required: [id, name, role, days, dayRate]
+      properties:
+        id:             { type: string, format: uuid }
+        name:           { type: string }
+        role:           { type: string }
+        days:           { type: number, minimum: 0 }
+        dayRate:        { type: number }
+        unit:           { type: string, enum: [days, hours] }
+        rateMultiplier: { type: number, enum: [1, 1.5, 2] }
+
+    ConsultancyPhase:
+      type: object
+      required: [id, name, tasks]
+      properties:
+        id:    { type: string, format: uuid }
+        name:  { type: string }
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/ConsultancyTask' }
+
+    BillingMilestone:
+      type: object
+      required: [id, name, percentage, status]
+      properties:
+        id:         { type: string, format: uuid }
+        name:       { type: string }
+        percentage: { type: number, minimum: 0, maximum: 100 }
+        dueDate:    { type: string, format: date }
+        status:     { type: string, enum: [pending, invoiced, paid] }
+        notes:      { type: string }
+
+    Proposal:
+      type: object
+      required: [id, projectName, client, status, currency, dateCreated, dateModified, markupPct, ownerId, collaboratorIds, parts, phases]
+      properties:
+        id:                   { type: string, format: uuid }
+        projectName:          { type: string }
+        client:               { type: string }
+        accountManager:       { type: string }
+        status:               { $ref: '#/components/schemas/ProposalStatus' }
+        currency:             { $ref: '#/components/schemas/Currency' }
+        dateCreated:          { type: string, format: date-time }
+        dateModified:         { type: string, format: date-time }
+        ticketRef:            { type: string }
+        markupPct:            { type: number }
+        objectives:           { type: string }
+        businessRequirements: { type: string }
+        justification:        { type: string }
+        constraints:          { type: string }
+        assumptions:          { type: string }
+        notes:                { type: string }
+        ownerId:              { type: string, format: uuid }
+        collaboratorIds:
+          type: array
+          items: { type: string, format: uuid }
+        parts:
+          type: array
+          items: { $ref: '#/components/schemas/Part' }
+        phases:
+          type: array
+          items: { $ref: '#/components/schemas/ConsultancyPhase' }
+        milestones:
+          type: array
+          items: { $ref: '#/components/schemas/BillingMilestone' }
+        sowContent:     { type: string }
+        plannerUrl:     { type: string, format: uri }
+        templateId:     { type: string, format: uuid }
+        clientContact:  { type: string }
+        crmCompanyId:   { type: string }
+        trbStatus:      { type: string, enum: [pending, sent, approved, rejected, waived] }
+        trbReviewNotes: { type: string }
+        trbReviewedBy:  { type: string }
+        trbReviewedAt:  { type: string, format: date-time }
+        fiveKStatus:    { type: string, enum: [pending, booked, complete, waived] }
+
+    # ── Template ────────────────────────────────────────────────────────────────
+
+    Template:
+      type: object
+      required: [id, name, ownerId, dateCreated, parts, phases]
+      properties:
+        id:          { type: string, format: uuid }
+        name:        { type: string }
+        description: { type: string }
+        ownerId:     { type: string, format: uuid }
+        dateCreated: { type: string, format: date-time }
+        parts:
+          type: array
+          items: { $ref: '#/components/schemas/Part' }
+        phases:
+          type: array
+          items: { $ref: '#/components/schemas/ConsultancyPhase' }
+
+    # ── Catalog ─────────────────────────────────────────────────────────────────
+
+    CatalogItem:
+      type: object
+      required: [id, sku, description, category, costPrice, listPrice]
+      properties:
+        id:            { type: string, format: uuid }
+        sku:           { type: string }
+        description:   { type: string }
+        category:      { type: string }
+        defaultVendor: { type: string }
+        costPrice:     { type: number }
+        listPrice:     { type: number }
+        partType:      { type: string, enum: [Hardware, Software, Monthly, Annual] }
+        relatedIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    # ── Rate Card ───────────────────────────────────────────────────────────────
+
+    RateCard:
+      type: object
+      required: [id, role, costRate, sellRate, currency, effectiveFrom]
+      properties:
+        id:              { type: string, format: uuid }
+        role:            { type: string }
+        costRate:        { type: number }
+        sellRate:        { type: number }
+        currency:        { $ref: '#/components/schemas/Currency' }
+        effectiveFrom:   { type: string, format: date }
+        effectiveTo:     { type: string, format: date }
+        overtimeEnabled: { type: boolean }
+
+    # ── Lookups ─────────────────────────────────────────────────────────────────
+
+    AppLookups:
+      type: object
+      required: [catalogCategories, departments]
+      properties:
+        catalogCategories:
+          type: array
+          items: { type: string }
+        departments:
+          type: array
+          items: { type: string }
+
+    # ── App Settings ────────────────────────────────────────────────────────────
+
+    AppSettings:
+      type: object
+      description: Key/value map of application settings. Write-only keys (secrets) are never returned; use the corresponding `.configured` boolean indicator instead.
+      properties:
+        'ai.provider':                    { type: string, enum: [azure, anthropic, demo] }
+        'ai.azure.endpoint':              { type: string }
+        'ai.azure.deployment':            { type: string }
+        'ai.azure.apiVersion':            { type: string }
+        'ai.azure.key':                   { type: string, description: Write-only }
+        'ai.azure.key.configured':        { type: string, enum: ['true', 'false'], readOnly: true }
+        'ai.anthropic.key':               { type: string, description: Write-only }
+        'ai.anthropic.key.configured':    { type: string, enum: ['true', 'false'], readOnly: true }
+        'sso.enabled':                    { type: string, enum: ['true', 'false'] }
+        'sso.entryPoint':                 { type: string, format: uri }
+        'sso.issuer':                     { type: string }
+        'sso.idpCert':                    { type: string, description: Write-only PEM certificate }
+        'sso.idpCert.configured':         { type: string, enum: ['true', 'false'], readOnly: true }
+        'sso.metadataUrl':                { type: string, format: uri }
+        'sso.certLastRefreshed':          { type: string, readOnly: true }
+        'sso.logoutUrl':                  { type: string, format: uri }
+        'sso.appUrl':                     { type: string, format: uri }
+        'notifications.slackWebhook':     { type: string, format: uri }
+        'notifications.teamsWebhook':     { type: string, format: uri }
+        'planner.tenantId':               { type: string }
+        'planner.clientId':               { type: string }
+        'planner.groupId':                { type: string }
+        'security.pw.minLength':          { type: string }
+        'security.pw.requireUppercase':   { type: string, enum: ['true', 'false'] }
+        'security.pw.requireLowercase':   { type: string, enum: ['true', 'false'] }
+        'security.pw.requireNumber':      { type: string, enum: ['true', 'false'] }
+        'security.pw.requireSpecial':     { type: string, enum: ['true', 'false'] }
+        'security.requireMfa':            { type: string, enum: ['true', 'false'] }
+        'security.sessionTimeoutHours':   { type: string }
+        'branding.logo':                  { type: string, description: Base64 data URL }
+        'branding.favicon':               { type: string, description: Base64 data URL }
+        'branding.primaryColor':          { type: string, example: '#2B3990' }
+        'branding.companyName':           { type: string }
+        'branding.subtitle':              { type: string }
+        'scim.enabled':                   { type: string, enum: ['true', 'false'] }
+        'scim.token':                     { type: string, description: Write-only }
+        'scim.token.configured':          { type: string, enum: ['true', 'false'], readOnly: true }
+        'crm.provider':                   { type: string, enum: [autotask, none] }
+        'crm.autotask.zoneUrl':           { type: string, format: uri }
+        'crm.autotask.integrationCode':   { type: string }
+        'crm.autotask.username':          { type: string, format: email }
+        'crm.autotask.secret':            { type: string, description: Write-only }
+        'crm.autotask.secret.configured': { type: string, enum: ['true', 'false'], readOnly: true }
+
+    # ── CRM ─────────────────────────────────────────────────────────────────────
+
+    CrmCompany:
+      type: object
+      required: [id, companyName]
+      properties:
+        id:          { type: integer }
+        companyName: { type: string }
+        phone:       { type: string }
+        city:        { type: string }
+
+    CrmContact:
+      type: object
+      required: [id, firstName, lastName]
+      properties:
+        id:           { type: integer }
+        firstName:    { type: string }
+        lastName:     { type: string }
+        emailAddress: { type: string, format: email }
+        title:        { type: string }
+
+    # ── Error ───────────────────────────────────────────────────────────────────
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+# ─── Global security (can be overridden per-operation) ───────────────────────
+
+security:
+  - bearerAuth: []
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AUTH
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /auth/config:
+    get:
+      tags: [Auth]
+      summary: Get public auth configuration
+      description: Returns SSO state and logout URL. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Auth config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ssoEnabled:  { type: boolean }
+                  ssoLogoutUrl: { type: string, nullable: true }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Local login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:    { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Successful login or TOTP challenge
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      token: { type: string }
+                      user:  { $ref: '#/components/schemas/User' }
+                  - type: object
+                    properties:
+                      requireTotp:    { type: boolean, enum: [true] }
+                      challengeToken: { type: string }
+                  - type: object
+                    properties:
+                      requireMfaSetup: { type: boolean, enum: [true] }
+                      enrollToken:     { type: string }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (invalidates session token)
+      responses:
+        '200':
+          description: Logged out
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change own password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword:     { type: string }
+      responses:
+        '200':
+          description: Password changed
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: Request a password reset link (admin only)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Reset link (returned in response for self-hosted; emailed in cloud)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resetUrl: { type: string }
+                  message:  { type: string }
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm password reset with token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:    { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Password reset successfully
+        '400':
+          description: Invalid or expired token
+
+  /auth/totp/status:
+    get:
+      tags: [Auth]
+      summary: Check if TOTP is enabled for the current user
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totpEnabled: { type: boolean }
+
+  /auth/totp/setup:
+    post:
+      tags: [Auth]
+      summary: Begin TOTP setup (generates secret + QR code)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:          { type: string }
+                  formattedSecret: { type: string }
+                  qrCode:          { type: string, description: Base64 PNG data URL }
+
+  /auth/totp/enable:
+    post:
+      tags: [Auth]
+      summary: Confirm and enable TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [secret, code]
+              properties:
+                secret: { type: string }
+                code:   { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        '200':
+          description: TOTP enabled
+
+  /auth/totp:
+    delete:
+      tags: [Auth]
+      summary: Disable TOTP for current user
+      responses:
+        '200':
+          description: TOTP disabled
+
+  /auth/totp/login:
+    post:
+      tags: [Auth]
+      summary: Complete TOTP challenge after password login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeToken, code]
+              properties:
+                challengeToken: { type: string }
+                code:           { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user:  { $ref: '#/components/schemas/User' }
+
+  /auth/totp/start-enrollment:
+    post:
+      tags: [Auth]
+      summary: Start forced MFA enrollment (returns QR code)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollToken]
+              properties:
+                enrollToken: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:          { type: string }
+                  formattedSecret: { type: string }
+                  qrCode:          { type: string }
+
+  /auth/totp/complete-enrollment:
+    post:
+      tags: [Auth]
+      summary: Complete forced MFA enrollment and exchange for session token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollToken, secret, code]
+              properties:
+                enrollToken: { type: string }
+                secret:      { type: string }
+                code:        { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      token: { type: string }
+                      user:  { $ref: '#/components/schemas/User' }
+                  - type: object
+                    properties:
+                      error:          { type: string }
+                      newEnrollToken: { type: string }
+
+  /auth/saml/init:
+    get:
+      tags: [Auth]
+      summary: Initiate SAML SSO redirect
+      security: []
+      responses:
+        '302':
+          description: Redirect to IdP
+
+  /auth/saml/callback:
+    post:
+      tags: [Auth]
+      summary: SAML assertion consumer service (IdP posts here)
+      security: []
+      responses:
+        '302':
+          description: Redirect to /login?saml_code=<one-time-code>
+
+  /auth/saml/exchange:
+    post:
+      tags: [Auth]
+      summary: Exchange one-time SAML auth code for session token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user:  { $ref: '#/components/schemas/User' }
+
+  /auth/saml/refresh-metadata:
+    post:
+      tags: [Auth]
+      summary: Force refresh of IdP signing certificates from federation metadata URL
+      description: Requires admin session token.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:     { type: boolean }
+                  certsFound:  { type: integer }
+                  refreshedAt: { type: string, format: date-time }
+
+  /auth/saml/cert-info:
+    get:
+      tags: [Auth]
+      summary: Get stored IdP certificate diagnostic info
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured:    { type: boolean }
+                  certsCount:    { type: integer }
+                  thumbprints:
+                    type: array
+                    items: { type: string }
+                  metadataUrl:   { type: boolean }
+                  lastRefreshed: { type: string, nullable: true }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # ME
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /me:
+    get:
+      tags: [Me]
+      summary: Get current user profile
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+    put:
+      tags: [Me]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:        { type: string }
+                department:  { type: string }
+                jobTitle:    { type: string }
+                avatar:      { type: string, nullable: true, description: Base64 data URL }
+                clearAvatar: { type: boolean }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # USERS (admin)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/User' }
+
+    post:
+      tags: [Users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/User' }
+                - type: object
+                  properties:
+                    password: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+  /users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    get:
+      tags: [Users]
+      summary: Get a user by ID
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '404':
+          description: User not found
+
+    put:
+      tags: [Users]
+      summary: Update a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/User' }
+                - type: object
+                  properties:
+                    newPassword: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      responses:
+        '204':
+          description: Deleted
+
+  /users/{id}/password-reset:
+    post:
+      tags: [Users]
+      summary: Generate a password reset link for a user (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resetUrl: { type: string }
+
+  /users/{id}/set-password:
+    post:
+      tags: [Users]
+      summary: Directly set a user's password (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        '200':
+          description: Password set
+
+  /users/{id}/totp:
+    delete:
+      tags: [Users]
+      summary: Clear a user's TOTP secret (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: TOTP cleared
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # PROPOSALS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /proposals:
+    get:
+      tags: [Proposals]
+      summary: List proposals visible to the current user
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Proposal' }
+
+    post:
+      tags: [Proposals]
+      summary: Create a proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Proposal' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+
+  /proposals/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    get:
+      tags: [Proposals]
+      summary: Get a proposal
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+        '404':
+          description: Not found
+
+    put:
+      tags: [Proposals]
+      summary: Update a proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Proposal' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+
+    delete:
+      tags: [Proposals]
+      summary: Delete a proposal
+      responses:
+        '204':
+          description: Deleted
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # VERSIONS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /proposals/{id}/versions:
+    get:
+      tags: [Versions]
+      summary: List saved versions of a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:         { type: string, format: uuid }
+                    proposalId: { type: string, format: uuid }
+                    savedBy:    { type: string }
+                    savedAt:    { type: string, format: date-time }
+
+  /proposals/{id}/versions/{vid}:
+    get:
+      tags: [Versions]
+      summary: Get a specific version snapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: vid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+
+  /proposals/{id}/versions/{vid}/restore:
+    post:
+      tags: [Versions]
+      summary: Restore a proposal to a previous version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: vid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SHARES
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /proposals/{id}/share:
+    post:
+      tags: [Shares]
+      summary: Create a shareable link for a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+
+  /proposals/{id}/shares:
+    get:
+      tags: [Shares]
+      summary: List active share links for a proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    token:     { type: string }
+                    createdAt: { type: string, format: date-time }
+                    expiresAt: { type: string, format: date-time }
+
+  /share/{token}:
+    get:
+      tags: [Shares]
+      summary: Get a shared proposal (public — no auth required)
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+        '404':
+          description: Link not found or expired
+
+    delete:
+      tags: [Shares]
+      summary: Revoke a share link
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Revoked
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # TEMPLATES
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Template' }
+
+    post:
+      tags: [Templates]
+      summary: Create a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Template' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+
+  /templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    put:
+      tags: [Templates]
+      summary: Update a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Template' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+
+    delete:
+      tags: [Templates]
+      summary: Delete a template
+      responses:
+        '204':
+          description: Deleted
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # CATALOG
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /catalog:
+    get:
+      tags: [Catalog]
+      summary: List catalog items
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CatalogItem' }
+
+    post:
+      tags: [Catalog]
+      summary: Create a catalog item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CatalogItem' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogItem' }
+
+  /catalog/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    put:
+      tags: [Catalog]
+      summary: Update a catalog item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CatalogItem' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogItem' }
+
+    delete:
+      tags: [Catalog]
+      summary: Delete a catalog item
+      responses:
+        '204':
+          description: Deleted
+
+  /catalog/import:
+    post:
+      tags: [Catalog]
+      summary: Bulk import catalog items (upsert by SKU)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/CatalogItem' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported: { type: integer }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # RATE CARDS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /rate-cards:
+    get:
+      tags: [Rate Cards]
+      summary: List rate cards
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RateCard' }
+
+    post:
+      tags: [Rate Cards]
+      summary: Create a rate card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateCard' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RateCard' }
+
+  /rate-cards/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    put:
+      tags: [Rate Cards]
+      summary: Update a rate card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateCard' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RateCard' }
+
+    delete:
+      tags: [Rate Cards]
+      summary: Delete a rate card
+      responses:
+        '204':
+          description: Deleted
+
+  /rate-cards/import:
+    post:
+      tags: [Rate Cards]
+      summary: Bulk import rate cards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/RateCard' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported: { type: integer }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # LOOKUPS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /lookups:
+    get:
+      tags: [Lookups]
+      summary: Get dropdown lookup values
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppLookups' }
+
+    put:
+      tags: [Lookups]
+      summary: Update lookup values (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppLookups' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppLookups' }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SOW
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /sow/generate:
+    post:
+      tags: [SoW]
+      summary: Generate a Statement of Work using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposal]
+              properties:
+                proposal: { $ref: '#/components/schemas/Proposal' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: { type: string, description: Markdown SoW content }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SETTINGS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get application settings
+      description: Returns all settings. Write-only keys (secrets) are omitted; their `.configured` boolean indicators are returned instead.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppSettings' }
+
+    put:
+      tags: [Settings]
+      summary: Update application settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppSettings' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AppSettings' }
+
+  /settings/service-key/status:
+    get:
+      tags: [Settings]
+      summary: Check if a service API key is configured (admin only)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+
+  /settings/service-key:
+    post:
+      tags: [Settings]
+      summary: Generate a new service API key (admin only)
+      description: The key is returned once and never again. Store it securely.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serviceApiKey: { type: string }
+
+    delete:
+      tags: [Settings]
+      summary: Revoke the service API key (admin only)
+      responses:
+        '204':
+          description: Key revoked
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # CRM
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /crm/status:
+    get:
+      tags: [CRM]
+      summary: Check if CRM credentials are configured
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+
+  /crm/detect-zone:
+    post:
+      tags: [CRM]
+      summary: Auto-detect Autotask zone URL from username (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username: { type: string, format: email }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zoneUrl: { type: string, format: uri }
+
+  /crm/test:
+    post:
+      tags: [CRM]
+      summary: Test Autotask connection (admin only)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:              { type: boolean }
+                  message:              { type: string }
+                  zoneUrl:              { type: string }
+                  detectedZone:         { type: string }
+                  username:             { type: string }
+                  integrationCodeHint:  { type: string, description: 'First 4 + last 4 chars of the stored integration code' }
+
+  /crm/companies:
+    get:
+      tags: [CRM]
+      summary: Search Autotask companies
+      parameters:
+        - name: search
+          in: query
+          required: true
+          schema: { type: string, minLength: 2 }
+          description: Minimum 2 characters
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CrmCompany' }
+
+  /crm/contacts:
+    get:
+      tags: [CRM]
+      summary: Get contacts for an Autotask company
+      parameters:
+        - name: companyId
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CrmContact' }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # REPORT (Power BI / BI)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /report/proposals:
+    get:
+      tags: [Report]
+      summary: Flat proposal rows for BI tooling
+      description: |
+        Returns one row per proposal with calculated financial totals.
+        Requires an admin session token or a service API key.
+
+        **Power BI setup:** Get Data → Web → Advanced. Add header:
+        `Authorization: Bearer <service-api-key>`
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:               { type: string, format: uuid }
+                    projectName:      { type: string }
+                    client:           { type: string }
+                    accountManager:   { type: string }
+                    owner:            { type: string }
+                    status:           { $ref: '#/components/schemas/ProposalStatus' }
+                    currency:         { $ref: '#/components/schemas/Currency' }
+                    ticketRef:        { type: string }
+                    dateCreated:      { type: string, format: date-time }
+                    dateModified:     { type: string, format: date-time }
+                    partsCount:       { type: integer }
+                    phasesCount:      { type: integer }
+                    tasksCount:       { type: integer }
+                    milestonesCount:  { type: integer }
+                    partsCost:        { type: number }
+                    partsSell:        { type: number }
+                    markupAmount:     { type: number }
+                    consultancyCost:  { type: number }
+                    consultancySell:  { type: number }
+                    grandTotal:       { type: number }
+                    marginPct:        { type: number }
+                    crmCompanyId:     { type: string }
+                    clientContact:    { type: string }
+        '401':
+          description: Unauthorized
+
+  /report/pipeline:
+    get:
+      tags: [Report]
+      summary: Pipeline summary grouped by status
+      description: Requires an admin session token or a service API key.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  winRate:     { type: number, description: Win rate percentage }
+                  generatedAt: { type: string, format: date-time }
+                  summary:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        status:       { $ref: '#/components/schemas/ProposalStatus' }
+                        count:        { type: integer }
+                        totalValue:   { type: number }
+                        avgValue:     { type: number }
+                        avgMarginPct: { type: number }
+        '401':
+          description: Unauthorized
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SCIM 2.0
+  # ════════════════════════════════════════════════════════════════════════════
+
+  /scim/v2/ServiceProviderConfig:
+    get:
+      tags: [SCIM]
+      summary: SCIM service provider capabilities
+      security: []
+      responses:
+        '200':
+          description: ServiceProviderConfig object
+          content:
+            application/scim+json:
+              schema:
+                type: object
+
+  /scim/v2/Users:
+    get:
+      tags: [SCIM]
+      summary: List or filter SCIM users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          schema: { type: string }
+          description: 'e.g. userName eq "user@example.com"'
+      responses:
+        '200':
+          description: ListResponse
+          content:
+            application/scim+json:
+              schema:
+                type: object
+                properties:
+                  schemas:      { type: array, items: { type: string } }
+                  totalResults: { type: integer }
+                  startIndex:   { type: integer }
+                  itemsPerPage: { type: integer }
+                  Resources:    { type: array, items: { type: object } }
+        '401':
+          description: Unauthorized
+
+    post:
+      tags: [SCIM]
+      summary: Provision a new user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              type: object
+              required: [userName]
+              properties:
+                userName:    { type: string, format: email }
+                displayName: { type: string }
+                name:
+                  type: object
+                  properties:
+                    givenName:  { type: string }
+                    familyName: { type: string }
+                active:      { type: boolean, default: true }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/scim+json:
+              schema: { type: object }
+        '401':
+          description: Unauthorized
+
+  /scim/v2/Users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    get:
+      tags: [SCIM]
+      summary: Get a SCIM user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          content:
+            application/scim+json:
+              schema: { type: object }
+        '404':
+          description: Not found
+
+    put:
+      tags: [SCIM]
+      summary: Replace a SCIM user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema: { type: object }
+      responses:
+        '200':
+          content:
+            application/scim+json:
+              schema: { type: object }
+
+    patch:
+      tags: [SCIM]
+      summary: Partially update a SCIM user (e.g. deactivate)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/scim+json:
+            schema:
+              type: object
+              properties:
+                Operations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      op:    { type: string, enum: [add, replace, remove] }
+                      path:  { type: string }
+                      value: {}
+      responses:
+        '200':
+          content:
+            application/scim+json:
+              schema: { type: object }
+
+    delete:
+      tags: [SCIM]
+      summary: Deprovision a user (soft-delete / sets isActive=false)
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Deprovisioned
