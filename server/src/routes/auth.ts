@@ -9,7 +9,8 @@ const { generateSecret: totpGenerateSecret, generateURI: totpGenerateURI, verify
   generateURI: (opts: { issuer: string; label: string; secret: string }) => string;
   verify: (opts: { secret: string; token: string }) => Promise<boolean>;
 };
-import { requireAuth } from '../shared/auth';
+import { requireAuth, requireAdmin } from '../shared/auth';
+import { ensureFreshCert, splitCerts, refreshCertsFromMetadata } from '../shared/samlMetadata';
 import { buildPolicy, validatePassword } from '../shared/passwordPolicy';
 import {
   getUserByEmail, getUserBySamlNameId, upsertUser, updateUserPassword,
@@ -28,12 +29,18 @@ async function buildSamlInstance() {
   try { cfg = await getAppSettingsDirect(); } catch { /* dev */ }
   const entryPoint = cfg[SETTING_KEYS.SSO_ENTRY_POINT] || process.env.SAML_ENTRY_POINT;
   const issuer     = cfg[SETTING_KEYS.SSO_ISSUER]       || process.env.SAML_ISSUER;
-  const cert       = cfg[SETTING_KEYS.SSO_IDP_CERT]     || process.env.SAML_IDP_CERT;
   const appUrl     = cfg[SETTING_KEYS.APP_URL]           || process.env.APP_URL;
+
+  // Cert — auto-refresh from metadata URL if configured and stale, else fall back to manual paste
+  const certRaw = await ensureFreshCert(cfg).catch(() => cfg[SETTING_KEYS.SSO_IDP_CERT]?.trim());
+  const cert    = certRaw || process.env.SAML_IDP_CERT;
+
   if (!entryPoint || !issuer || !cert || !appUrl) return null;
   return new SAML({
     callbackUrl: `${appUrl}/api/auth/saml/callback`,
-    entryPoint, issuer, idpCert: cert, wantAssertionsSigned: false,
+    entryPoint, issuer,
+    idpCert: splitCerts(cert),   // supports single cert or array for key rotation
+    wantAssertionsSigned: false,
   });
 }
 
@@ -198,6 +205,15 @@ router.post('/saml/exchange', async (req, res) => {
   const user = await validateSession(token);
   if (!user)  { res.status(401).json({ error: 'Session creation failed' }); return; }
   res.json({ token, user });
+});
+
+// POST /api/auth/saml/refresh-metadata — admin: force metadata cert refresh
+router.post('/saml/refresh-metadata', requireAdmin, async (req, res) => {
+  const cfg         = await getAppSettingsDirect();
+  const metadataUrl = (cfg[SETTING_KEYS.SSO_METADATA_URL] ?? '').trim();
+  if (!metadataUrl) { res.status(400).json({ error: 'sso.metadataUrl is not configured' }); return; }
+  const { certs, refreshedAt } = await refreshCertsFromMetadata(metadataUrl);
+  res.json({ success: true, certsFound: certs.length, refreshedAt: new Date(refreshedAt).toISOString() });
 });
 
 export default router;

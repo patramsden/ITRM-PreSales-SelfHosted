@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useStore } from '../store';
-import { settingsApi, authApi, totpApi, serviceKeyApi, crmApi } from '../lib/api';
+import { settingsApi, authApi, totpApi, serviceKeyApi, crmApi, ssoApi } from '../lib/api';
 import type { AppSettings } from '../lib/api';
 import { LookupEditor } from '../components/ui/LookupEditor';
 import { Button } from '../components/ui/Button';
@@ -615,10 +615,13 @@ function AiTab({ settings, onChange, isAdmin }: {
 function SsoTab({ settings, onChange, isAdmin }: {
   settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean;
 }) {
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
-  const [error, setError]   = useState<string | null>(null);
-  const [certInput, setCertInput] = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [certInput,   setCertInput]   = useState('');
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [refreshMsg,  setRefreshMsg]  = useState<{ ok: boolean; text: string } | null>(null);
+
   const enabled = settings['sso.enabled'] === 'true';
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
 
@@ -634,8 +637,24 @@ function SsoTab({ settings, onChange, isAdmin }: {
     finally { setSaving(false); }
   };
 
-  const appUrl      = (settings['sso.appUrl'] ?? '').trim();
-  const callbackUrl = appUrl ? `${appUrl}/api/auth/saml/callback` : '<your-app-url>/api/auth/saml/callback';
+  const handleRefreshMetadata = async () => {
+    setRefreshing(true); setRefreshMsg(null);
+    try { await settingsApi.update(settings); } catch { /* best effort */ }
+    try {
+      const r = await ssoApi.refreshMetadata();
+      const when = new Date(r.refreshedAt).toLocaleString();
+      setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${when}` });
+      onChange({ ...settings, 'sso.certLastRefreshed': r.refreshedAt, 'sso.idpCert.configured': 'true' });
+    } catch (e) {
+      setRefreshMsg({ ok: false, text: e instanceof Error ? e.message : 'Refresh failed' });
+    } finally { setRefreshing(false); }
+  };
+
+  const appUrl         = (settings['sso.appUrl'] ?? '').trim();
+  const callbackUrl    = appUrl ? `${appUrl}/api/auth/saml/callback` : '<your-app-url>/api/auth/saml/callback';
+  const metadataUrl    = (settings['sso.metadataUrl'] ?? '').trim();
+  const lastRefreshed  = settings['sso.certLastRefreshed'];
+  const certConfigured = settings['sso.idpCert.configured'] === 'true';
 
   return (
     <div className="space-y-6">
@@ -644,46 +663,35 @@ function SsoTab({ settings, onChange, isAdmin }: {
       {/* ── Entra ID setup guide ─────────────────────────────────────────── */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-3">
         <div className="font-semibold text-sm">Setting up with Microsoft Entra ID</div>
-
         <div>
           <div className="font-semibold mb-1">Step 1 — Create an Enterprise Application</div>
           <ol className="list-decimal ml-4 space-y-0.5">
             <li>Open <strong>Microsoft Entra ID</strong> (portal.azure.com → Entra ID)</li>
             <li>Go to <strong>Enterprise Applications → New application → Create your own application</strong></li>
-            <li>Name it (e.g. <em>ITRM PreSales</em>), select <strong>"Integrate any other application you don't find in the gallery (Non-gallery)"</strong> and click Create</li>
+            <li>Name it (e.g. <em>ITRM PreSales</em>), choose <strong>"Non-gallery"</strong> and click Create</li>
           </ol>
         </div>
-
         <div>
           <div className="font-semibold mb-1">Step 2 — Configure SAML</div>
           <ol className="list-decimal ml-4 space-y-0.5">
-            <li>Open the application → <strong>Single sign-on → SAML</strong></li>
-            <li>Click <strong>Edit</strong> on "Basic SAML Configuration" and set:
-              <ul className="list-disc ml-4 mt-0.5 space-y-0.5">
-                <li><strong>Identifier (Entity ID):</strong> your App URL (e.g. <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{appUrl || 'https://your-app.azurestaticapps.net'}</code>)</li>
-                <li><strong>Reply URL (ACS URL):</strong> <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{callbackUrl}</code></li>
-                <li><strong>Sign on URL:</strong> same as your App URL</li>
-              </ul>
-            </li>
-            <li>Under <strong>Attributes &amp; Claims</strong>, ensure the Unique User Identifier (Name ID) is set to <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">user.mail</code> (email address)</li>
+            <li>Open the app → <strong>Single sign-on → SAML → Edit Basic SAML Configuration</strong></li>
+            <li>Set <strong>Identifier (Entity ID)</strong> to your App URL and <strong>Reply URL (ACS URL)</strong> to <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">{callbackUrl}</code></li>
+            <li>Under <strong>Attributes &amp; Claims</strong> set the Name ID to <code className="bg-blue-100 dark:bg-blue-900 px-0.5 rounded">user.mail</code></li>
           </ol>
         </div>
-
         <div>
-          <div className="font-semibold mb-1">Step 3 — Copy values into the fields below</div>
+          <div className="font-semibold mb-1">Step 3 — Copy values below</div>
           <ul className="list-disc ml-4 space-y-0.5">
-            <li><strong>IdP Entry Point</strong> → "Login URL" from the <em>Set up {'{app name}'}</em> section</li>
-            <li><strong>SP Issuer</strong> → same value as the Identifier (Entity ID) you set above</li>
-            <li><strong>Certificate</strong> → download <em>Certificate (Base64)</em>, open in a text editor, and paste the content <em>without</em> the <code>-----BEGIN/END CERTIFICATE-----</code> lines</li>
+            <li><strong>IdP Entry Point</strong> → "Login URL" from the <em>Set up</em> section</li>
+            <li><strong>SP Issuer</strong> → same as your Identifier (Entity ID)</li>
+            <li><strong>Metadata URL</strong> → copy the <em>App Federation Metadata Url</em> from SAML Certificates — certificate rotation is then automatic</li>
           </ul>
         </div>
-
         <div>
           <div className="font-semibold mb-1">Step 4 — Assign users</div>
           <ol className="list-decimal ml-4 space-y-0.5">
             <li>Go to the application → <strong>Users and groups → Add user/group</strong></li>
-            <li>Add the users or groups who should be able to sign in via SSO</li>
-            <li>Users must also have a local account in ITRM with a matching email address</li>
+            <li>Assigned users will be able to sign in; new users are auto-created via SAML JIT or SCIM provisioning</li>
           </ol>
         </div>
       </div>
@@ -703,7 +711,7 @@ function SsoTab({ settings, onChange, isAdmin }: {
         </button>
       </div>
 
-      {/* ── Fields ───────────────────────────────────────────────────────── */}
+      {/* ── Standard fields ──────────────────────────────────────────────── */}
       <FieldRow label="App URL">
         <TextInput value={(settings['sso.appUrl'] ?? '') as string}
           onChange={v => set('sso.appUrl', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} />
@@ -720,25 +728,85 @@ function SsoTab({ settings, onChange, isAdmin }: {
       <FieldRow label="IdP Entry Point (Login URL)">
         <TextInput value={(settings['sso.entryPoint'] ?? '') as string}
           onChange={v => set('sso.entryPoint', v)} placeholder="https://login.microsoftonline.com/{tenant-id}/saml2" readOnly={!isAdmin} />
-        <p className="text-xs text-gray-400 mt-1">Found in Entra ID under <em>Set up {'{app name}'}</em> → <strong>Login URL</strong>.</p>
+        <p className="text-xs text-gray-400 mt-1">Found in Entra ID → <em>Set up {'{app name}'}</em> → <strong>Login URL</strong>.</p>
       </FieldRow>
 
       <FieldRow label="SP Issuer / Entity ID">
         <TextInput value={(settings['sso.issuer'] ?? '') as string}
           onChange={v => set('sso.issuer', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} />
-        <p className="text-xs text-gray-400 mt-1">Must exactly match the <strong>Identifier (Entity ID)</strong> you entered in Entra ID. Usually the same as your App URL.</p>
+        <p className="text-xs text-gray-400 mt-1">Must exactly match the <strong>Identifier (Entity ID)</strong> set in Entra ID — usually the same as App URL.</p>
       </FieldRow>
 
-      {isAdmin && (
-        <FieldRow label="IdP Signing Certificate">
-          <textarea rows={5} value={certInput} onChange={e => setCertInput(e.target.value)}
-            placeholder={'Paste the Base64 certificate body here (without -----BEGIN/END CERTIFICATE----- lines).\nLeave blank to keep the existing certificate.'}
-            className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
-          <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-            <Lock size={10} /> Stored server-side only — never returned to the browser.
-            Download <em>Certificate (Base64)</em> from Entra ID → SAML Certificates and paste the content without the header/footer lines.
-          </p>
+      {/* ── Metadata URL — auto certificate ──────────────────────────────── */}
+      <div className="space-y-3">
+        <FieldRow label="App Federation Metadata URL (recommended)">
+          <TextInput value={metadataUrl}
+            onChange={v => set('sso.metadataUrl', v)}
+            placeholder="https://login.microsoftonline.com/{tenant-id}/federationmetadata/2007-06/federationmetadata.xml"
+            readOnly={!isAdmin} />
         </FieldRow>
+        <p className="text-xs text-gray-400">
+          Found in Entra ID → your app → <strong>Single sign-on → SAML Certificates → App Federation Metadata Url</strong>.
+          When set, certificates are fetched automatically and refreshed daily — no manual certificate management needed.
+        </p>
+
+        {metadataUrl && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-700/40 border border-gray-200 dark:border-slate-600">
+            <div className="flex items-center gap-2 text-xs">
+              {certConfigured
+                ? <CheckCircle size={13} className="text-green-500 flex-shrink-0" />
+                : <AlertCircle size={13} className="text-amber-500 flex-shrink-0" />}
+              <span className="text-gray-600 dark:text-slate-300">
+                {certConfigured
+                  ? lastRefreshed
+                    ? `Certificate cached — last refreshed ${new Date(lastRefreshed).toLocaleString()}`
+                    : 'Certificate configured'
+                  : 'No certificate cached yet — click Refresh to fetch'}
+              </span>
+            </div>
+            {isAdmin && (
+              <button type="button" onClick={handleRefreshMetadata} disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-50 whitespace-nowrap">
+                {refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Refresh now
+              </button>
+            )}
+          </div>
+        )}
+
+        {refreshMsg && (
+          <div className={clsx('flex items-center gap-2 px-3 py-2 rounded-lg text-xs border',
+            refreshMsg.ok
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400')}>
+            {refreshMsg.ok ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+            {refreshMsg.text}
+          </div>
+        )}
+      </div>
+
+      {/* ── Manual certificate override ───────────────────────────────────── */}
+      {isAdmin && (
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 select-none list-none flex items-center gap-1.5">
+            <ChevronRight size={13} className="transition-transform group-open:rotate-90" />
+            Manual certificate override
+            {!metadataUrl && !certConfigured && (
+              <span className="ml-1 text-amber-500">(required if no Metadata URL)</span>
+            )}
+          </summary>
+          <div className="mt-3 space-y-2 pl-4 border-l-2 border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-400 dark:text-slate-500">
+              Only needed if you prefer not to use the Metadata URL. Leave blank to keep the existing certificate.
+            </p>
+            <textarea rows={5} value={certInput} onChange={e => setCertInput(e.target.value)}
+              placeholder={'Paste the Base64 certificate body (without -----BEGIN/END CERTIFICATE----- lines).\nLeave blank to keep the existing certificate.'}
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" />
+            <p className="text-xs text-gray-400 flex items-center gap-1">
+              <Lock size={10} /> Stored server-side only — never returned to the browser.
+            </p>
+          </div>
+        </details>
       )}
 
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}

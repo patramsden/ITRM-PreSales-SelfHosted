@@ -6,6 +6,8 @@ import cors from 'cors';
 import path from 'path';
 import { existsSync } from 'fs';
 import { getPool, ensureSchema } from './shared/db';
+import { refreshCertsFromMetadata } from './shared/samlMetadata';
+import { getAppSettingsDirect, SETTING_KEYS } from './repositories/settingsRepo';
 
 import authRouter      from './routes/auth';
 import catalogRouter   from './routes/catalog';
@@ -93,6 +95,24 @@ async function start() {
   app.listen(PORT, () => {
     console.log(`[server] ITRM PreSales listening on port ${PORT}`);
   });
+
+  // ─── Daily SAML metadata refresh ───────────────────────────────────────────
+  // Run once at startup (in case server was down for >24 h), then every 24 h.
+  async function tryRefreshSamlCert() {
+    try {
+      const cfg = await getAppSettingsDirect();
+      const metadataUrl = (cfg[SETTING_KEYS.SSO_METADATA_URL] ?? '').trim();
+      if (!metadataUrl) return;
+      const lastRefreshed = Number(cfg[SETTING_KEYS.SSO_CERT_REFRESHED] ?? '0');
+      if (Date.now() - lastRefreshed < 23 * 60 * 60 * 1000) return; // < 23 h, skip
+      const { certs } = await refreshCertsFromMetadata(metadataUrl);
+      console.log(`[saml] Metadata refreshed — ${certs.length} cert(s) cached`);
+    } catch (e) {
+      console.warn('[saml] Scheduled metadata refresh failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  setTimeout(tryRefreshSamlCert, 5_000);                    // 5 s after startup
+  setInterval(tryRefreshSamlCert, 24 * 60 * 60 * 1000);    // then every 24 h
 }
 
 start().catch(e => { console.error(e); process.exit(1); });

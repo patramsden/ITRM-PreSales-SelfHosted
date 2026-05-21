@@ -13,11 +13,13 @@ export const SETTING_KEYS = {
   AI_AZURE_VERSION:  'ai.azure.apiVersion',
   AI_AZURE_KEY:      'ai.azure.key',
   AI_ANTHROPIC_KEY:  'ai.anthropic.key',
-  SSO_ENABLED:       'sso.enabled',
-  SSO_ENTRY_POINT:   'sso.entryPoint',
-  SSO_ISSUER:        'sso.issuer',
-  SSO_IDP_CERT:      'sso.idpCert',
-  APP_URL:           'sso.appUrl',
+  SSO_ENABLED:        'sso.enabled',
+  SSO_ENTRY_POINT:    'sso.entryPoint',
+  SSO_ISSUER:         'sso.issuer',
+  SSO_IDP_CERT:       'sso.idpCert',          // server-only (cached/manual cert)
+  SSO_METADATA_URL:   'sso.metadataUrl',       // federation metadata URL for auto-refresh
+  SSO_CERT_REFRESHED: 'sso.certLastRefreshed', // epoch ms of last successful metadata fetch
+  APP_URL:            'sso.appUrl',
   SLACK_WEBHOOK:     'notifications.slackWebhook',
   TEAMS_WEBHOOK:     'notifications.teamsWebhook',
 } as const;

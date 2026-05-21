@@ -133,12 +133,14 @@ export interface AppSettings {
   'ai.azure.key.configured'?:       string; // 'true'|'false' — read-only indicator
   'ai.anthropic.key'?:              string; // write-only
   'ai.anthropic.key.configured'?:   string; // 'true'|'false' — read-only indicator
-  'sso.enabled'?:          string;
-  'sso.entryPoint'?:       string;
-  'sso.issuer'?:           string;
-  'sso.idpCert'?:          string; // write-only — never returned by GET
-  'sso.idpCert.configured'?: string; // 'true'|'false' — read-only indicator
-  'sso.appUrl'?:           string;
+  'sso.enabled'?:               string;
+  'sso.entryPoint'?:            string;
+  'sso.issuer'?:                string;
+  'sso.idpCert'?:               string;  // write-only — never returned by GET
+  'sso.idpCert.configured'?:    string;  // 'true'|'false' — read-only indicator
+  'sso.metadataUrl'?:           string;  // federation metadata URL for auto-refresh
+  'sso.certLastRefreshed'?:     string;  // ISO timestamp of last successful refresh
+  'sso.appUrl'?:                string;
   'notifications.slackWebhook'?: string;
   'notifications.teamsWebhook'?: string;
   // Microsoft Planner integration (delegated — no secret required)
@@ -177,6 +179,11 @@ export interface AppSettings {
 export const settingsApi = {
   get:    ()                      => api.get<AppSettings>('settings'),
   update: (s: AppSettings)        => api.put<AppSettings>('settings', s),
+};
+
+export const ssoApi = {
+  refreshMetadata: () =>
+    api.post<{ success: boolean; certsFound: number; refreshedAt: string }>('auth/saml/refresh-metadata', {}),
 };
 
 // ─── Version history ──────────────────────────────────────────────────────────
