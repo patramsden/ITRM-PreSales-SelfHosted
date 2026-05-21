@@ -264,6 +264,8 @@ export async function ensureSchema(): Promise<void> {
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS template_id      VARCHAR(100)`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS sow_content      TEXT`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS ticket_ref       VARCHAR(100)`,
+    // Status rename: 'In Review' → 'In Progress'
+    `UPDATE proposals SET status = 'In Progress' WHERE status = 'In Review'`,
   ];
 
   for (const stmt of migrations) {

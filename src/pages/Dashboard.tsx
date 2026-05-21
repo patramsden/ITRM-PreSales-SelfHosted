@@ -13,14 +13,15 @@ import { Button } from '../components/ui/Button';
 import type { ProposalStatus } from '../types';
 import clsx from 'clsx';
 
-const STATUS_ORDER: ProposalStatus[] = ['Draft', 'In Review', 'Approved', 'Won', 'Lost'];
+const STATUS_ORDER: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
 
 const statusIcons: Record<ProposalStatus, { icon: typeof FileText; color: string }> = {
-  Draft: { icon: FileText, color: 'text-gray-500 bg-gray-100' },
-  'In Review': { icon: Clock, color: 'text-amber-600 bg-amber-50' },
-  Approved: { icon: TrendingUp, color: 'text-blue-600 bg-blue-50' },
-  Won: { icon: Trophy, color: 'text-green-600 bg-green-50' },
-  Lost: { icon: XCircle, color: 'text-red-500 bg-red-50' },
+  'Draft':                { icon: FileText,   color: 'text-gray-500 bg-gray-100'     },
+  'In Progress':          { icon: Clock,       color: 'text-amber-600 bg-amber-50'   },
+  'Approved':             { icon: TrendingUp,  color: 'text-blue-600 bg-blue-50'     },
+  'With Account Manager': { icon: TrendingUp,  color: 'text-violet-600 bg-violet-50' },
+  'Won':                  { icon: Trophy,      color: 'text-green-600 bg-green-50'   },
+  'Lost':                 { icon: XCircle,     color: 'text-red-500 bg-red-50'       },
 };
 
 export function Dashboard() {

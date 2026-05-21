@@ -85,7 +85,7 @@ const SEED_PROPOSALS: Proposal[] = [
     projectName: 'M365 Migration – TechStart Ltd',
     client: 'TechStart Limited',
     accountManager: 'David Okafor',
-    status: 'In Review',
+    status: 'In Progress',
     currency: 'GBP',
     dateCreated: '2026-04-15',
     dateModified: '2026-05-08',

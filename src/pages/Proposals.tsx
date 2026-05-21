@@ -10,7 +10,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { NewProposalModal } from '../components/proposals/NewProposalModal';
 import type { ProposalStatus } from '../types';
 
-const ALL_STATUSES: ProposalStatus[] = ['Draft', 'In Review', 'Approved', 'Won', 'Lost'];
+const ALL_STATUSES: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
 
 export function Proposals() {
   useDocumentTitle('Proposals');

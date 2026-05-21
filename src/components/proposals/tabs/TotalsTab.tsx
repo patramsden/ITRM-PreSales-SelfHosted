@@ -17,7 +17,7 @@ interface Props {
   onUpdate: (updates: Partial<Proposal>) => void;
 }
 
-const STATUS_FLOW: ProposalStatus[] = ['Draft', 'In Review', 'Approved', 'Won', 'Lost'];
+const STATUS_FLOW: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
 
 const CATEGORY_COLORS: Record<string, string> = {
   Hardware: '#7c3aed',
@@ -126,7 +126,7 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
   const avgGpPct = tco.sell > 0 ? (tco.gp / tco.sell) * 100 : 0;
 
   const handleStatusChange = (status: ProposalStatus) => {
-    if (status === 'In Review' && proposal.status === 'Draft') {
+    if (status === 'In Progress' && proposal.status === 'Draft') {
       setConfirmStatus(status);
       return;
     }
@@ -365,7 +365,7 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-2">Submit for Approval?</h3>
             <p className="text-sm text-gray-600 dark:text-slate-300 mb-6">
-              Moving to "In Review" will notify approvers that this proposal is ready for sign-off.
+              Moving to "In Progress" will notify approvers that this proposal is ready for sign-off.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setConfirmStatus(null)}>Cancel</Button>

@@ -15,13 +15,15 @@ export interface User {
   authProvider: AuthProvider;
   /** True if the user has enrolled TOTP (returned by the admin list endpoint) */
   totpEnabled?: boolean;
+  /** False when the account has been deprovisioned via SCIM. Defaults to true. */
+  isActive?: boolean;
 }
 
 // ─── Proposal roles ──────────────────────────────────────────────────────────
 
 export type ProposalRole = 'owner' | 'collaborator' | 'reader' | 'admin';
 
-export type ProposalStatus = 'Draft' | 'In Review' | 'Approved' | 'Won' | 'Lost';
+export type ProposalStatus = 'Draft' | 'In Progress' | 'Approved' | 'With Account Manager' | 'Won' | 'Lost';
 
 export type Currency = 'GBP' | 'USD' | 'EUR';
 

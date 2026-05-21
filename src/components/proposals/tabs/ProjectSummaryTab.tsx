@@ -13,7 +13,7 @@ interface Props {
   onUpdate: (updates: Partial<Proposal>) => void;
 }
 
-const STATUSES: ProposalStatus[] = ['Draft', 'In Review', 'Approved', 'Won', 'Lost'];
+const STATUSES: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
 const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR'];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

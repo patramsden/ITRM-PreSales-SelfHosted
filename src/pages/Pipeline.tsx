@@ -17,6 +17,7 @@ import clsx from 'clsx';
 import { useStore } from '../store';
 import { calcTotals } from '../utils/totals';
 import { PageHeader } from '../components/ui/PageHeader';
+import { StatusBadge } from '../components/ui/Badge';
 import type { Proposal, ProposalStatus } from '../types';
 
 // ─── Date range filter ────────────────────────────────────────────────────────
@@ -55,11 +56,12 @@ interface ColumnConfig {
 }
 
 const COLUMNS: ColumnConfig[] = [
-  { status: 'Draft',     label: 'Draft',     accent: 'border-gray-400',  headerBg: 'bg-gray-100 dark:bg-slate-700',   badgeBg: 'bg-gray-400' },
-  { status: 'In Review', label: 'In Review', accent: 'border-amber-400', headerBg: 'bg-amber-50 dark:bg-amber-900/20', badgeBg: 'bg-amber-500' },
-  { status: 'Approved',  label: 'Approved',  accent: 'border-blue-400',  headerBg: 'bg-blue-50 dark:bg-blue-900/20',  badgeBg: 'bg-blue-500' },
-  { status: 'Won',       label: 'Won',       accent: 'border-green-400', headerBg: 'bg-green-50 dark:bg-green-900/20', badgeBg: 'bg-green-500' },
-  { status: 'Lost',      label: 'Lost',      accent: 'border-red-400',   headerBg: 'bg-red-50 dark:bg-red-900/20',   badgeBg: 'bg-red-500' },
+  { status: 'Draft',                label: 'Draft',                accent: 'border-gray-300 dark:border-gray-600',     headerBg: 'bg-gray-50 dark:bg-slate-700/60',          badgeBg: 'bg-gray-400'    },
+  { status: 'In Progress',          label: 'In Progress',          accent: 'border-amber-300 dark:border-amber-700',   headerBg: 'bg-amber-50 dark:bg-amber-900/20',         badgeBg: 'bg-amber-500'   },
+  { status: 'Approved',             label: 'Approved',             accent: 'border-blue-300 dark:border-blue-700',     headerBg: 'bg-blue-50 dark:bg-blue-900/20',           badgeBg: 'bg-blue-500'    },
+  { status: 'With Account Manager', label: 'With Acct. Manager',   accent: 'border-violet-300 dark:border-violet-700', headerBg: 'bg-violet-50 dark:bg-violet-900/20',       badgeBg: 'bg-violet-500'  },
+  { status: 'Won',                  label: 'Won',                  accent: 'border-green-300 dark:border-green-700',   headerBg: 'bg-green-50 dark:bg-green-900/20',         badgeBg: 'bg-green-500'   },
+  { status: 'Lost',                 label: 'Lost',                 accent: 'border-red-300 dark:border-red-700',       headerBg: 'bg-red-50 dark:bg-red-900/20',             badgeBg: 'bg-red-500'     },
 ];
 
 // ─── Currency format ──────────────────────────────────────────────────────────
@@ -97,16 +99,7 @@ function ProposalCard({ proposal, isDragging = false }: { proposal: Proposal; is
       <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">{proposal.client}</div>
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-900 dark:text-slate-200">{fmt(totals.grandTotal)}</span>
-        <span className={clsx(
-          'inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium',
-          proposal.status === 'Draft'     && 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
-          proposal.status === 'In Review' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-          proposal.status === 'Approved'  && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-          proposal.status === 'Won'       && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-          proposal.status === 'Lost'      && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-        )}>
-          {proposal.status}
-        </span>
+        <StatusBadge status={proposal.status} />
       </div>
     </div>
   );
