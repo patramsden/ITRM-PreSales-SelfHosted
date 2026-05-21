@@ -723,27 +723,26 @@ function PlannerTab({ settings, onChange, isAdmin }: {
         subtitle="Export consultancy phases as a Planner project — delegated permissions, no secret required"
         adminOnly={!isAdmin} />
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-1.5">
-        <div className="font-semibold">One-time Azure AD setup</div>
+        <div className="font-semibold">One-time Azure AD setup (~2 minutes, no secret or Tenant ID needed)</div>
         <ol className="list-decimal ml-4 space-y-0.5">
           <li>Go to <strong>Entra ID → App registrations → New registration</strong></li>
-          <li>Supported account types: <em>Accounts in this organisational directory only</em></li>
-          <li>Redirect URI — <strong>Single-page application (SPA)</strong>:
+          <li>Name it anything (e.g. <em>ITRM Planner</em>). Leave account type as default.</li>
+          <li>Under <strong>Redirect URI</strong> choose <strong>Single-page application (SPA)</strong> and enter:
             <code className="ml-1 bg-blue-100 dark:bg-blue-900 px-1 rounded break-all">{appOrigin}/auth-redirect.html</code>
           </li>
-          <li>API permissions → Microsoft Graph → Delegated → <code>Tasks.ReadWrite</code></li>
-          <li>Copy the Application ID and Directory (Tenant) ID below. No secret needed.</li>
+          <li><strong>API permissions → Add → Microsoft Graph → Delegated → <code>Tasks.ReadWrite</code></strong></li>
+          <li>Copy the <strong>Application (client) ID</strong> from the Overview page into the field below. That's it — no secret, no Tenant ID.</li>
         </ol>
+        <p className="mt-1">When a user exports to Planner they'll be prompted to sign in with their own Microsoft account once. All tasks are created as them.</p>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <FieldRow label="Tenant ID"><TextInput value={(settings['planner.tenantId'] ?? '') as string}
-          onChange={v => set('planner.tenantId', v)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" readOnly={!isAdmin} /></FieldRow>
-        <FieldRow label="Client ID (Application ID)"><TextInput value={(settings['planner.clientId'] ?? '') as string}
-          onChange={v => set('planner.clientId', v)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" readOnly={!isAdmin} /></FieldRow>
-      </div>
+      <FieldRow label="Client ID (Application ID)">
+        <TextInput value={(settings['planner.clientId'] ?? '') as string}
+          onChange={v => set('planner.clientId', v)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" readOnly={!isAdmin} />
+      </FieldRow>
       <FieldRow label="Microsoft 365 Group ID">
         <TextInput value={(settings['planner.groupId'] ?? '') as string}
           onChange={v => set('planner.groupId', v)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" readOnly={!isAdmin} />
-        <p className="text-xs text-gray-400 mt-1">Object ID of the M365 Group that will own plans. The exporting user must be a member. Find it in Entra ID → Groups.</p>
+        <p className="text-xs text-gray-400 mt-1">The Object ID of the M365 Group that will own Planner plans. The exporting user must be a member. Find it in Entra ID → Groups → your group → Overview.</p>
       </FieldRow>
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
     </div>

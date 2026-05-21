@@ -5,16 +5,18 @@ import { settingsApi } from '../lib/api';
 // ─── MSAL instance (reused across calls within a session) ─────────────────────
 
 let _pca: PublicClientApplication | null = null;
-let _pcaKey = '';
+let _pcaClientId = '';
 
-async function getMsal(tenantId: string, clientId: string): Promise<PublicClientApplication> {
-  const key = `${tenantId}:${clientId}`;
-  if (_pca && _pcaKey === key) return _pca;
+async function getMsal(clientId: string): Promise<PublicClientApplication> {
+  if (_pca && _pcaClientId === clientId) return _pca;
 
   const config: Configuration = {
     auth: {
       clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`,
+      // 'organizations' works for any work/school M365 account without
+      // needing the tenant ID configured — the user's own tenant is resolved
+      // at sign-in time from their account.
+      authority: 'https://login.microsoftonline.com/organizations',
       // A dedicated blank page — avoids the app's auth guard redirecting
       // to /login and destroying the auth code before MSAL can read it.
       // This URI must be registered as a SPA redirect URI in Azure AD.
@@ -26,13 +28,13 @@ async function getMsal(tenantId: string, clientId: string): Promise<PublicClient
   try {
     _pca = new PublicClientApplication(config);
     await _pca.initialize();
-    _pcaKey = key;
+    _pcaClientId = clientId;
   } catch (e) {
     _pca = null;
-    _pcaKey = '';
+    _pcaClientId = '';
     throw new Error(
       `Failed to initialise Microsoft sign-in. ` +
-      `Check that the Tenant ID "${tenantId}" is correct. (${e instanceof Error ? e.message : e})`
+      `Check that the Client ID is correct. (${e instanceof Error ? e.message : e})`
     );
   }
   return _pca;
@@ -113,33 +115,32 @@ async function graphPatch(token: string, path: string, etag: string, body: unkno
  * Signs the user in via an MSAL popup (delegated Tasks.ReadWrite permission)
  * and creates a Microsoft Planner plan from the proposal's consultancy phases.
  *
- * Azure AD setup:
- *   1. Register a Single-page application (SPA) redirect URI:
- *        https://<your-app>/auth-redirect.html
- *   2. Add Microsoft Graph → Delegated → Tasks.ReadWrite permission
- *   3. Enter Tenant ID, Client ID and Group ID in Settings → Microsoft Planner
+ * Azure AD setup (one-time, ~2 minutes, no secret needed):
+ *   1. Entra ID → App registrations → New registration
+ *      - Supported account types: "Accounts in this organisational directory only"
+ *      - Redirect URI (SPA): https://<your-app>/auth-redirect.html
+ *   2. API permissions → Microsoft Graph → Delegated → Tasks.ReadWrite
+ *   3. Copy the Application (client) ID into Settings → Microsoft Planner
+ *   4. Enter your M365 Group ID — no Tenant ID required.
  */
 export async function convertToPlannerProject(proposal: Proposal): Promise<string> {
   // 1. Load settings — API first, Vite env vars as dev fallback
-  let tenantId: string, clientId: string, groupId: string;
+  let clientId: string, groupId: string;
   try {
     const settings = await settingsApi.get();
-    tenantId = (settings['planner.tenantId'] ?? '').trim();
     clientId = (settings['planner.clientId'] ?? '').trim();
     groupId  = (settings['planner.groupId']  ?? '').trim();
   } catch {
     // In dev, fall back to VITE_PLANNER_* env vars so you can test
     // without running the API locally.
     if (import.meta.env.DEV) {
-      tenantId = (import.meta.env.VITE_PLANNER_TENANT_ID ?? '').trim();
       clientId = (import.meta.env.VITE_PLANNER_CLIENT_ID ?? '').trim();
       groupId  = (import.meta.env.VITE_PLANNER_GROUP_ID  ?? '').trim();
 
-      if (!tenantId || !clientId || !groupId) {
+      if (!clientId || !groupId) {
         throw new Error(
           'API is not running. Either start it (cd api && npm run start) ' +
-          'or add VITE_PLANNER_TENANT_ID, VITE_PLANNER_CLIENT_ID and ' +
-          'VITE_PLANNER_GROUP_ID to your .env.local file for dev-only testing.'
+          'or add VITE_PLANNER_CLIENT_ID and VITE_PLANNER_GROUP_ID to your .env.local file.'
         );
       }
     } else {
@@ -147,15 +148,15 @@ export async function convertToPlannerProject(proposal: Proposal): Promise<strin
     }
   }
 
-  if (!tenantId || !clientId || !groupId) {
+  if (!clientId || !groupId) {
     throw new Error(
       'Microsoft Planner is not fully configured. ' +
-      'Go to Settings → Microsoft Planner and enter Tenant ID, Client ID and Group ID.'
+      'Go to Settings → Microsoft Planner and enter Client ID and Group ID.'
     );
   }
 
   // 2. Authenticate — opens M365 login popup if no cached session
-  const pca   = await getMsal(tenantId, clientId);
+  const pca   = await getMsal(clientId);
   const token = await getToken(pca);
 
   // 3. Create plan owned by the configured M365 Group
