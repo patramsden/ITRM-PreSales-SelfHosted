@@ -104,6 +104,8 @@ export interface Proposal {
   trbReviewedBy?: string;
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+  clientContact?: string;
+  crmCompanyId?: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────
