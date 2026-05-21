@@ -1,4 +1,7 @@
-// ─── Users & Auth ───────────────────────────────────────────────────────────
+// ─── Shared types used by both the API and the frontend ──────────────────────
+// Keep in sync with src/types/index.ts
+
+// ─── Users & Auth ────────────────────────────────────────────────────────────
 
 export type AppRole = 'admin' | 'user';
 export type AuthProvider = 'local' | 'saml';
@@ -12,8 +15,8 @@ export interface User {
   avatar?: string;
   appRole: AppRole;
   authProvider: AuthProvider;
+  /** SAML NameID — used to look up the user on subsequent SAML logins. Server-only; never sent to the frontend. */
   samlNameId?: string;
-  totpEnabled?: boolean;
 }
 
 // ─── Proposal roles ──────────────────────────────────────────────────────────
@@ -123,6 +126,7 @@ export interface CatalogItem {
   description: string;
   category: string;
   defaultVendor?: string;
+  costPrice: number;
   listPrice: number;
   partType?: PartType;
   relatedIds?: string[];

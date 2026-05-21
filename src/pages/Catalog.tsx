@@ -21,7 +21,7 @@ const PART_TYPES: { value: PartType; label: string; cadence: string; cls: string
 ];
 
 const BLANK: Omit<CatalogItem, 'id'> = {
-  sku: '', description: '', category: '', defaultVendor: '', listPrice: 0, partType: 'Hardware', relatedIds: [],
+  sku: '', description: '', category: '', defaultVendor: '', costPrice: 0, listPrice: 0, partType: 'Hardware', relatedIds: [],
 };
 
 const INPUT_CLS = 'w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500';
@@ -223,7 +223,25 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-            List Price (£)
+            Buy Price (£)
+            {(item.partType === 'Monthly' || item.partType === 'Annual') && (
+              <span className="ml-1 text-xs font-normal text-gray-400">
+                · {item.partType === 'Monthly' ? 'per month' : 'per year'}
+              </span>
+            )}
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            className={INPUT_CLS}
+            value={item.costPrice}
+            onChange={e => onChange({ ...item, costPrice: parseFloat(e.target.value) || 0 })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            Sell Price (£)
             {(item.partType === 'Monthly' || item.partType === 'Annual') && (
               <span className="ml-1 text-xs font-normal text-gray-400">
                 · {item.partType === 'Monthly' ? 'per month' : 'per year'}
@@ -238,6 +256,18 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
             value={item.listPrice}
             onChange={e => onChange({ ...item, listPrice: parseFloat(e.target.value) || 0 })}
           />
+          {item.costPrice > 0 && item.listPrice > 0 && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+              Margin:{' '}
+              <span className={`font-semibold ${item.listPrice >= item.costPrice ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                {(((item.listPrice - item.costPrice) / item.listPrice) * 100).toFixed(1)}%
+              </span>
+              {' · '}Uplift:{' '}
+              <span className="font-semibold text-gray-700 dark:text-slate-300">
+                {(((item.listPrice - item.costPrice) / item.costPrice) * 100).toFixed(1)}%
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -367,14 +397,16 @@ export function Catalog() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Billing Type</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Category</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Vendor</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">List Price</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Buy</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Sell</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Margin</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Related</th>
               {isAdmin && <th className="px-4 py-3" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-400 dark:text-slate-500">No items found.</td></tr>
+              <tr><td colSpan={10} className="text-center py-10 text-gray-400 dark:text-slate-500">No items found.</td></tr>
             )}
             {filtered.map(item => {
               const relCount = (item.relatedIds ?? []).length;
@@ -385,13 +417,33 @@ export function Catalog() {
                   <td className="px-4 py-3"><TypeBadge type={item.partType} /></td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{item.category}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{item.defaultVendor ?? '—'}</td>
+                  {/* Buy price */}
+                  <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">
+                    {item.costPrice > 0 ? (
+                      <>£{item.costPrice.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
+                        {(item.partType === 'Monthly' || item.partType === 'Annual') && (
+                          <span className="text-xs font-normal text-gray-400 ml-0.5">/{item.partType === 'Monthly' ? 'mo' : 'yr'}</span>
+                        )}
+                      </>
+                    ) : <span className="text-gray-300 dark:text-slate-600">—</span>}
+                  </td>
+                  {/* Sell price */}
                   <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">
                     £{item.listPrice.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
                     {(item.partType === 'Monthly' || item.partType === 'Annual') && (
-                      <span className="text-xs font-normal text-gray-400 ml-1">
-                        /{item.partType === 'Monthly' ? 'mo' : 'yr'}
-                      </span>
+                      <span className="text-xs font-normal text-gray-400 ml-0.5">/{item.partType === 'Monthly' ? 'mo' : 'yr'}</span>
                     )}
+                  </td>
+                  {/* Margin */}
+                  <td className="px-4 py-3 text-right">
+                    {item.costPrice > 0 && item.listPrice > 0 ? (() => {
+                      const margin = ((item.listPrice - item.costPrice) / item.listPrice) * 100;
+                      return (
+                        <span className={`text-xs font-semibold ${margin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                          {margin.toFixed(1)}%
+                        </span>
+                      );
+                    })() : <span className="text-gray-300 dark:text-slate-600 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {relCount > 0 ? (

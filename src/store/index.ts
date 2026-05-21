@@ -265,13 +265,13 @@ const SEED_TEMPLATES: Template[] = [
 ];
 
 const SEED_CATALOG: CatalogItem[] = [
-  { id: 'c1', sku: 'C9300-48P-A', description: 'Cisco Catalyst 9300 48P PoE+', category: 'Switching', defaultVendor: 'Cisco', listPrice: 11200 },
-  { id: 'c2', sku: 'C9300-24P-A', description: 'Cisco Catalyst 9300 24P PoE+', category: 'Switching', defaultVendor: 'Cisco', listPrice: 7800 },
-  { id: 'c3', sku: 'FPR2140-NGFW-K9', description: 'Cisco Firepower 2140 NGFW', category: 'Security', defaultVendor: 'Cisco', listPrice: 28500 },
-  { id: 'c4', sku: 'AAA-10624', description: 'Microsoft 365 Business Premium (per user/yr)', category: 'Software', defaultVendor: 'Microsoft', listPrice: 22 },
-  { id: 'c5', sku: 'EX4300-48P', description: 'Juniper EX4300 48P PoE', category: 'Switching', defaultVendor: 'Juniper', listPrice: 9600 },
-  { id: 'c6', sku: 'SRX345-SYS-JB', description: 'Juniper SRX345 Services Gateway', category: 'Security', defaultVendor: 'Juniper', listPrice: 4200 },
-  { id: 'c7', sku: 'VNX-2000', description: 'Veeam Backup & Replication (per socket)', category: 'Software', defaultVendor: 'Veeam', listPrice: 1850 },
+  { id: 'c1', sku: 'C9300-48P-A',     description: 'Cisco Catalyst 9300 48P PoE+',               category: 'Switching', defaultVendor: 'Cisco',     costPrice: 8400,   listPrice: 11200 },
+  { id: 'c2', sku: 'C9300-24P-A',     description: 'Cisco Catalyst 9300 24P PoE+',               category: 'Switching', defaultVendor: 'Cisco',     costPrice: 5850,   listPrice: 7800  },
+  { id: 'c3', sku: 'FPR2140-NGFW-K9', description: 'Cisco Firepower 2140 NGFW',                  category: 'Security',  defaultVendor: 'Cisco',     costPrice: 21375,  listPrice: 28500 },
+  { id: 'c4', sku: 'AAA-10624',       description: 'Microsoft 365 Business Premium (per user/yr)', category: 'Software', defaultVendor: 'Microsoft', costPrice: 16.50,  listPrice: 22    },
+  { id: 'c5', sku: 'EX4300-48P',      description: 'Juniper EX4300 48P PoE',                     category: 'Switching', defaultVendor: 'Juniper',   costPrice: 7200,   listPrice: 9600  },
+  { id: 'c6', sku: 'SRX345-SYS-JB',  description: 'Juniper SRX345 Services Gateway',             category: 'Security',  defaultVendor: 'Juniper',   costPrice: 3150,   listPrice: 4200  },
+  { id: 'c7', sku: 'VNX-2000',        description: 'Veeam Backup & Replication (per socket)',     category: 'Software',  defaultVendor: 'Veeam',     costPrice: 1390,   listPrice: 1850  },
 ];
 
 const SEED_RATE_CARDS: RateCard[] = [

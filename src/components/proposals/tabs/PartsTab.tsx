@@ -682,7 +682,10 @@ export function PartsTab({ proposal, editable, onUpdate }: Props) {
 
   const makePart = (item: CatalogItem, quantity = 1): Part => ({
     id: uuid(), description: item.description, sku: item.sku, quantity,
-    unitCost: item.listPrice * 0.8, unitPrice: item.listPrice,
+    // Use the catalog's explicit buy price; fall back to 80% of sell price for
+    // legacy items that were added before the costPrice field existed.
+    unitCost: item.costPrice > 0 ? item.costPrice : item.listPrice * 0.8,
+    unitPrice: item.listPrice,
     quotes: [], partType: item.partType ?? 'Hardware',
   });
 

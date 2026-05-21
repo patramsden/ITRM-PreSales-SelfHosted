@@ -162,6 +162,7 @@ export async function ensureSchema(): Promise<void> {
       description    VARCHAR(500)  NOT NULL,
       category       VARCHAR(100),
       default_vendor VARCHAR(255),
+      cost_price     NUMERIC(18,2) NOT NULL DEFAULT 0,
       list_price     NUMERIC(18,2) NOT NULL DEFAULT 0,
       part_type      VARCHAR(50)   NOT NULL DEFAULT 'Hardware',
       related_ids    TEXT          NOT NULL DEFAULT '[]'

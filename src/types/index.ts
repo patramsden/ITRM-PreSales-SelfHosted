@@ -147,6 +147,9 @@ export interface CatalogItem {
   description: string;
   category: string;
   defaultVendor?: string;
+  /** Default buy / cost price — used as unitCost when the item is added to a quote. */
+  costPrice: number;
+  /** Default sell / list price — used as unitPrice when the item is added to a quote. */
   listPrice: number;
   /** Billing / commercial type — drives which section the item lands in when added to a quote. */
   partType?: PartType;

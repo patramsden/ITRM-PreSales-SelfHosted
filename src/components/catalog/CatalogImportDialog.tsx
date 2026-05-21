@@ -93,6 +93,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
         description:   mapping.description ? (row[mapping.description] ?? '') : '',
         category:      mapping.category ? (row[mapping.category] ?? '') : '',
         defaultVendor: mapping.defaultVendor ? (row[mapping.defaultVendor] ?? '') : '',
+        costPrice:     0,
         listPrice:     mapping.listPrice ? (parseFloat(row[mapping.listPrice] ?? '0') || 0) : 0,
       })).filter(i => i.description.trim());
 
