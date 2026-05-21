@@ -12,7 +12,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload,
+  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock,
 } from 'lucide-react';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
@@ -546,6 +546,25 @@ function SecurityTab({ settings, onChange, isAdmin }: {
           settingKey="security.pw.requireSpecial" />
       </div>
 
+      <SectionHeader icon={Clock} title="Session Timeout"
+        subtitle="How long a user can be inactive before their session expires"
+        adminOnly={!isAdmin} />
+
+      <FieldRow label="Inactivity timeout (hours)">
+        <div className="flex items-center gap-3">
+          <input type="number" min={0.25} max={168} step={0.5}
+            value={parseFloat((settings['security.sessionTimeoutHours'] ?? '8') as string) || 8}
+            onChange={e => set('security.sessionTimeoutHours', String(Math.max(0.25, parseFloat(e.target.value) || 8)))}
+            disabled={!isAdmin}
+            className={clsx('w-28', inputCls, !isAdmin && 'bg-gray-50 dark:bg-slate-800 text-gray-400 cursor-default')} />
+          <span className="text-sm text-gray-500 dark:text-slate-400">hours (default: 8)</span>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          The session is extended on every request — the timer resets whenever the user is active.
+          Minimum 15 minutes. Changes take effect on the next login.
+        </p>
+      </FieldRow>
+
       <SectionHeader icon={Smartphone} title="Multi-Factor Authentication"
         subtitle="Applies to local accounts only — SSO users are authenticated by their identity provider"
         adminOnly={!isAdmin} />
@@ -860,6 +879,17 @@ function SsoTab({ settings, onChange, isAdmin }: {
         <TextInput value={(settings['sso.issuer'] ?? '') as string}
           onChange={v => set('sso.issuer', v)} placeholder="https://your-app.azurestaticapps.net" readOnly={!isAdmin} />
         <p className="text-xs text-gray-400 mt-1">Must exactly match the <strong>Identifier (Entity ID)</strong> set in Entra ID — usually the same as App URL.</p>
+      </FieldRow>
+
+      <FieldRow label="SSO Logout URL (optional)">
+        <TextInput value={(settings['sso.logoutUrl'] ?? '') as string}
+          onChange={v => set('sso.logoutUrl', v)}
+          placeholder="https://login.microsoftonline.com/{tenant-id}/saml2"
+          readOnly={!isAdmin} />
+        <p className="text-xs text-gray-400 mt-1">
+          Found in Entra ID → <em>Set up {'{app name}'}</em> → <strong>Logout URL</strong>.
+          When set, SSO users are redirected here after logging out so their Microsoft session is also cleared.
+        </p>
       </FieldRow>
 
       {/* ── Metadata URL — auto certificate ──────────────────────────────── */}

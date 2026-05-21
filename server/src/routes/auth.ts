@@ -109,7 +109,10 @@ router.get('/saml/cert-info', requireAuth, requireAdmin, async (_req, res) => {
 // GET /api/auth/config — public: tells the login page whether SSO is on
 router.get('/config', async (_req, res) => {
   const cfg = await getAppSettingsDirect().catch(() => ({} as Record<string, string>));
-  res.json({ ssoEnabled: cfg[SETTING_KEYS.SSO_ENABLED] === 'true' });
+  res.json({
+    ssoEnabled:   cfg[SETTING_KEYS.SSO_ENABLED]    === 'true',
+    ssoLogoutUrl: (cfg[SETTING_KEYS.SSO_LOGOUT_URL] ?? '').trim() || null,
+  });
 });
 
 // POST /api/auth/lookup

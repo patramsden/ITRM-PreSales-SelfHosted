@@ -59,7 +59,7 @@ export const authApi = {
     api.post<{ token: string; user: User }>('auth/saml/exchange', { code }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.post<void>('auth/change-password', { currentPassword, newPassword }),
-  config: () => api.get<{ ssoEnabled: boolean }>('auth/config'),
+  config: () => api.get<{ ssoEnabled: boolean; ssoLogoutUrl: string | null }>('auth/config'),
   samlEnabled: () => import.meta.env.VITE_SAML_ENABLED === 'true',
 };
 
@@ -142,6 +142,7 @@ export interface AppSettings {
   'ai.anthropic.key'?:              string; // write-only
   'ai.anthropic.key.configured'?:   string; // 'true'|'false' — read-only indicator
   'sso.enabled'?:               string;
+  'sso.logoutUrl'?:             string;
   'sso.entryPoint'?:            string;
   'sso.issuer'?:                string;
   'sso.idpCert'?:               string;  // write-only — never returned by GET
@@ -162,8 +163,9 @@ export interface AppSettings {
   'security.pw.requireLowercase'?: string;
   'security.pw.requireNumber'?:    string;
   'security.pw.requireSpecial'?:   string;
-  // MFA enforcement
+  // MFA enforcement + session timeout
   'security.requireMfa'?:          string;  // 'true'|'false'
+  'security.sessionTimeoutHours'?: string;  // number of hours, default 8
 
   // Branding
   'branding.logo'?:         string;   // base64 data URL

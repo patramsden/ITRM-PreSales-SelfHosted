@@ -121,9 +121,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMockUserId('');
       return;
     }
+    const wasSaml = prodUser?.authProvider === 'saml';
     try { await authApi.logout(); } catch { /* ignore */ }
     localStorage.removeItem('auth_token');
     setProdUser(null);
+    // For SSO users, also sign out of the identity provider so the Microsoft
+    // session is cleared and they aren't silently re-signed-in.
+    if (wasSaml) {
+      const cfg = await authApi.config().catch(() => null);
+      if (cfg?.ssoLogoutUrl) {
+        window.location.href = cfg.ssoLogoutUrl;
+        return;
+      }
+    }
   };
 
   // ── Dev-only mock switcher ───────────────────────────────────────────────────

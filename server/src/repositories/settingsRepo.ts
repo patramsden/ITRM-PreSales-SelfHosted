@@ -20,9 +20,11 @@ export const SETTING_KEYS = {
   SSO_METADATA_URL:   'sso.metadataUrl',       // federation metadata URL for auto-refresh
   SSO_CERT_REFRESHED: 'sso.certLastRefreshed', // epoch ms of last successful metadata fetch
   APP_URL:            'sso.appUrl',
-  SLACK_WEBHOOK:     'notifications.slackWebhook',
-  TEAMS_WEBHOOK:     'notifications.teamsWebhook',
-  REQUIRE_MFA:       'security.requireMfa',
+  SLACK_WEBHOOK:           'notifications.slackWebhook',
+  TEAMS_WEBHOOK:           'notifications.teamsWebhook',
+  REQUIRE_MFA:             'security.requireMfa',
+  SESSION_TIMEOUT_HOURS:   'security.sessionTimeoutHours',
+  SSO_LOGOUT_URL:          'sso.logoutUrl',
 } as const;
 
 export async function getAppSettings(): Promise<Record<string, string>> {
