@@ -23,11 +23,14 @@ async function getCreds(): Promise<AtCreds | null> {
 // ─── Autotask query helper ────────────────────────────────────────────────────
 
 async function atQuery<T>(creds: AtCreds, entity: string, filter: unknown[], fields?: string[], max = 25): Promise<T[]> {
-  const base = creds.zoneUrl.replace(/\/$/, '');
+  // Strip any /atservicesrest path that may already be present in the stored
+  // zone URL (zone detection returns the full API base on some tenants) so we
+  // always construct the URL from the bare hostname.
+  const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
   const body: Record<string, unknown> = { filter, maxRecords: max };
   if (fields?.length) body.includeFields = fields;
 
-  const res = await fetch(`${base}/atservicesrest/v1.0/${entity}/query`, {
+  const res = await fetch(`${host}/atservicesrest/v1.0/${entity}/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -64,7 +67,9 @@ router.post('/detect-zone', requireAuth, requireAdmin, async (req, res) => {
     if (!r.ok) throw new Error(`Zone lookup failed (${r.status})`);
     const data = await r.json() as { url?: string };
     if (!data.url) throw new Error('No zone URL returned');
-    res.json({ zoneUrl: data.url.replace(/\/$/, '') });
+    // Store just the bare hostname — atservicesrest path is added at query time
+    const zoneUrl = data.url.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    res.json({ zoneUrl });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
