@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { requireAuth, requireAdmin } from '../shared/auth';
+import { requireAuth, requireCatalogEdit } from '../shared/auth';
 import { getAllCatalogItems, createCatalogItem, updateCatalogItem, deleteCatalogItem } from '../repositories/catalogRepo';
 import type { CatalogItem } from '../types/index';
 
 const router = Router();
 
 router.get('/',       requireAuth,               async (_req, res) => { res.json(await getAllCatalogItems()); });
-router.post('/',      requireAuth, requireAdmin, async (req,  res) => { await createCatalogItem(req.body); res.status(201).json(req.body); });
-router.put('/:id',    requireAuth, requireAdmin, async (req,  res) => { await updateCatalogItem(req.params.id, req.body); res.json(req.body); });
-router.delete('/:id', requireAuth, requireAdmin, async (req,  res) => { await deleteCatalogItem(req.params.id); res.sendStatus(204); });
+router.post('/',      requireAuth, requireCatalogEdit, async (req,  res) => { await createCatalogItem(req.body); res.status(201).json(req.body); });
+router.put('/:id',    requireAuth, requireCatalogEdit, async (req,  res) => { await updateCatalogItem(req.params.id, req.body); res.json(req.body); });
+router.delete('/:id', requireAuth, requireCatalogEdit, async (req,  res) => { await deleteCatalogItem(req.params.id); res.sendStatus(204); });
 
 // POST /api/catalog/import — bulk upsert matched by SKU (if non-empty) then description
-router.post('/import', requireAuth, requireAdmin, async (req, res) => {
+router.post('/import', requireAuth, requireCatalogEdit, async (req, res) => {
   try {
     const incoming = req.body as Partial<CatalogItem>[];
     if (!Array.isArray(incoming)) { res.status(400).json({ error: 'Expected array' }); return; }

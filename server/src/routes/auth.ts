@@ -294,8 +294,9 @@ router.post('/saml/callback', async (req, res) => {
   const name   = (profile.displayName as string) || nameId;
   let user = await getUserBySamlNameId(nameId);
   if (!user) {
-    user = { id: uuid(), name, email, appRole: 'user', authProvider: 'saml', samlNameId: nameId } satisfies User;
-    await upsertUser(user);
+    const newUser: User = { id: uuid(), name, email, appRole: 'sales', authProvider: 'saml', samlNameId: nameId };
+    await upsertUser(newUser);
+    user = newUser;
   }
   const code = await createAuthCode(user.id);
   res.set('Content-Type', 'text/html').send(

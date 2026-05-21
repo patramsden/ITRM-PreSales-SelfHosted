@@ -11,9 +11,9 @@ const SEED_SECRET = process.env.SEED_SECRET;
 
 const SEED_USERS: User[] = [
   { id: 'u1', name: 'Pat Ramsden',  email: 'pat.ramsden@company.com',  department: 'PreSales',   appRole: 'admin', authProvider: 'local' },
-  { id: 'u2', name: 'Sarah Chen',   email: 'sarah.chen@company.com',   department: 'PreSales',   appRole: 'user',  authProvider: 'local' },
-  { id: 'u3', name: 'James Wright', email: 'james.wright@company.com', department: 'Sales',      appRole: 'user',  authProvider: 'local' },
-  { id: 'u4', name: 'Priya Patel',  email: 'priya.patel@company.com',  department: 'PreSales',   appRole: 'user',  authProvider: 'local' },
+  { id: 'u2', name: 'Sarah Chen',   email: 'sarah.chen@company.com',   department: 'PreSales',   appRole: 'presales',    authProvider: 'local' },
+  { id: 'u3', name: 'James Wright', email: 'james.wright@company.com', department: 'Sales',      appRole: 'sales',       authProvider: 'local' },
+  { id: 'u4', name: 'Priya Patel',  email: 'priya.patel@company.com',  department: 'PreSales',   appRole: 'presales',    authProvider: 'local' },
   { id: 'u5', name: 'Tom Nguyen',   email: 'tom.nguyen@company.com',   department: 'Management', appRole: 'admin', authProvider: 'local' },
 ];
 

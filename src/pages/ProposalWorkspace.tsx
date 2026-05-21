@@ -19,6 +19,7 @@ import { BillingTab } from '../components/proposals/tabs/BillingTab';
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VersionHistoryPanel } from '../components/proposals/VersionHistoryPanel';
 import { ShareModal } from '../components/proposals/ShareModal';
+import { versionApi } from '../lib/api';
 import clsx from 'clsx';
 
 const DownloadProposalPdfButton = lazy(() =>
@@ -43,6 +44,23 @@ export function ProposalWorkspace() {
   const [showShare, setShowShare] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Keep a ref to the latest proposal so the unmount cleanup can access it
+  const proposalRef = useRef(proposal);
+  useEffect(() => { proposalRef.current = proposal; }, [proposal]);
+
+  // Save version snapshot when navigating away
+  useEffect(() => {
+    return () => {
+      const p = proposalRef.current;
+      if (p && canEdit(p, currentUser)) {
+        // Fire-and-forget version snapshot — 'save' may not exist on older API clients
+        const save = (versionApi as { save?: (id: string) => Promise<void> }).save;
+        if (save) save(p.id).catch(() => {});
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!showExportMenu) return;
@@ -101,6 +119,11 @@ export function ProposalWorkspace() {
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{proposal.projectName}</h1>
             <div className="text-sm text-gray-500 dark:text-slate-400">{proposal.client}</div>
+            {(proposal as { lastModifiedBy?: string }).lastModifiedBy && (
+              <div className="text-xs text-gray-400 dark:text-slate-500">
+                Last modified by {(proposal as { lastModifiedBy?: string }).lastModifiedBy} · {(proposal as { lastModifiedAt?: string }).lastModifiedAt ? new Date((proposal as { lastModifiedAt?: string }).lastModifiedAt!).toLocaleString('en-GB') : ''}
+              </div>
+            )}
           </div>
           <StatusBadge status={proposal.status} />
 

@@ -177,4 +177,25 @@ router.get('/contacts', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
+router.get('/account-manager', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json({ name: null, contactId: null }); return; }
+    const companyId = parseInt((req.query.companyId as string) ?? '');
+    if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
+    const contacts = await atQuery<{
+      id: number; firstName: string; lastName: string;
+      title?: string; isAccountManager?: boolean;
+    }>(
+      creds, 'Contacts',
+      [{ field: 'companyID', op: 'eq', value: companyId }, { field: 'isActive', op: 'eq', value: true }],
+      ['id', 'firstName', 'lastName', 'title', 'isAccountManager'], 50
+    );
+    const am = contacts.find(c => c.isAccountManager)
+      ?? contacts.find(c => /account\s*manager/i.test(c.title ?? ''))
+      ?? null;
+    res.json({ name: am ? `${am.firstName} ${am.lastName}`.trim() : null, contactId: am?.id ?? null });
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
 export default router;

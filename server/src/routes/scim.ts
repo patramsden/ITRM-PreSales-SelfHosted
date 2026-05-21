@@ -142,7 +142,7 @@ router.post('/Users', async (req, res) => {
       id:           uuid(),
       name:         display || email,
       email,
-      appRole:      'user',
+      appRole:      'sales',
       authProvider: 'saml',
       isActive:     active,
     };

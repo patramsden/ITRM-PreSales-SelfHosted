@@ -1,4 +1,4 @@
-import { getPool, query } from '../shared/db';
+import { getPool, query, generateProposalReference } from '../shared/db';
 import type { Proposal, Part, VendorQuote, ConsultancyPhase, ConsultancyTask } from '../types/index';
 
 // ─── Row → domain mappers ────────────────────────────────────────────────────
@@ -60,9 +60,13 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     trbReviewedBy:  (r.trb_reviewed_by  as string) ?? undefined,
     trbReviewedAt:  r.trb_reviewed_at ? (r.trb_reviewed_at as Date).toISOString() : undefined,
     fiveKStatus: (r.five_k_status as Proposal['fiveKStatus']) ?? undefined,
-    milestones:    JSON.parse((r.milestones    as string) || '[]'),
-    clientContact: (r.client_contact  as string) ?? undefined,
-    crmCompanyId:  (r.crm_company_id  as string) ?? undefined,
+    milestones:       JSON.parse((r.milestones    as string) || '[]'),
+    clientContact:    (r.client_contact   as string) ?? undefined,
+    crmCompanyId:     (r.crm_company_id   as string) ?? undefined,
+    useRateCardCost:  !!(r.use_rate_card_cost),
+    lastModifiedBy:   (r.last_modified_by as string) ?? undefined,
+    lastModifiedAt:   r.last_modified_at ? (r.last_modified_at as Date).toISOString() : undefined,
+    reference:        (r.reference        as string) ?? undefined,
     parts, phases,
   };
 }
@@ -170,14 +174,15 @@ export async function getProposalById(id: string): Promise<Proposal | null> {
   return assemble(rows[0], parts, quotes, phases, tasks);
 }
 
-export async function createProposal(p: Proposal): Promise<void> {
+export async function createProposal(p: Proposal): Promise<Proposal> {
+  const reference = await generateProposalReference(new Date(p.dateCreated));
   await query(
     `INSERT INTO proposals (id,project_name,client,account_manager,status,currency,
        date_created,date_modified,ticket_ref,markup_pct,objectives,business_requirements,
        justification,constraints,assumptions,notes,owner_id,collaborator_ids,sow_content,
        planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,
-       five_k_status,client_contact,crm_company_id,milestones)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`,
+       five_k_status,client_contact,crm_company_id,milestones,reference)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -186,9 +191,11 @@ export async function createProposal(p: Proposal): Promise<void> {
      p.plannerUrl ?? null, p.templateId ?? null, p.trbStatus ?? null,
      p.trbReviewNotes ?? null, p.trbReviewedBy ?? null,
      p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
-     p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? [])],
+     p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
+     reference],
   );
   await writeNested(p);
+  return { ...p, reference };
 }
 
 export async function updateProposal(id: string, p: Proposal): Promise<void> {

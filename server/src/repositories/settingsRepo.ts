@@ -4,6 +4,7 @@ const SERVER_ONLY_KEYS = new Set([
   'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key', 'system.serviceApiKey',
   'crm.autotask.secret',
   'scim.token',
+  'email.password',
 ]);
 
 export const SETTING_KEYS = {
@@ -25,6 +26,13 @@ export const SETTING_KEYS = {
   REQUIRE_MFA:             'security.requireMfa',
   SESSION_TIMEOUT_HOURS:   'security.sessionTimeoutHours',
   SSO_LOGOUT_URL:          'sso.logoutUrl',
+  EMAIL_ENABLED:           'email.enabled',
+  EMAIL_HOST:              'email.host',
+  EMAIL_PORT:              'email.port',
+  EMAIL_SECURE:            'email.secure',
+  EMAIL_USER:              'email.user',
+  EMAIL_PASSWORD:          'email.password',
+  EMAIL_FROM:              'email.from',
 } as const;
 
 export async function getAppSettings(): Promise<Record<string, string>> {

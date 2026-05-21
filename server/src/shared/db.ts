@@ -21,6 +21,14 @@ export async function query<T extends Record<string, unknown> = Record<string, u
   return result.rows as T[];
 }
 
+export async function generateProposalReference(createdAt: Date): Promise<string> {
+  const rows = await query<{ n: string }>(`SELECT nextval('proposal_ref_seq') AS n`);
+  const n = parseInt(rows[0].n, 10);
+  const d = createdAt;
+  const yyyymmdd = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  return `P${yyyymmdd}-${String(n).padStart(4, '0')}`;
+}
+
 // ─── Schema bootstrap ─────────────────────────────────────────────────────────
 // Called once via POST /api/seed. Creates all tables and runs additive migrations.
 
@@ -273,6 +281,34 @@ export async function ensureSchema(): Promise<void> {
        expires_at TIMESTAMPTZ   NOT NULL,
        created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
      )`,
+    // Rate card cost toggle
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS use_rate_card_cost BOOLEAN NOT NULL DEFAULT FALSE`,
+    // Last modified tracking on proposals
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_modified_by VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS last_modified_at TIMESTAMPTZ`,
+    // 4-tier role model — drop old 2-role constraint, add new one
+    `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_app_role_check`,
+    `ALTER TABLE users ADD CONSTRAINT users_app_role_check
+       CHECK (app_role IN ('admin','sales_admin','presales','sales'))`,
+
+    // Proposal reference number
+    `CREATE SEQUENCE IF NOT EXISTS proposal_ref_seq START 1`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS reference VARCHAR(30)`,
+
+    // Customer-facing signed links
+    `CREATE TABLE IF NOT EXISTS customer_links (
+      token           VARCHAR(100)  NOT NULL PRIMARY KEY,
+      proposal_id     VARCHAR(100)  NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      created_by      VARCHAR(255)  NOT NULL DEFAULT 'system',
+      created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      expires_at      TIMESTAMPTZ   NULL,
+      default_theme   VARCHAR(10)   NOT NULL DEFAULT 'light',
+      approval_status VARCHAR(20)   NOT NULL DEFAULT 'pending',
+      signed_at       TIMESTAMPTZ   NULL,
+      signed_by_name  VARCHAR(255)  NULL,
+      signer_ip       VARCHAR(100)  NULL,
+      signer_notes    TEXT          NULL
+    )`,
   ];
 
   for (const stmt of migrations) {

@@ -77,6 +77,24 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+export function requirePresales(req: Request, res: Response, next: NextFunction): void {
+  const allowed = ['admin', 'sales_admin', 'presales'];
+  if (!req.user || !allowed.includes(req.user.appRole)) {
+    res.status(403).json({ error: 'Pre-sales access required' });
+    return;
+  }
+  next();
+}
+
+export function requireCatalogEdit(req: Request, res: Response, next: NextFunction): void {
+  const allowed = ['admin', 'sales_admin'];
+  if (!req.user || !allowed.includes(req.user.appRole)) {
+    res.status(403).json({ error: 'Sales Admin or Admin access required' });
+    return;
+  }
+  next();
+}
+
 /** Retrieves the authenticated user without failing the request (used by /me). */
 export async function getSessionUser(req: Request): Promise<User | null> {
   if (DEV_BYPASS) {

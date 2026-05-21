@@ -10,7 +10,7 @@ function toUser(r: Record<string, unknown>): User {
     department:   (r.department as string) ?? undefined,
     jobTitle:     (r.job_title as string) ?? undefined,
     avatar:       (r.avatar_data as string) ?? undefined,
-    appRole:      ((r.app_role as string) ?? 'user') as User['appRole'],
+    appRole:      ((r.app_role as string) ?? 'sales') as User['appRole'],
     authProvider: ((r.auth_provider as string) ?? 'local') as User['authProvider'],
     samlNameId:   (r.saml_name_id as string) ?? undefined,
     isActive:     r.is_active !== false,  // treat NULL as active for backward compat

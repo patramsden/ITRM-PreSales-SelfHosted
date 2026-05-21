@@ -3,7 +3,7 @@
 
 // ─── Users & Auth ────────────────────────────────────────────────────────────
 
-export type AppRole = 'admin' | 'user';
+export type AppRole = 'admin' | 'sales_admin' | 'presales' | 'sales';
 export type AuthProvider = 'local' | 'saml';
 
 export interface User {
@@ -24,7 +24,7 @@ export interface User {
 // ─── Proposal roles ──────────────────────────────────────────────────────────
 
 export type ProposalRole = 'owner' | 'collaborator' | 'reader' | 'admin';
-export type ProposalStatus = 'Draft' | 'In Review' | 'Approved' | 'Won' | 'Lost';
+export type ProposalStatus = 'Draft' | 'In Progress' | 'Approved' | 'With Account Manager' | 'Won' | 'Lost';
 export type Currency = 'GBP' | 'USD' | 'EUR';
 
 // ─── Vendor Quotes ───────────────────────────────────────────────────────────
@@ -123,6 +123,10 @@ export interface Proposal {
   milestones?: BillingMilestone[];
   clientContact?: string;
   crmCompanyId?: string;
+  useRateCardCost?: boolean;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
+  reference?: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────
