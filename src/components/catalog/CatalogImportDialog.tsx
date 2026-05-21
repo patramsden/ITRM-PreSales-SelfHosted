@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import Papa from 'papaparse';
-import { Upload, CheckCircle, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, Loader2, Download } from 'lucide-react';
 import clsx from 'clsx';
 import { catalogImportApi, catalogApi } from '../../lib/api';
 import { useStore } from '../../store';
@@ -13,7 +13,7 @@ type Stage = 'upload' | 'preview' | 'result';
 
 interface ParsedRow { [key: string]: string }
 
-const FIELD_KEYS = ['sku', 'description', 'category', 'defaultVendor', 'listPrice'] as const;
+const FIELD_KEYS = ['sku', 'description', 'category', 'defaultVendor', 'costPrice', 'listPrice'] as const;
 type FieldKey = typeof FIELD_KEYS[number];
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -21,7 +21,8 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   description:   'Description',
   category:      'Category',
   defaultVendor: 'Default Vendor',
-  listPrice:     'List Price',
+  costPrice:     'Buy Price',
+  listPrice:     'Sell Price',
 };
 
 function fuzzyMatch(header: string): FieldKey | '' {
@@ -30,8 +31,32 @@ function fuzzyMatch(header: string): FieldKey | '' {
   if (h.includes('desc')) return 'description';
   if (h.includes('cat')) return 'category';
   if (h.includes('vendor') || h.includes('supplier') || h.includes('manufacturer')) return 'defaultVendor';
-  if (h.includes('price') || h.includes('cost') || h.includes('list')) return 'listPrice';
+  if (h.includes('buy') || h.includes('cost')) return 'costPrice';
+  if (h.includes('sell') || h.includes('price') || h.includes('list')) return 'listPrice';
   return '';
+}
+
+// ─── Example CSV ──────────────────────────────────────────────────────────────
+
+const EXAMPLE_CSV = [
+  ['SKU', 'Description', 'Category', 'Vendor', 'Buy Price', 'Sell Price'],
+  ['C9300-48P-A',     'Cisco Catalyst 9300 48P PoE+',               'Switching', 'Cisco',     '8400',   '11200'],
+  ['C9300-24P-A',     'Cisco Catalyst 9300 24P PoE+',               'Switching', 'Cisco',     '5850',   '7800'],
+  ['FPR2140-NGFW-K9', 'Cisco Firepower 2140 NGFW',                  'Security',  'Cisco',     '21375',  '28500'],
+  ['AAA-10624',       'Microsoft 365 Business Premium (per user/yr)','Software',  'Microsoft', '16.50',  '22.00'],
+  ['EX4300-48P',      'Juniper EX4300 48P PoE',                     'Switching', 'Juniper',   '7200',   '9600'],
+  ['SRX345-SYS-JB',  'Juniper SRX345 Services Gateway',            'Security',  'Juniper',   '3150',   '4200'],
+  ['VNX-2000',        'Veeam Backup & Replication (per socket)',     'Software',  'Veeam',     '1390',   '1850'],
+].map(row => row.map(cell => /[,"\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell).join(',')).join('\n');
+
+function downloadExampleCsv() {
+  const blob = new Blob([EXAMPLE_CSV], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'catalog-import-example.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 interface Props {
@@ -45,7 +70,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
   const [rows, setRows]           = useState<ParsedRow[]>([]);
   const [headers, setHeaders]     = useState<string[]>([]);
   const [mapping, setMapping]     = useState<Record<FieldKey, string>>({
-    sku: '', description: '', category: '', defaultVendor: '', listPrice: '',
+    sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '',
   });
   const [importing, setImporting] = useState(false);
   const [imported, setImported]   = useState(0);
@@ -60,8 +85,9 @@ export function CatalogImportDialog({ onComplete }: Props) {
         const hdrs = results.meta.fields ?? [];
         setHeaders(hdrs);
         setRows(results.data);
-        // Auto-detect mapping
-        const autoMap: Record<FieldKey, string> = { sku: '', description: '', category: '', defaultVendor: '', listPrice: '' };
+        const autoMap: Record<FieldKey, string> = {
+          sku: '', description: '', category: '', defaultVendor: '', costPrice: '', listPrice: '',
+        };
         for (const hdr of hdrs) {
           const k = fuzzyMatch(hdr);
           if (k && !autoMap[k]) autoMap[k] = hdr;
@@ -93,7 +119,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
         description:   mapping.description ? (row[mapping.description] ?? '') : '',
         category:      mapping.category ? (row[mapping.category] ?? '') : '',
         defaultVendor: mapping.defaultVendor ? (row[mapping.defaultVendor] ?? '') : '',
-        costPrice:     0,
+        costPrice:     mapping.costPrice ? (parseFloat(row[mapping.costPrice] ?? '0') || 0) : 0,
         listPrice:     mapping.listPrice ? (parseFloat(row[mapping.listPrice] ?? '0') || 0) : 0,
       })).filter(i => i.description.trim());
 
@@ -138,7 +164,7 @@ export function CatalogImportDialog({ onComplete }: Props) {
         <Modal open onClose={handleClose} title="Import Catalog from CSV">
           {/* Upload stage */}
           {stage === 'upload' && (
-            <div>
+            <div className="space-y-4">
               <div
                 onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -157,6 +183,23 @@ export function CatalogImportDialog({ onComplete }: Props) {
                   <Upload size={14} /> Choose CSV file
                   <input type="file" accept=".csv" className="sr-only" onChange={handleInputChange} />
                 </label>
+              </div>
+
+              {/* Example CSV download */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-700/40 rounded-xl border border-gray-200 dark:border-slate-700">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-300">Not sure of the format?</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                    Download an example CSV with the correct columns and sample data.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadExampleCsv}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors shrink-0 ml-4"
+                >
+                  <Download size={14} /> Example CSV
+                </button>
               </div>
             </div>
           )}
