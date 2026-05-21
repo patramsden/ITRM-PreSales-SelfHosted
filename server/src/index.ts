@@ -38,7 +38,8 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN ?? true,
   credentials: true,
 }));
-app.use(express.json({ limit: '20mb' })); // large for avatar + vendor quote attachments
+// Parse JSON bodies — also accept application/scim+json (used by Entra ID SCIM provisioning)
+app.use(express.json({ limit: '20mb', type: ['application/json', 'application/scim+json'] }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── API routes ───────────────────────────────────────────────────────────────
