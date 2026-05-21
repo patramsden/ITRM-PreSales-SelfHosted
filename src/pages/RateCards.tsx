@@ -23,33 +23,9 @@ const BLANK: Omit<RateCard, 'id'> = {
 
 const fmt = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`;
 
-export function RateCards() {
-  const { rateCards, addRateCard, updateRateCard, deleteRateCard } = useStore();
-  const { currentUser } = useAuth();
-  const isAdmin = isPresalesAdmin(currentUser);
+// ─── CardForm — must be at module scope to avoid remount on every keystroke ──
 
-  const [editing, setEditing] = useState<RateCard | null>(null);
-  const [showNew, setShowNew] = useState(false);
-  const [newCard, setNewCard] = useState<Omit<RateCard, 'id'>>(BLANK);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const handleCreate = () => {
-    addRateCard({ ...newCard, id: uuid() });
-    setShowNew(false); setNewCard(BLANK);
-  };
-
-  const handleSave = () => {
-    if (!editing) return;
-    updateRateCard(editing.id, editing);
-    setEditing(null);
-  };
-
-  const marginPct = (c: RateCard) =>
-    c.sellRate > 0 ? (((c.sellRate - c.costRate) / c.sellRate) * 100).toFixed(0) + '%' : '—';
-
-  const hasAnyOvertime = rateCards.some(r => r.overtimeEnabled);
-
-  function CardForm({ card, onChange }: { card: Omit<RateCard, 'id'>; onChange: (v: Omit<RateCard, 'id'>) => void }) {
+function CardForm({ card, onChange }: { card: Omit<RateCard, 'id'>; onChange: (v: Omit<RateCard, 'id'>) => void }) {
     const hrSell = hourlyRate(card.sellRate);
     const hrCost = hourlyRate(card.costRate);
     return (
@@ -176,7 +152,35 @@ export function RateCards() {
         </div>
       </div>
     );
-  }
+}
+
+// ─── RateCards page ───────────────────────────────────────────────────────────
+
+export function RateCards() {
+  const { rateCards, addRateCard, updateRateCard, deleteRateCard } = useStore();
+  const { currentUser } = useAuth();
+  const isAdmin = isPresalesAdmin(currentUser);
+
+  const [editing, setEditing] = useState<RateCard | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newCard, setNewCard] = useState<Omit<RateCard, 'id'>>(BLANK);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const handleCreate = () => {
+    addRateCard({ ...newCard, id: uuid() });
+    setShowNew(false); setNewCard(BLANK);
+  };
+
+  const handleSave = () => {
+    if (!editing) return;
+    updateRateCard(editing.id, editing);
+    setEditing(null);
+  };
+
+  const marginPct = (c: RateCard) =>
+    c.sellRate > 0 ? (((c.sellRate - c.costRate) / c.sellRate) * 100).toFixed(0) + '%' : '—';
+
+  const hasAnyOvertime = rateCards.some(r => r.overtimeEnabled);
 
   return (
     <div className="p-8">
