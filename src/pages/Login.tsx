@@ -123,7 +123,7 @@ export function Login() {
         setPhase('totp');
       } else if (result && 'requireMfaSetup' in result && result.requireMfaSetup) {
         // MFA required but not enrolled — fetch QR then show enrolment screen
-        const r = result as { enrollToken: string };
+        const r = result as unknown as { enrollToken: string };
         setEnrollToken(r.enrollToken);
         setEnrollLoading(true);
         try {
