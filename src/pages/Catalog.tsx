@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Search, Link2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Search, Link2, Download } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
 import { CatalogImportDialog } from '../components/catalog/CatalogImportDialog';
+import { downloadCsv } from '../utils/downloadCsv';
 import type { CatalogItem, PartType } from '../types';
 import clsx from 'clsx';
 
@@ -400,6 +401,12 @@ export function Catalog() {
         actions={isAdmin && (
           <div className="flex items-center gap-2">
             <CatalogImportDialog onComplete={() => {}} />
+            <Button variant="secondary" onClick={() => downloadCsv('catalog.csv', [
+              ['SKU', 'Description', 'Category', 'Vendor', 'Buy Price', 'Sell Price', 'Billing Type'],
+              ...catalog.map(c => [c.sku, c.description, c.category, c.defaultVendor ?? '', c.costPrice, c.listPrice, c.partType ?? 'Hardware']),
+            ])}>
+              <Download size={15} /> Export CSV
+            </Button>
             <Button onClick={() => setShowNew(true)}><Plus size={16} /> Add Item</Button>
           </div>
         )}

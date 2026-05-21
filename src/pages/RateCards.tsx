@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Clock, Download } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useStore } from '../store';
 import { useAuth, isPresalesAdmin } from '../contexts/AuthContext';
@@ -7,6 +7,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Modal } from '../components/ui/Modal';
+import { RateCardImportDialog } from '../components/rateCards/RateCardImportDialog';
+import { downloadCsv } from '../utils/downloadCsv';
 import type { RateCard, Currency } from '../types';
 import clsx from 'clsx';
 
@@ -187,7 +189,18 @@ export function RateCards() {
       <PageHeader
         title="Rate Cards"
         subtitle={`Consultancy roles and day rates · 1 working day = ${HOURS_PER_DAY} hours`}
-        actions={isAdmin && <Button onClick={() => setShowNew(true)}><Plus size={16} /> Add Role</Button>}
+        actions={isAdmin && (
+          <div className="flex items-center gap-2">
+            <RateCardImportDialog onComplete={() => {}} />
+            <Button variant="secondary" onClick={() => downloadCsv('rate-cards.csv', [
+              ['Role', 'Cost Rate (Day)', 'Sell Rate (Day)', 'Currency', 'Effective From', 'Effective To', 'Overtime Enabled'],
+              ...rateCards.map(r => [r.role, r.costRate, r.sellRate, r.currency, r.effectiveFrom, r.effectiveTo ?? '', r.overtimeEnabled ? 'true' : 'false']),
+            ])}>
+              <Download size={15} /> Export CSV
+            </Button>
+            <Button onClick={() => setShowNew(true)}><Plus size={16} /> Add Role</Button>
+          </div>
+        )}
       />
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
