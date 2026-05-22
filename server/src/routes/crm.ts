@@ -190,38 +190,29 @@ router.get('/tickets', requireAuth, async (req, res) => {
 
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
 
-    let allQueueValues: AtPicklistValue[] = [];
-    let statusValues:   AtPicklistValue[] = [];
+    let queueIds: number[] = [];
+    let queueMap:  Record<number, string> = {};
+    let statusMap: Record<number, string> = {};
     try {
-      [allQueueValues, statusValues] = await Promise.all([
+      const [queueValues, statusValues] = await Promise.all([
         fetchPicklist(creds, 'Tickets', 'queueID'),
         fetchPicklist(creds, 'Tickets', 'status'),
       ]);
-    } catch (e) { crmLog(`  Picklist fetch failed: ${String(e)}`); }
+      const targets = queueValues.filter((v: AtPicklistValue) =>
+        v.isActive && CUSTOMER_INTEL_QUEUES.some(n => v.label.toLowerCase().includes(n.toLowerCase()))
+      );
+      queueIds  = targets.map((v: AtPicklistValue) => v.value);
+      queueMap  = Object.fromEntries(queueValues.map((v: AtPicklistValue) => [v.value, v.label]));
+      statusMap = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
+      crmLog(`  Resolved queues: ${targets.map((v: AtPicklistValue) => `${v.label}=${v.value}`).join(', ')}`);
+    } catch (e) { crmLog(`  Picklist error: ${String(e)}`); }
 
-    crmLog(`  All queue labels: ${allQueueValues.map((v: AtPicklistValue) => v.label).join(' | ')}`);
+    const filter: unknown[] = [{ field: 'companyID', op: 'eq', value: companyId }];
+    if (queueIds.length > 0) filter.push({ field: 'queueID', op: 'in', value: queueIds });
 
-    const targetQueues = allQueueValues.filter((v: AtPicklistValue) =>
-      v.isActive && CUSTOMER_INTEL_QUEUES.some(name => v.label.toLowerCase().includes(name.toLowerCase()))
-    );
-    const queueIds     = targetQueues.map((v: AtPicklistValue) => v.value);
-    const statusMap    = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
-    const queueMap     = Object.fromEntries(allQueueValues.map((v: AtPicklistValue) => [v.value, v.label]));
-    const closedStatuses = statusValues
-      .filter((v: AtPicklistValue) => /complete|closed|cancelled|cancel/i.test(v.label))
-      .map((v: AtPicklistValue) => v.value);
-
-    crmLog(`  Target queue IDs: ${queueIds.join(', ')}`);
-
-    const raw = await atQuery<Record<string, unknown>>(
-      creds, 'Tickets',
-      [{ field: 'companyID', op: 'eq', value: companyId }],
-      undefined,
-      500
-    );
-
-    crmLog(`  Raw tickets: ${raw.length}`);
-    if (raw.length > 0) crmLog(`  First ticket keys: ${Object.keys(raw[0]).join(', ')}`);
+    const raw = await atQuery<Record<string, unknown>>(creds, 'Tickets', filter, undefined, 25);
+    crmLog(`  Tickets returned: ${raw.length}`);
+    if (raw.length === 0) { res.json([]); return; }
 
     const getField = (r: Record<string, unknown>, ...names: string[]): unknown => {
       for (const name of names) {
@@ -233,29 +224,21 @@ router.get('/tickets', requireAuth, async (req, res) => {
 
     const tickets = raw
       .map(r => ({
-        id:         getField(r, 'id') as number,
-        title:      (getField(r, 'title') as string) ?? '(no title)',
-        status:     getField(r, 'status') as number,
-        queueID:    getField(r, 'queueID', 'queueId') as number,
-        createDate: (getField(r, 'createDate', 'createDateTime') as string | null) ?? null,
+        id:        getField(r, 'id') as number,
+        title:     (getField(r, 'title') as string) ?? '(no title)',
+        statusNum: getField(r, 'status') as number,
+        queueNum:  getField(r, 'queueID', 'queueId') as number,
+        createDate:(getField(r, 'createDate', 'createDateTime') as string | null) ?? null,
       }))
-      .filter(t => {
-        const inQueue   = queueIds.length === 0 || queueIds.includes(t.queueID);
-        const notClosed = closedStatuses.length === 0 || !closedStatuses.includes(t.status);
-        return inQueue && notClosed;
-      })
       .sort((a, b) => new Date(b.createDate ?? 0).getTime() - new Date(a.createDate ?? 0).getTime())
-      .slice(0, 15)
       .map(t => ({
-        id:         t.id,
-        title:      t.title,
-        status:     statusMap[t.status]  ?? `Status ${t.status}`,
-        queue:      queueMap[t.queueID]  ?? `Queue ${t.queueID}`,
+        id: t.id, title: t.title,
+        status:     statusMap[t.statusNum] ?? `Status ${t.statusNum}`,
+        queue:      queueMap[t.queueNum]   ?? `Queue ${t.queueNum}`,
         createDate: t.createDate,
         url:        `${host}/Tickets/${t.id}`,
       }));
 
-    crmLog(`  Filtered tickets: ${tickets.length}`);
     res.json(tickets);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
