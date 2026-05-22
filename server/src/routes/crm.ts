@@ -207,7 +207,13 @@ router.get('/tickets', requireAuth, async (req, res) => {
       crmLog(`  Resolved queues: ${targets.map((v: AtPicklistValue) => `${v.label}=${v.value}`).join(', ')}`);
     } catch (e) { crmLog(`  Picklist error: ${String(e)}`); }
 
-    const filter: unknown[] = [{ field: 'companyID', op: 'eq', value: companyId }];
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const filter: unknown[] = [
+      { field: 'companyID',  op: 'eq',  value: companyId },
+      { field: 'createDate', op: 'gte', value: threeMonthsAgo.toISOString() },
+    ];
     if (queueIds.length > 0) filter.push({ field: 'queueID', op: 'in', value: queueIds });
 
     const raw = await atQuery<Record<string, unknown>>(creds, 'Tickets', filter, undefined, 25);
