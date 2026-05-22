@@ -202,29 +202,69 @@ router.get('/account-manager', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
-// ─── POST /api/crm/create-project ─────────────────────────────────────────────
+// ─── POST /api/crm/create-ticket ─────────────────────────────────────────────
+// Creates an incident ticket in the CON:Post Sale queue when a proposal is Won.
 
-router.post('/create-project', requireAuth, async (req, res) => {
+async function getQueueId(host: string, creds: AtCreds, queueName: string): Promise<number | null> {
+  try {
+    const url = `${host}/atservicesrest/v1.0/Tickets/entityInformation/fields`;
+    crmLog(`→ GET ${url} (queue picklist lookup)`);
+    const r = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'UserName': creds.username,
+        'Secret': creds.secret,
+        'ApiIntegrationCode': creds.integrationCode,
+      },
+    });
+    if (!r.ok) { crmLog(`Queue lookup failed: ${r.status}`); return null; }
+    const data = await r.json() as {
+      fields?: Array<{ name: string; picklistValues?: Array<{ value: number; label: string; isActive: boolean }> }>;
+    };
+    const queueField = data.fields?.find((f: { name: string }) => f.name === 'queueID');
+    const match = queueField?.picklistValues?.find(
+      (v: { isActive: boolean; label: string }) => v.isActive && v.label.toLowerCase().includes(queueName.toLowerCase())
+    );
+    crmLog(`  Queue "${queueName}" resolved to ID: ${match?.value ?? 'not found'}`);
+    return match?.value ?? null;
+  } catch (e) {
+    crmLog(`Queue lookup error: ${String(e)}`);
+    return null;
+  }
+}
+
+router.post('/create-ticket', requireAuth, async (req, res) => {
   try {
     const creds = await getCreds();
     if (!creds) { res.status(400).json({ error: 'CRM not configured' }); return; }
-    const { projectName, companyID, description } = req.body as {
-      projectName?: string; companyID?: number; description?: string;
+    const { title, companyID, description } = req.body as {
+      title?: string; companyID?: number; description?: string;
     };
-    if (!projectName?.trim() || !companyID) {
-      res.status(400).json({ error: 'projectName and companyID required' }); return;
+    if (!title?.trim() || !companyID) {
+      res.status(400).json({ error: 'title and companyID required' }); return;
     }
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const url  = `${host}/atservicesrest/v1.0/Projects`;
+
+    // Look up the CON:Post Sale queue ID dynamically
+    const queueId = await getQueueId(host, creds, 'Post Sale');
+    if (!queueId) {
+      res.status(400).json({
+        error: 'Could not find a queue matching "Post Sale" in your Autotask tenant. ' +
+               'Check that the CON:Post Sale queue exists and the API user has permission to query it.',
+      }); return;
+    }
+
+    const url  = `${host}/atservicesrest/v1.0/Tickets`;
     const body = {
-      projectName: projectName.trim(),
+      title:       title.trim(),
       companyID,
-      status: 1,
+      queueID:     queueId,
+      status:      1,   // New
+      priority:    3,   // Medium
       description: description ?? '',
-      startDateTime: new Date().toISOString(),
-      estimatedTime: 0,
+      dueDateTime: new Date(Date.now() + 7 * 86400000).toISOString(),
     };
-    crmLog(`→ POST ${url} (create project)`);
+    crmLog(`→ POST ${url} (create ticket)`);
     const r = await fetch(url, {
       method: 'POST',
       headers: {
@@ -238,11 +278,11 @@ router.post('/create-project', requireAuth, async (req, res) => {
     crmLog(`← ${r.status} ${r.statusText}`);
     if (!r.ok) {
       const text = await r.text().catch(() => r.statusText);
-      throw new Error(`Autotask Projects (${r.status}): ${text.slice(0, 300)}`);
+      throw new Error(`Autotask Tickets (${r.status}): ${text.slice(0, 300)}`);
     }
     const data = await r.json() as { itemId?: number };
-    const projectId = data.itemId;
-    res.json({ projectId, url: `${host}/Projects/${projectId}` });
+    const ticketId = data.itemId;
+    res.json({ ticketId, url: `${host}/Tickets/${ticketId}` });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 

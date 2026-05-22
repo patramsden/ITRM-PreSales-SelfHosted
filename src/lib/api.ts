@@ -123,8 +123,8 @@ export const crmApi = {
   getAccountManager:  (companyId: number) => api.get<{ name: string | null; contactId: number | null }>(`crm/account-manager?companyId=${companyId}`),
   testConnection:     ()                  => api.post<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string }>('crm/test', {}),
   detectZone:         (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
-  createProject:      (data: { projectName: string; companyID: number; description?: string }) =>
-    api.post<{ projectId: number; url: string }>('crm/create-project', data),
+  createTicket:       (data: { title: string; companyID: number; description?: string }) =>
+    api.post<{ ticketId: number; url: string }>('crm/create-ticket', data),
 };
 
 export const lookupsApi = {

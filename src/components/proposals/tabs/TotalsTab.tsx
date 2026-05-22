@@ -162,18 +162,24 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
     setWonLostStatus(null);
   };
 
-  const handleCreateAtProject = async () => {
+  const handleCreateAtTicket = async () => {
     if (!proposal.crmCompanyId) return;
     setAtLoading(true); setAtError(null);
     try {
-      const res = await crmApi.createProject({
-        projectName: proposal.projectName,
+      const res = await crmApi.createTicket({
+        title: `[Post Sale] ${proposal.projectName}`,
         companyID: parseInt(proposal.crmCompanyId),
-        description: proposal.objectives ?? '',
+        description: [
+          `Proposal Reference: ${proposal.reference ?? proposal.id}`,
+          `Client: ${proposal.client}`,
+          proposal.accountManager ? `Account Manager: ${proposal.accountManager}` : '',
+          '',
+          proposal.objectives ? `Objectives:\n${proposal.objectives}` : '',
+        ].filter(Boolean).join('\n'),
       });
-      onUpdate({ atProjectId: String(res.projectId) });
+      onUpdate({ atProjectId: String(res.ticketId) });
     } catch (e) {
-      setAtError(e instanceof Error ? e.message : 'Failed to create project');
+      setAtError(e instanceof Error ? e.message : 'Failed to create ticket');
     } finally { setAtLoading(false); }
   };
 
@@ -449,23 +455,23 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
                   {proposal.wonLostNote && <div className="italic text-gray-600 dark:text-slate-400">"{proposal.wonLostNote}"</div>}
                 </div>
               )}
-              {/* Autotask project push */}
+              {/* Autotask post-sale ticket */}
               {crmConfigured && proposal.crmCompanyId && (
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
                   {proposal.atProjectId ? (
                     <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
                       <CheckCircle size={14} />
-                      <span>Autotask project created (ID: {proposal.atProjectId})</span>
+                      <span>Post Sale ticket created in Autotask (T#{proposal.atProjectId})</span>
                     </div>
                   ) : (
                     <div className="space-y-1.5">
                       <button
-                        onClick={handleCreateAtProject}
+                        onClick={handleCreateAtTicket}
                         disabled={atLoading}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors"
                       >
                         {atLoading ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                        Create Autotask Project
+                        Create Post Sale Ticket in Autotask
                       </button>
                       {atError && <p className="text-xs text-red-500">{atError}</p>}
                     </div>
