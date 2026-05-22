@@ -74,12 +74,12 @@ export default function App() {
       <ThemeProvider>
         <BrandingProvider>
           <AuthProvider>
-            <StoreInitializer>
-              <BrowserRouter>
+            <BrowserRouter>
+              <StoreInitializer>
                 <AppRoutes />
                 <UpdateBanner />
-              </BrowserRouter>
-            </StoreInitializer>
+              </StoreInitializer>
+            </BrowserRouter>
           </AuthProvider>
         </BrandingProvider>
       </ThemeProvider>
