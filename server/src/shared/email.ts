@@ -82,6 +82,32 @@ export function customerSignedEmail(proposalName: string, client: string, status
   };
 }
 
+export function statusChangeEmail(
+  proposalName: string,
+  client: string,
+  oldStatus: string,
+  newStatus: string,
+  changedBy: string,
+  appUrl: string,
+  proposalId: string,
+): { subject: string; html: string } {
+  const color = newStatus === 'Won' ? '#059669' : newStatus === 'Lost' ? '#dc2626' : '#2B3990';
+  return {
+    subject: `Proposal status updated: ${proposalName} → ${newStatus}`,
+    html: emailWrapper(`Proposal Status: ${newStatus}`, `
+      <p>A proposal status has been updated.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px;color:#64748b;font-size:14px">Project</td><td style="padding:8px;font-weight:600">${proposalName}</td></tr>
+        <tr><td style="padding:8px;color:#64748b;font-size:14px">Client</td><td style="padding:8px">${client}</td></tr>
+        <tr><td style="padding:8px;color:#64748b;font-size:14px">Previous status</td><td style="padding:8px">${oldStatus}</td></tr>
+        <tr><td style="padding:8px;color:#64748b;font-size:14px">New status</td><td style="padding:8px;font-weight:700;color:${color}">${newStatus}</td></tr>
+        <tr><td style="padding:8px;color:#64748b;font-size:14px">Changed by</td><td style="padding:8px">${changedBy}</td></tr>
+      </table>
+      <a href="${appUrl}/proposals/${proposalId}" class="btn">View Proposal</a>
+    `),
+  };
+}
+
 export function passwordResetEmail(resetUrl: string, userName: string): { subject: string; html: string } {
   return {
     subject: 'Reset your ITRM PreSales password',

@@ -59,7 +59,10 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     trbReviewNotes: (r.trb_review_notes as string) ?? undefined,
     trbReviewedBy:  (r.trb_reviewed_by  as string) ?? undefined,
     trbReviewedAt:  r.trb_reviewed_at ? (r.trb_reviewed_at as Date).toISOString() : undefined,
-    fiveKStatus: (r.five_k_status as Proposal['fiveKStatus']) ?? undefined,
+    fiveKStatus:    (r.five_k_status as Proposal['fiveKStatus']) ?? undefined,
+    fiveKAttendees: JSON.parse((r.five_k_attendees as string) || '[]'),
+    fiveKNotes:     (r.five_k_notes as string) ?? undefined,
+    fiveKMeetingDate: r.five_k_meeting_date ? (r.five_k_meeting_date as Date).toISOString().split('T')[0] : undefined,
     milestones:       JSON.parse((r.milestones    as string) || '[]'),
     clientContact:    (r.client_contact   as string) ?? undefined,
     crmCompanyId:     (r.crm_company_id   as string) ?? undefined,
@@ -181,8 +184,9 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
        date_created,date_modified,ticket_ref,markup_pct,objectives,business_requirements,
        justification,constraints,assumptions,notes,owner_id,collaborator_ids,sow_content,
        planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,
-       five_k_status,client_contact,crm_company_id,milestones,reference)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+       five_k_status,five_k_attendees,five_k_notes,five_k_meeting_date,
+       client_contact,crm_company_id,milestones,reference)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -191,6 +195,8 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
      p.plannerUrl ?? null, p.templateId ?? null, p.trbStatus ?? null,
      p.trbReviewNotes ?? null, p.trbReviewedBy ?? null,
      p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
+     JSON.stringify(p.fiveKAttendees ?? []), p.fiveKNotes ?? null,
+     p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
      p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
      reference],
   );
@@ -205,7 +211,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        business_requirements=$12,justification=$13,constraints=$14,assumptions=$15,notes=$16,
        owner_id=$17,collaborator_ids=$18,sow_content=$19,planner_url=$20,template_id=$21,
        trb_status=$22,trb_review_notes=$23,trb_reviewed_by=$24,trb_reviewed_at=$25,
-       five_k_status=$26,client_contact=$27,crm_company_id=$28,milestones=$29
+       five_k_status=$26,five_k_attendees=$27,five_k_notes=$28,five_k_meeting_date=$29,
+       client_contact=$30,crm_company_id=$31,milestones=$32
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -215,6 +222,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      p.plannerUrl ?? null, p.templateId ?? null, p.trbStatus ?? null,
      p.trbReviewNotes ?? null, p.trbReviewedBy ?? null,
      p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
+     JSON.stringify(p.fiveKAttendees ?? []), p.fiveKNotes ?? null,
+     p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
      p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? [])],
   );
   await writeNested(p);

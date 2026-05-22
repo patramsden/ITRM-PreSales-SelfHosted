@@ -310,6 +310,11 @@ export async function ensureSchema(): Promise<void> {
       signer_ip       VARCHAR(100)  NULL,
       signer_notes    TEXT          NULL
     )`,
+
+    // 5K review enrichment columns
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_attendees TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_notes TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_meeting_date DATE`,
   ];
 
   for (const stmt of migrations) {

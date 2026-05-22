@@ -120,6 +120,9 @@ export interface Proposal {
   trbReviewedBy?: string;
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+  fiveKAttendees?: string[];
+  fiveKNotes?: string;
+  fiveKMeetingDate?: string;
   milestones?: BillingMilestone[];
   clientContact?: string;
   crmCompanyId?: string;

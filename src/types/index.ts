@@ -154,6 +154,11 @@ export interface Proposal {
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
 
+  // 5K review enrichment
+  fiveKAttendees?: string[];   // list of attendee names
+  fiveKNotes?: string;         // meeting notes
+  fiveKMeetingDate?: string;   // ISO date string
+
   /** When true, consultancy GP uses the actual rate card costRate instead of the default 70% of sell */
   useRateCardCost?: boolean;
 

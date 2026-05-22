@@ -5,6 +5,9 @@ import {
 } from '../repositories/proposalRepo';
 import { saveVersion, listVersions, getVersionSnapshot } from '../repositories/versionRepo';
 import { createShare, listShares, deleteShare, getProposalByShareToken } from '../repositories/shareRepo';
+import { sendEmail, statusChangeEmail } from '../shared/email';
+import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
+import { getAllUsers } from '../repositories/userRepo';
 import type { Proposal } from '../types/index';
 
 const router = Router();
@@ -21,8 +24,26 @@ router.get('/:id',  requireAuth, async (req, res) => {
 });
 router.put('/:id',  requireAuth, async (req, res) => {
   const body = req.body as Proposal;
+  const existing = await getProposalById(req.params.id);
   await updateProposal(req.params.id, body);
   saveVersion(req.params.id, JSON.stringify(body), req.user?.name ?? 'system').catch(() => {});
+  // Fire-and-forget status change email
+  if (existing && existing.status !== body.status) {
+    (async () => {
+      try {
+        const cfg = await getAppSettingsDirect();
+        const appUrl = (cfg[SETTING_KEYS.APP_URL] ?? '').trim();
+        const allUsers = await getAllUsers();
+        const amUser = allUsers.find(u => u.name.toLowerCase() === (body.accountManager ?? '').toLowerCase());
+        const ownerUser = allUsers.find(u => u.id === body.ownerId);
+        const recipients = [amUser?.email, ownerUser?.email].filter(Boolean) as string[];
+        if (recipients.length > 0) {
+          const { subject, html } = statusChangeEmail(body.projectName, body.client, existing.status, body.status, req.user?.name ?? 'System', appUrl, body.id);
+          await sendEmail({ to: recipients, subject, html });
+        }
+      } catch { /* never let email break the response */ }
+    })();
+  }
   res.json(body);
 });
 router.delete('/:id', requireAuth, async (req, res) => {
