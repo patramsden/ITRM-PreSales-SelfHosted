@@ -315,6 +315,11 @@ export async function ensureSchema(): Promise<void> {
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_attendees TEXT`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_notes TEXT`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_meeting_date DATE`,
+
+    // Review fingerprints — captures financial state at approval/completion so
+    // subsequent edits can auto-detect that re-review is required (status 'stale')
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_approved_fingerprint   TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_approved_fingerprint TEXT`,
   ];
 
   for (const stmt of migrations) {

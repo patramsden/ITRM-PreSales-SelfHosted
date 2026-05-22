@@ -148,11 +148,11 @@ export interface Proposal {
   crmCompanyId?: string;
 
   // Approval reviews (driven by GP thresholds)
-  trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived';
+  trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived' | 'stale';
   trbReviewNotes?: string;
   trbReviewedBy?: string;
   trbReviewedAt?: string;
-  fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+  fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived' | 'stale';
 
   // 5K review enrichment
   fiveKAttendees?: string[];   // list of attendee names
@@ -166,6 +166,15 @@ export interface Proposal {
   lastModifiedAt?: string;
 
   reference?: string;
+
+  /**
+   * Fingerprint of financially-relevant fields (parts, phases, markupPct, currency)
+   * captured at the moment TRB was approved. If the proposal is subsequently edited
+   * and the new fingerprint differs, trbStatus is automatically set to 'stale'.
+   */
+  trbApprovedFingerprint?: string;
+  /** Same as trbApprovedFingerprint but for the 5K review completion. */
+  fiveKApprovedFingerprint?: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────

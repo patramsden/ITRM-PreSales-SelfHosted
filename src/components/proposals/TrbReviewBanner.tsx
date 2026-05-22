@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, ShieldX, MessageSquare, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { ShieldCheck, ShieldX, MessageSquare, ChevronDown, ChevronUp, Clock, AlertTriangle } from 'lucide-react';
 import type { Proposal } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/Button';
@@ -8,9 +8,10 @@ import clsx from 'clsx';
 interface Props {
   proposal: Proposal;
   onUpdate: (updates: Partial<Proposal>) => void;
+  editable?: boolean;
 }
 
-export function TrbReviewBanner({ proposal, onUpdate }: Props) {
+export function TrbReviewBanner({ proposal, onUpdate, editable = true }: Props) {
   const { currentUser } = useAuth();
   const [expanded, setExpanded] = useState(true);
   const [notes, setNotes] = useState('');
@@ -18,7 +19,7 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
 
   const status = proposal.trbStatus;
 
-  // Only show when review is in flight or has a decision
+  // Only show when review is in flight, decided, or stale
   if (!status || status === 'pending' || status === 'waived') return null;
 
   const isDecided = status === 'approved' || status === 'rejected';
@@ -40,6 +41,7 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
     sent:     'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20',
     approved: 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20',
     rejected: 'border-red-300  bg-red-50   dark:border-red-700   dark:bg-red-900/20',
+    stale:    'border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-900/20',
     pending:  '',
     waived:   '',
   }[status] ?? 'border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800';
@@ -48,6 +50,7 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
     sent:     <Clock size={18} className="text-amber-500 flex-shrink-0" />,
     approved: <ShieldCheck size={18} className="text-green-600 flex-shrink-0" />,
     rejected: <ShieldX size={18} className="text-red-500 flex-shrink-0" />,
+    stale:    <AlertTriangle size={18} className="text-orange-500 flex-shrink-0" />,
     pending:  null,
     waived:   null,
   }[status];
@@ -56,6 +59,7 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
     sent:     'TRB Review Pending',
     approved: 'TRB Approved',
     rejected: 'TRB Rejected',
+    stale:    'TRB Re-review Required',
     pending:  '',
     waived:   '',
   }[status];
@@ -64,6 +68,7 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
     sent:     'This proposal has been sent to the TRB for review. Use the form below to record your decision.',
     approved: `Approved by ${proposal.trbReviewedBy ?? 'reviewer'} on ${proposal.trbReviewedAt ? new Date(proposal.trbReviewedAt).toLocaleDateString('en-GB') : '—'}`,
     rejected: `Rejected by ${proposal.trbReviewedBy ?? 'reviewer'} on ${proposal.trbReviewedAt ? new Date(proposal.trbReviewedAt).toLocaleDateString('en-GB') : '—'}`,
+    stale:    `Commercial data was changed after TRB approval — the proposal must go through TRB review again before it can be exported.`,
     pending:  '',
     waived:   '',
   }[status];
@@ -89,6 +94,37 @@ export function TrbReviewBanner({ proposal, onUpdate }: Props) {
       {/* Expanded body */}
       {expanded && (
         <div className="px-8 pb-5 pt-1">
+          {/* Stale — prompt to re-initiate review */}
+          {status === 'stale' && (
+            <div className="bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-700 rounded-xl p-5 max-w-3xl space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-orange-900 dark:text-orange-200">
+                <AlertTriangle size={15} className="text-orange-500" />
+                Commercial changes detected since TRB approval
+              </div>
+              <p className="text-xs text-orange-700 dark:text-orange-300 leading-relaxed">
+                Parts, consultancy tasks, markup percentage, or currency have been edited after the
+                TRB approved this proposal. The previous approval is no longer valid and the proposal
+                must be re-submitted for review.
+                {proposal.trbReviewedBy && (
+                  <> Previous approval was by <strong>{proposal.trbReviewedBy}</strong>
+                  {proposal.trbReviewedAt && <> on {new Date(proposal.trbReviewedAt).toLocaleDateString('en-GB')}</>}.
+                  </>
+                )}
+              </p>
+              {editable && (
+                <Button
+                  onClick={() => onUpdate({
+                    trbStatus: 'pending',
+                    trbApprovedFingerprint: undefined,
+                  })}
+                  className="bg-orange-600 hover:bg-orange-700 focus:ring-orange-500 text-white border-0 text-xs"
+                >
+                  Reset to Pending — Re-initiate Review
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* Decision form — only when still awaiting response */}
           {status === 'sent' && (
             <div className="bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 rounded-xl p-5 max-w-3xl space-y-4">

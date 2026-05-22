@@ -70,6 +70,8 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     lastModifiedBy:   (r.last_modified_by as string) ?? undefined,
     lastModifiedAt:   r.last_modified_at ? (r.last_modified_at as Date).toISOString() : undefined,
     reference:        (r.reference        as string) ?? undefined,
+    trbApprovedFingerprint:   (r.trb_approved_fingerprint   as string) ?? undefined,
+    fiveKApprovedFingerprint: (r.five_k_approved_fingerprint as string) ?? undefined,
     parts, phases,
   };
 }
@@ -185,8 +187,9 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
        justification,constraints,assumptions,notes,owner_id,collaborator_ids,sow_content,
        planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,
        five_k_status,five_k_attendees,five_k_notes,five_k_meeting_date,
-       client_contact,crm_company_id,milestones,reference)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)`,
+       client_contact,crm_company_id,milestones,reference,
+       trb_approved_fingerprint,five_k_approved_fingerprint)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -198,7 +201,8 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
      JSON.stringify(p.fiveKAttendees ?? []), p.fiveKNotes ?? null,
      p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
      p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
-     reference],
+     reference,
+     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null],
   );
   await writeNested(p);
   return { ...p, reference };
@@ -212,7 +216,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        owner_id=$17,collaborator_ids=$18,sow_content=$19,planner_url=$20,template_id=$21,
        trb_status=$22,trb_review_notes=$23,trb_reviewed_by=$24,trb_reviewed_at=$25,
        five_k_status=$26,five_k_attendees=$27,five_k_notes=$28,five_k_meeting_date=$29,
-       client_contact=$30,crm_company_id=$31,milestones=$32
+       client_contact=$30,crm_company_id=$31,milestones=$32,
+       trb_approved_fingerprint=$33,five_k_approved_fingerprint=$34
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -224,7 +229,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      p.trbReviewedAt ? new Date(p.trbReviewedAt) : null, p.fiveKStatus ?? null,
      JSON.stringify(p.fiveKAttendees ?? []), p.fiveKNotes ?? null,
      p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
-     p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? [])],
+     p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
+     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null],
   );
   await writeNested(p);
 }

@@ -57,7 +57,7 @@ export function ProposalWorkspace() {
   // Fetch layout config for PDF generation
   useEffect(() => {
     settingsApi.get()
-      .then(s => setLayoutConfig(parseLayout((s as Record<string, string | undefined>)['proposal.layout'])))
+      .then(s => setLayoutConfig(parseLayout(s['proposal.layout'])))
       .catch(() => setLayoutConfig(DEFAULT_LAYOUT));
   }, []);
 
@@ -313,7 +313,7 @@ export function ProposalWorkspace() {
       </div>
 
       {/* TRB review banner — visible to all when review is in flight or decided */}
-      <TrbReviewBanner proposal={proposal} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+      <TrbReviewBanner proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
 
       {/* Tab content */}
       <div className="flex-1 p-8 bg-gray-50 dark:bg-slate-900">

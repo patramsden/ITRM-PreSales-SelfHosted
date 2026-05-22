@@ -115,11 +115,11 @@ export interface Proposal {
   sowContent?: string;
   plannerUrl?: string;
   templateId?: string;
-  trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived';
+  trbStatus?: 'pending' | 'sent' | 'approved' | 'rejected' | 'waived' | 'stale';
   trbReviewNotes?: string;
   trbReviewedBy?: string;
   trbReviewedAt?: string;
-  fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived';
+  fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived' | 'stale';
   fiveKAttendees?: string[];
   fiveKNotes?: string;
   fiveKMeetingDate?: string;
@@ -130,6 +130,8 @@ export interface Proposal {
   lastModifiedBy?: string;
   lastModifiedAt?: string;
   reference?: string;
+  trbApprovedFingerprint?: string;
+  fiveKApprovedFingerprint?: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────

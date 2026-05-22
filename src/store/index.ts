@@ -4,6 +4,7 @@ import type {
   Proposal, Template, CatalogItem, RateCard, User,
   ProposalStatus, Currency, Part, ConsultancyPhase,
 } from '../types';
+import { computeReviewFingerprint, financiallyChangedSince } from '../utils/reviewFingerprint';
 
 // ─── Seed data ───────────────────────────────────────────────────────────────
 
@@ -402,11 +403,49 @@ export const useStore = create<AppStore>()((set, get) => ({
   },
   updateProposal: (id, updates, modifiedBy) => {
     const now = new Date().toISOString();
+    const existing = get().proposals.find(p => p.id === id);
+
+    // ── Review re-trigger logic ──────────────────────────────────────────────
+    // Financial keys — changes to these may invalidate an existing approval.
+    const FINANCIAL_KEYS: (keyof Proposal)[] = ['parts', 'phases', 'markupPct', 'currency'];
+    const isFinancialUpdate = existing && FINANCIAL_KEYS.some(k => k in updates);
+
+    const reviewExtra: Partial<Proposal> = {};
+
+    if (existing) {
+      // When TRB is being approved: capture fingerprint of the current state
+      if (updates.trbStatus === 'approved') {
+        reviewExtra.trbApprovedFingerprint = computeReviewFingerprint({ ...existing, ...updates });
+      }
+      // When 5K is being marked complete: capture fingerprint
+      if (updates.fiveKStatus === 'complete') {
+        reviewExtra.fiveKApprovedFingerprint = computeReviewFingerprint({ ...existing, ...updates });
+      }
+
+      // When making a financial edit: check whether an existing approval is now stale.
+      // Only fires when the update is NOT itself a review-status change.
+      if (isFinancialUpdate && !('trbStatus' in updates) && !('fiveKStatus' in updates)) {
+        const merged = { ...existing, ...updates } as Proposal;
+
+        if (existing.trbStatus === 'approved' && existing.trbApprovedFingerprint) {
+          if (financiallyChangedSince(merged, existing.trbApprovedFingerprint)) {
+            reviewExtra.trbStatus = 'stale';
+          }
+        }
+        if (existing.fiveKStatus === 'complete' && existing.fiveKApprovedFingerprint) {
+          if (financiallyChangedSince(merged, existing.fiveKApprovedFingerprint)) {
+            reviewExtra.fiveKStatus = 'stale';
+          }
+        }
+      }
+    }
+
     set(s => ({
       proposals: s.proposals.map(p =>
         p.id === id ? {
           ...p,
           ...updates,
+          ...reviewExtra,
           dateModified: today(),
           ...(modifiedBy ? { lastModifiedBy: modifiedBy, lastModifiedAt: now } : {}),
         } : p
@@ -433,7 +472,8 @@ export const useStore = create<AppStore>()((set, get) => ({
       dateModified: today2,
       sowContent: undefined,
       trbStatus: undefined, trbReviewNotes: undefined, trbReviewedBy: undefined, trbReviewedAt: undefined,
-      fiveKStatus: undefined,
+      trbApprovedFingerprint: undefined,
+      fiveKStatus: undefined, fiveKApprovedFingerprint: undefined,
       parts: original.parts.map(pt => ({
         ...pt, id: uuid(),
         quotes: pt.quotes.map(q => ({ ...q, id: uuid() })),

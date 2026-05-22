@@ -1,5 +1,5 @@
-export type TrbStatus     = 'pending' | 'sent' | 'approved' | 'rejected' | 'waived';
-export type FiveKStatus   = 'pending' | 'booked' | 'complete' | 'waived';
+export type TrbStatus     = 'pending' | 'sent' | 'approved' | 'rejected' | 'waived' | 'stale';
+export type FiveKStatus   = 'pending' | 'booked' | 'complete' | 'waived' | 'stale';
 
 export interface ReviewThreshold {
   key: 'trb' | 'fiveK';

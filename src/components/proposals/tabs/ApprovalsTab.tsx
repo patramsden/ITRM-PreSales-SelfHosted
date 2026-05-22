@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   CheckCircle, XCircle, Clock, Users, FileText, CalendarDays,
-  Copy, Check, AlertTriangle, ChevronDown, ChevronUp, ExternalLink,
+  Copy, Check, AlertTriangle, ChevronDown, ChevronUp, ExternalLink, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Proposal } from '../../../types';
@@ -21,18 +21,20 @@ interface Props {
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const TRB_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending:  { label: 'Required — not sent',   color: 'text-amber-700 bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
-  sent:     { label: 'Sent for review',        color: 'text-blue-700  bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
-  approved: { label: 'Approved',               color: 'text-green-700 bg-green-50  border-green-200',  dot: 'bg-green-500'  },
-  rejected: { label: 'Rejected',               color: 'text-red-700   bg-red-50    border-red-200',    dot: 'bg-red-500'    },
-  waived:   { label: 'Waived',                 color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  pending:  { label: 'Required — not sent',       color: 'text-amber-700  bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
+  sent:     { label: 'Sent for review',            color: 'text-blue-700   bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
+  approved: { label: 'Approved',                   color: 'text-green-700  bg-green-50  border-green-200',  dot: 'bg-green-500'  },
+  rejected: { label: 'Rejected',                   color: 'text-red-700    bg-red-50    border-red-200',    dot: 'bg-red-500'    },
+  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300', dot: 'bg-orange-500' },
 };
 
 const FIVEK_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending:  { label: 'Required — not booked', color: 'text-amber-700 bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
-  booked:   { label: 'Meeting booked',         color: 'text-blue-700  bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
-  complete: { label: 'Review complete',        color: 'text-green-700 bg-green-50  border-green-200',  dot: 'bg-green-500'  },
-  waived:   { label: 'Waived',                 color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  pending:  { label: 'Required — not booked',     color: 'text-amber-700  bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
+  booked:   { label: 'Meeting booked',             color: 'text-blue-700   bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
+  complete: { label: 'Review complete',            color: 'text-green-700  bg-green-50  border-green-200',  dot: 'bg-green-500'  },
+  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300', dot: 'bg-orange-500' },
 };
 
 // ─── Customer decision section ────────────────────────────────────────────────
@@ -270,6 +272,36 @@ export function ApprovalsTab({ proposal, editable, onUpdate }: Props) {
               <>
                 <p className="text-xs text-gray-500 dark:text-slate-400">{trbThreshold.description}</p>
 
+                {/* Stale — proposal changed after approval */}
+                {trbStatus === 'stale' && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
+                    <AlertTriangle size={16} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="text-sm font-semibold text-orange-900 dark:text-orange-200">
+                        Proposal modified after TRB approval
+                      </div>
+                      <p className="text-xs text-orange-700 dark:text-orange-300 leading-relaxed">
+                        Commercial data (parts, consultancy, markup, or currency) has changed since this
+                        proposal was approved by the TRB. The approval is no longer valid — the proposal
+                        must be re-submitted for review before it can be exported.
+                        {proposal.trbReviewedBy && (
+                          <> The previous approval was recorded by <strong>{proposal.trbReviewedBy}</strong>
+                          {proposal.trbReviewedAt && <> on {new Date(proposal.trbReviewedAt).toLocaleDateString('en-GB')}</>}.</>
+                        )}
+                      </p>
+                      {editable && (
+                        <button
+                          onClick={() => onUpdate({ trbStatus: 'pending', trbApprovedFingerprint: undefined })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors"
+                        >
+                          <RefreshCw size={12} />
+                          Reset &amp; Re-initiate Review
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Reviewer info */}
                 {(trbStatus === 'approved' || trbStatus === 'rejected') && (
                   <div className={clsx('flex items-start gap-3 p-4 rounded-xl border',
@@ -295,7 +327,7 @@ export function ApprovalsTab({ proposal, editable, onUpdate }: Props) {
                 )}
 
                 {/* Send for review */}
-                {editable && trbStatus !== 'approved' && trbStatus !== 'rejected' && trbStatus !== 'waived' && (
+                {editable && trbStatus !== 'approved' && trbStatus !== 'rejected' && trbStatus !== 'waived' && trbStatus !== 'stale' && (
                   <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-xl space-y-3">
                     <div>
                       <div className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Send for TRB Review</div>
@@ -375,8 +407,33 @@ export function ApprovalsTab({ proposal, editable, onUpdate }: Props) {
               <>
                 <p className="text-xs text-gray-500 dark:text-slate-400">{fiveKThreshold.description}</p>
 
+                {/* Stale — proposal changed after 5K completion */}
+                {fiveKStatus === 'stale' && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
+                    <AlertTriangle size={16} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="text-sm font-semibold text-orange-900 dark:text-orange-200">
+                        Proposal modified after 5K review
+                      </div>
+                      <p className="text-xs text-orange-700 dark:text-orange-300 leading-relaxed">
+                        Commercial data has changed since the 5K review was completed. The review is no
+                        longer valid — a new 5K review meeting must be held before this proposal can be exported.
+                      </p>
+                      {editable && (
+                        <button
+                          onClick={() => onUpdate({ fiveKStatus: 'pending', fiveKApprovedFingerprint: undefined })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition-colors"
+                        >
+                          <RefreshCw size={12} />
+                          Reset &amp; Re-initiate Review
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Book meeting */}
-                {fiveKStatus !== 'complete' && fiveKStatus !== 'waived' && (
+                {fiveKStatus !== 'complete' && fiveKStatus !== 'waived' && fiveKStatus !== 'stale' && (
                   <div className="flex flex-wrap items-center gap-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-blue-900 dark:text-blue-200">Book via Microsoft Teams</div>
