@@ -20,6 +20,20 @@ export function StoreInitializer({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!initialized) return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Silently re-fetch proposals to pick up any changes made in other tabs or by other users
+        proposalApi.list().then(proposals => {
+          useStore.setState({ proposals });
+        }).catch(() => { /* ignore — background refresh */ });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [initialized]);
+
+  useEffect(() => {
     // Wait until auth has resolved before fetching data
     if (authLoading || initialized) return;
 

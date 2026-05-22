@@ -1,11 +1,18 @@
 import { query } from '../shared/db';
+import { encrypt, decrypt, hashToken } from '../shared/crypto';
 
 const SERVER_ONLY_KEYS = new Set([
   'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key', 'system.serviceApiKey',
-  'crm.autotask.secret',
-  'scim.token',
-  'email.password',
+  'crm.autotask.secret', 'scim.token', 'email.password',
 ]);
+
+// AES-256-GCM encrypted at rest (value must be recoverable to use)
+const ENCRYPT_KEYS = new Set([
+  'ai.azure.key', 'ai.anthropic.key', 'crm.autotask.secret', 'email.password', 'sso.idpCert',
+]);
+
+// bcrypt-hashed (only verified, never reconstructed)
+const HASH_KEYS = new Set(['system.serviceApiKey', 'scim.token']);
 
 export const SETTING_KEYS = {
   AI_PROVIDER:       'ai.provider',
@@ -51,7 +58,11 @@ export async function getAppSettings(): Promise<Record<string, string>> {
 
 export async function getAppSettingsDirect(): Promise<Record<string, string>> {
   const rows = await query<{ key: string; value: string }>('SELECT key, value FROM app_settings');
-  return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const result: Record<string, string> = {};
+  for (const row of rows) {
+    result[row.key] = ENCRYPT_KEYS.has(row.key) ? decrypt(row.value) : row.value;
+  }
+  return result;
 }
 
 export async function updateAppSettings(updates: Record<string, string>): Promise<void> {
@@ -63,10 +74,13 @@ export async function updateAppSettings(updates: Record<string, string>): Promis
     // Don't blank out a server-only secret with an empty value — the frontend
     // never receives the real value so it sends nothing; preserve what's in DB.
     if (value === '' && SERVER_ONLY_KEYS.has(key)) continue;
+    let storedValue = value;
+    if (ENCRYPT_KEYS.has(key)) storedValue = encrypt(value);
+    else if (HASH_KEYS.has(key)) storedValue = await hashToken(value);
     await query(
       `INSERT INTO app_settings (key, value) VALUES ($1, $2)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      [key, value],
+      [key, storedValue],
     );
   }
 }

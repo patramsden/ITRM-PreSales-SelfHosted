@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { validateSession } from '../repositories/sessionRepo';
 import { getAppSettingsDirect } from '../repositories/settingsRepo';
+import { verifyToken } from './crypto';
 import type { User } from '../types/index';
 
 // ─── Type augmentation ────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ async function checkServiceKey(token: string): Promise<boolean> {
   try {
     const cfg = await getAppSettingsDirect();
     const key = (cfg['system.serviceApiKey'] ?? '').trim();
-    return key.length > 0 && key === token;
+    return key.length > 0 && await verifyToken(token, key);
   } catch { return false; }
 }
 

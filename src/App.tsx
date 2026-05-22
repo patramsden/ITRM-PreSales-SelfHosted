@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { BrandingProvider } from './contexts/BrandingContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { StoreInitializer } from './components/StoreInitializer';
+import { UpdateBanner } from './components/ui/UpdateBanner';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -76,6 +77,7 @@ export default function App() {
             <StoreInitializer>
               <BrowserRouter>
                 <AppRoutes />
+                <UpdateBanner />
               </BrowserRouter>
             </StoreInitializer>
           </AuthProvider>

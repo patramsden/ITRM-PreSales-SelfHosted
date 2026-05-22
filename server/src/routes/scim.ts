@@ -12,6 +12,7 @@
 import { Router, type Request, type Response } from 'express';
 import { v4 as uuid } from 'uuid';
 import { getAppSettingsDirect } from '../repositories/settingsRepo';
+import { verifyToken } from '../shared/crypto';
 import {
   getAllUsers, getUserById, getUserByEmailAll,
   upsertUser, setUserActive, updateUserFromScim,
@@ -26,7 +27,8 @@ async function scimAuth(req: Request, res: Response): Promise<boolean> {
   const s     = await getAppSettingsDirect();
   const token = (s['scim.token'] ?? '').trim();
   if (!token) { res.status(503).json(scimError(503, 'SCIM provisioning is not configured.')); return false; }
-  if (req.headers.authorization !== `Bearer ${token}`) {
+  const incoming = req.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '';
+  if (!await verifyToken(incoming, token)) {
     res.status(401).json(scimError(401, 'Invalid or missing Bearer token.')); return false;
   }
   return true;

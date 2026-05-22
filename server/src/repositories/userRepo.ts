@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { query } from '../shared/db';
+import { encrypt, decrypt } from '../shared/crypto';
 import type { User } from '../types/index';
 
 function toUser(r: Record<string, unknown>): User {
@@ -41,7 +42,7 @@ export async function getUserByEmail(email: string): Promise<{
   return {
     user:         toUser(r),
     passwordHash: (r.password_hash as string) ?? null,
-    totpSecret:   (r.totp_secret   as string) ?? null,
+    totpSecret:   r.totp_secret ? decrypt(r.totp_secret as string) : null,
   };
 }
 
@@ -100,12 +101,13 @@ export async function updateUserPassword(id: string, passwordHash: string): Prom
 }
 
 export async function setUserTotpSecret(id: string, secret: string | null): Promise<void> {
-  await query('UPDATE users SET totp_secret=$2 WHERE id=$1', [id, secret]);
+  await query('UPDATE users SET totp_secret=$2 WHERE id=$1', [id, secret ? encrypt(secret) : null]);
 }
 
 export async function getUserTotpSecret(id: string): Promise<string | null> {
   const rows = await query<{ totp_secret: string | null }>('SELECT totp_secret FROM users WHERE id=$1', [id]);
-  return rows.length ? rows[0].totp_secret : null;
+  const raw = rows.length ? rows[0].totp_secret : null;
+  return raw ? decrypt(raw) : null;
 }
 
 export async function createTotpChallenge(userId: string): Promise<string> {

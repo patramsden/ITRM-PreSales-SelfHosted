@@ -28,6 +28,7 @@ import versionsRouter      from './routes/versions';
 import sowRouter           from './routes/sow';
 import customerLinksRouter from './routes/customerLinks';
 import publicCustomerRouter from './routes/publicCustomer';
+import backupRouter         from './routes/backup';
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -67,6 +68,12 @@ app.use('/api/sow',          sowRouter);
 app.use('/api/proposals',    customerLinksRouter);  // /:id/customer-link(s)
 app.use('/api/customer',     publicCustomerRouter); // /:token and /:token/sign
 app.use('/api/customer-link', publicCustomerRouter); // DELETE /:token
+app.use('/api/backup',        backupRouter);
+
+// Version endpoint — used by the frontend update banner
+app.get('/api/version', (_req, res) => {
+  res.json({ version: process.env.APP_VERSION ?? 'dev', buildTime: process.env.BUILD_TIME ?? new Date().toISOString() });
+});
 app.use('/api/templates',  templatesRouter);
 app.use('/api/users',      usersRouter);
 app.use('/api/lookups',    lookupsRouter);

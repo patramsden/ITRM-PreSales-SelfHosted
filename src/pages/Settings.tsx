@@ -15,6 +15,7 @@ import {
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
   Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
   Layout, GripVertical, ChevronUp, ChevronDown as ChevronDownIcon,
+  AlertTriangle, Database, Download,
 } from 'lucide-react';
 import { parseLayout } from '../types/layout';
 import type { ProposalLayoutConfig, LayoutSection } from '../types/layout';
@@ -39,6 +40,7 @@ const TABS: Tab[] = [
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
   { id: 'email',        label: 'Email',               icon: Mail,          adminOnly: true  },
   { id: 'layout',       label: 'Proposal Layout',     icon: Layout,        adminOnly: true  },
+  { id: 'backup',       label: 'Backup & Restore',    icon: Database,      adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
 
@@ -498,7 +500,14 @@ function SecurityTab({ settings, onChange, isAdmin }: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [encryptionConfigured, setEncryptionConfigured] = useState<boolean | null>(null);
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
+
+  useEffect(() => {
+    api.get<{ configured: boolean }>('settings/encryption-status')
+      .then(r => setEncryptionConfigured(r.configured))
+      .catch(() => setEncryptionConfigured(false));
+  }, []);
 
   const handleSave = async () => {
     setSaving(true); setSaved(false); setError(null);
@@ -528,6 +537,18 @@ function SecurityTab({ settings, onChange, isAdmin }: {
 
   return (
     <div className="space-y-6">
+      {encryptionConfigured === false && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="text-sm font-medium text-amber-800 dark:text-amber-300">Secrets stored in plain text</div>
+            <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              Set the <code className="font-mono">ENCRYPTION_KEY</code> environment variable (64 hex chars) to enable AES-256-GCM encryption for API keys and passwords at rest.
+              Generate one with: <code className="font-mono">openssl rand -hex 32</code>
+            </div>
+          </div>
+        </div>
+      )}
       <SectionHeader icon={ShieldAlert} title="Password Policy" subtitle="Applied when users change their password or a new password is set" adminOnly={!isAdmin} />
 
       <FieldRow label="Minimum length">
@@ -1558,6 +1579,109 @@ function SectionHeader({ icon: Icon, title, subtitle, adminOnly }: {
   );
 }
 
+// ─── Backup & Restore tab ─────────────────────────────────────────────────────
+
+function BackupTab({ isAdmin }: { isAdmin: boolean }) {
+  const [downloading, setDownloading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/backup`, { headers: { Authorization: `Bearer ${token ?? ''}` } });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `itrm-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : 'Download failed' });
+    } finally { setDownloading(false); }
+  };
+
+  const handleRestore = async (file: File) => {
+    if (!confirm('Restoring will REPLACE ALL current data. Are you sure?')) return;
+    setRestoring(true); setResult(null);
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/backup/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` },
+        body: JSON.stringify(backup),
+      });
+      const data = await res.json() as Record<string, unknown>;
+      if (!res.ok) throw new Error((data.error as string) ?? 'Restore failed');
+      const restoredCounts = data.restored as Record<string, number> | undefined;
+      const summary = restoredCounts
+        ? Object.entries(restoredCounts).map(([t, n]) => `${t}: ${n}`).join(', ')
+        : '';
+      setResult({ ok: true, msg: `Restore complete. ${summary}` });
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : 'Restore failed' });
+    } finally { setRestoring(false); }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <SectionHeader icon={Database} title="Backup & Restore"
+        subtitle="Export all data and configuration to a JSON file, or restore from a previous backup"
+        adminOnly={!isAdmin} />
+
+      {/* Download */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Download Backup</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            Creates a full JSON export of all proposals, users, settings, catalog, rate cards, templates, and customer links.
+          </p>
+        </div>
+        <Button onClick={handleDownload} disabled={downloading || !isAdmin} variant="secondary">
+          {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {downloading ? 'Preparing backup…' : 'Download backup'}
+        </Button>
+      </div>
+
+      {/* Restore */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-800 p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Restore from Backup</h3>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              <strong>Warning:</strong> This will replace all current data with the backup contents. This action cannot be undone.
+            </p>
+          </div>
+        </div>
+        <label className={clsx('flex items-center gap-2 cursor-pointer', (!isAdmin || restoring) && 'opacity-50 pointer-events-none')}>
+          <input type="file" accept=".json" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleRestore(f); e.target.value = ''; }}
+            disabled={!isAdmin || restoring} />
+          <Button variant="secondary" disabled={!isAdmin || restoring} onClick={() => {}}>
+            {restoring ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {restoring ? 'Restoring…' : 'Choose backup file'}
+          </Button>
+        </label>
+      </div>
+
+      {result && (
+        <div className={clsx('flex items-start gap-2 px-4 py-3 rounded-lg border text-sm',
+          result.ok ? 'bg-green-50 dark:bg-green-900/20 border-green-200 text-green-700 dark:text-green-300'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 text-red-600 dark:text-red-400')}>
+          {result.ok ? <CheckCircle size={14} className="mt-0.5 shrink-0" /> : <AlertCircle size={14} className="mt-0.5 shrink-0" />}
+          {result.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Email tab ────────────────────────────────────────────────────────────────
 
 function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
@@ -1693,7 +1817,7 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
 }
 
 function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
-  const [layout, setLayout] = useState<ProposalLayoutConfig>(() => parseLayout((settings as Record<string, string | undefined>)['proposal.layout']));
+  const [layout, setLayout] = useState<ProposalLayoutConfig>(() => parseLayout(settings['proposal.layout']));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState<string | null>(null);
@@ -1709,6 +1833,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
     const sections = [...layout.sections];
     const target = idx + dir;
     if (target < 0 || target >= sections.length) return;
+    // Swap order values
     const a = { ...sections[idx], order: sections[target].order };
     const b = { ...sections[target], order: sections[idx].order };
     sections[idx] = a;
@@ -1719,7 +1844,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
   const handleSave = async () => {
     setSaving(true); setSaved(false); setError(null);
     try {
-      const next = { ...settings, 'proposal.layout': JSON.stringify(layout) } as AppSettings;
+      const next = { ...settings, 'proposal.layout': JSON.stringify(layout) };
       await settingsApi.update(next);
       onChange(next);
       setSaved(true); setTimeout(() => setSaved(false), 3000);
@@ -1733,6 +1858,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
     <div className="space-y-6">
       <SectionHeader icon={Layout} title="Proposal Layout" subtitle="Control sections, order and branding for customer proposals and PDF exports" adminOnly={!isAdmin} />
 
+      {/* Section order + visibility */}
       <div>
         <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">Sections</div>
         <div className="space-y-2">
@@ -1774,6 +1900,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
                   </div>
                 )}
               </div>
+              {/* Terms content editor */}
               {section.id === 'terms' && section.enabled && (
                 <div className="mt-1.5 ml-8">
                   <textarea
@@ -1794,6 +1921,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
         </div>
       </div>
 
+      {/* Header config */}
       <div className="rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
           <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">Header</span>
@@ -1848,6 +1976,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
         </div>
       </div>
 
+      {/* Footer config */}
       <div className="rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
           <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">Footer</span>
@@ -1967,6 +2096,7 @@ export function Settings() {
           {activeTab === 'api'           && <ApiAccessTab isAdmin={isAdmin} />}
           {activeTab === 'email'         && settingsLoaded && <EmailTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'layout'        && settingsLoaded && <LayoutTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
+          {activeTab === 'backup'        && <BackupTab isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>
       </div>

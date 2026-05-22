@@ -52,10 +52,13 @@ success "Files synced"
 info "Step 3/4 — Rebuilding..."
 
 info "  Building frontend..."
+APP_VERSION=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+info "  Version: ${APP_VERSION} built at ${BUILD_TIME}"
 sudo -u "$APP_USER" bash -c "
   cd '$APP_DIR'
   npm ci --silent 2>&1 | tail -3
-  npm run build 2>&1 | tail -5
+  APP_VERSION='$APP_VERSION' BUILD_TIME='$BUILD_TIME' npm run build 2>&1 | tail -5
 "
 
 info "  Building API server..."
@@ -68,6 +71,9 @@ success "Build complete"
 
 # ─── Step 4: Restart service ──────────────────────────────────────────────────
 info "Step 4/4 — Restarting service..."
+# Persist version so the running service can report it
+echo "APP_VERSION=$APP_VERSION" > "$APP_DIR/.version"
+echo "BUILD_TIME=$BUILD_TIME"  >> "$APP_DIR/.version"
 systemctl restart itrm-presales
 
 for i in $(seq 1 10); do
