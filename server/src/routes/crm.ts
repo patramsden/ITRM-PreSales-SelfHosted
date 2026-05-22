@@ -183,18 +183,22 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     if (!creds) { res.json({ name: null, contactId: null }); return; }
     const companyId = parseInt((req.query.companyId as string) ?? '');
     if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
-    const contacts = await atQuery<{
-      id: number; firstName: string; lastName: string;
-      title?: string; isAccountManager?: boolean;
-    }>(
-      creds, 'Contacts',
-      [{ field: 'companyID', op: 'eq', value: companyId }, { field: 'isActive', op: 'eq', value: true }],
-      ['id', 'firstName', 'lastName', 'title', 'isAccountManager'], 50
+    // Account manager is a Resource on the Company, not a Contact
+    const companies = await atQuery<{ id: number; accountManagerResourceID?: number }>(
+      creds, 'Companies',
+      [{ field: 'id', op: 'eq', value: companyId }],
+      ['id', 'accountManagerResourceID'], 1
     );
-    const am = contacts.find(c => c.isAccountManager)
-      ?? contacts.find(c => /account\s*manager/i.test(c.title ?? ''))
-      ?? null;
-    res.json({ name: am ? `${am.firstName} ${am.lastName}`.trim() : null, contactId: am?.id ?? null });
+    const resourceId = companies[0]?.accountManagerResourceID;
+    if (!resourceId) { res.json({ name: null, contactId: null }); return; }
+
+    const resources = await atQuery<{ id: number; firstName: string; lastName: string }>(
+      creds, 'Resources',
+      [{ field: 'id', op: 'eq', value: resourceId }],
+      ['id', 'firstName', 'lastName'], 1
+    );
+    const r = resources[0];
+    res.json({ name: r ? `${r.firstName} ${r.lastName}`.trim() : null, contactId: null });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 

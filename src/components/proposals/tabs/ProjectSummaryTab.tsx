@@ -104,7 +104,7 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
                   if (id) {
                     try {
                       const { name: amName } = await crmApi.getAccountManager(parseInt(id));
-                      if (amName && !proposal.accountManager) {
+                      if (amName) {
                         onUpdate({ client: name, crmCompanyId: id, accountManager: amName });
                       }
                     } catch { /* non-fatal — AM lookup is best-effort */ }
