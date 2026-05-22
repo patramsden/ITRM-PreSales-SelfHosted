@@ -118,6 +118,7 @@ export interface CrmContact {
 
 export interface CrmTicket {
   id: number;
+  ticketNumber: string | null;
   title: string;
   status: string;
   queue: string;

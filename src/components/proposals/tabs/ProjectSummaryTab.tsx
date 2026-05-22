@@ -418,33 +418,57 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
 
             {!ticketsLoading && tickets.length > 0 && (
               <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                {tickets.map(t => (
-                  <a
-                    key={t.id}
-                    href={t.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-medium text-gray-800 dark:text-slate-200 leading-snug group-hover:text-brand-600 dark:group-hover:text-brand-400 line-clamp-2">
-                        {t.title}
-                      </span>
-                      <ExternalLink size={10} className="text-gray-300 dark:text-slate-600 group-hover:text-brand-400 shrink-0 mt-0.5" />
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${queueColor(t.queue)}`}>
-                        {t.queue.split(':').pop()?.trim() ?? t.queue}
-                      </span>
-                      <span className="text-xs text-gray-400 dark:text-slate-500">{t.status}</span>
-                      {t.createDate && (
-                        <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto">
-                          {new Date(t.createDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                {tickets.map(t => {
+                  const ref = t.ticketNumber ?? String(t.id);
+                  const alreadySet = proposal.ticketRef === ref;
+                  return (
+                    <div key={t.id} className="px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                      {/* Title row — clickable link to Autotask */}
+                      <a
+                        href={t.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-start justify-between gap-2 group"
+                      >
+                        <span className="text-xs font-medium text-gray-800 dark:text-slate-200 leading-snug group-hover:text-brand-600 dark:group-hover:text-brand-400 line-clamp-2">
+                          {t.title}
                         </span>
-                      )}
+                        <ExternalLink size={10} className="text-gray-300 dark:text-slate-600 group-hover:text-brand-400 shrink-0 mt-0.5" />
+                      </a>
+                      {/* Meta row */}
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        {t.ticketNumber && (
+                          <span className="text-xs font-mono text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                            {t.ticketNumber}
+                          </span>
+                        )}
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${queueColor(t.queue)}`}>
+                          {t.queue.split(':').pop()?.trim() ?? t.queue}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">{t.status}</span>
+                        {t.createDate && (
+                          <span className="text-xs text-gray-400 dark:text-slate-500">
+                            {new Date(t.createDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                        {/* Use as Ref button */}
+                        {editable && (
+                          <button
+                            onClick={() => onUpdate({ ticketRef: alreadySet ? '' : ref })}
+                            title={alreadySet ? 'Clear ticket ref' : `Set ticket ref to ${ref}`}
+                            className={`ml-auto text-xs px-2 py-0.5 rounded border font-medium transition-colors ${
+                              alreadySet
+                                ? 'bg-brand-50 border-brand-300 text-brand-600 dark:bg-brand-900/30 dark:border-brand-700 dark:text-brand-400'
+                                : 'border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400'
+                            }`}
+                          >
+                            {alreadySet ? '✓ In use' : 'Use as Ref'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </a>
-                ))}
+                  );
+                })}
               </div>
             )}
 

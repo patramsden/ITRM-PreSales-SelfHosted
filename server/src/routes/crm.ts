@@ -224,19 +224,22 @@ router.get('/tickets', requireAuth, async (req, res) => {
 
     const tickets = raw
       .map(r => ({
-        id:        getField(r, 'id') as number,
-        title:     (getField(r, 'title') as string) ?? '(no title)',
-        statusNum: getField(r, 'status') as number,
-        queueNum:  getField(r, 'queueID', 'queueId') as number,
-        createDate:(getField(r, 'createDate', 'createDateTime') as string | null) ?? null,
+        id:           getField(r, 'id') as number,
+        ticketNumber: (getField(r, 'ticketNumber', 'number', 'ticketNo') as string | null) ?? null,
+        title:        (getField(r, 'title') as string) ?? '(no title)',
+        statusNum:    getField(r, 'status') as number,
+        queueNum:     getField(r, 'queueID', 'queueId') as number,
+        createDate:   (getField(r, 'createDate', 'createDateTime') as string | null) ?? null,
       }))
       .sort((a, b) => new Date(b.createDate ?? 0).getTime() - new Date(a.createDate ?? 0).getTime())
       .map(t => ({
-        id: t.id, title: t.title,
-        status:     statusMap[t.statusNum] ?? `Status ${t.statusNum}`,
-        queue:      queueMap[t.queueNum]   ?? `Queue ${t.queueNum}`,
-        createDate: t.createDate,
-        url:        `${host}/Tickets/${t.id}`,
+        id:           t.id,
+        ticketNumber: t.ticketNumber,
+        title:        t.title,
+        status:       statusMap[t.statusNum] ?? `Status ${t.statusNum}`,
+        queue:        queueMap[t.queueNum]   ?? `Queue ${t.queueNum}`,
+        createDate:   t.createDate,
+        url:          `${host}/Tickets/${t.id}`,
       }));
 
     res.json(tickets);
