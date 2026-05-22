@@ -23,20 +23,43 @@ function fmtDate(iso: string) {
 }
 
 function calcTotals(proposal: Proposal) {
-  const byType: Record<PartType, number> = { Hardware: 0, Software: 0, Monthly: 0, Annual: 0 };
+  const rawByType: Record<PartType, number> = { Hardware: 0, Software: 0, Monthly: 0, Annual: 0 };
   proposal.parts.forEach(p => {
     const t = (p.partType ?? 'Hardware') as PartType;
-    byType[t] += p.unitPrice * p.quantity;
+    rawByType[t] += p.unitPrice * p.quantity;
   });
-  const partsSell = byType.Hardware + byType.Software;
-  const markup = (byType.Hardware + byType.Software) * (proposal.markupPct / 100);
+
+  // Distribute markup silently into hardware/software — never expose % to customer
+  const markupMult = 1 + (proposal.markupPct / 100);
+  const byType: Record<PartType, number> = {
+    Hardware: rawByType.Hardware * markupMult,
+    Software: rawByType.Software * markupMult,
+    Monthly:  rawByType.Monthly,
+    Annual:   rawByType.Annual,
+  };
+
   let consultSell = 0;
   proposal.phases.forEach(ph => ph.tasks.forEach(t => {
     consultSell += t.days * t.dayRate * (t.rateMultiplier ?? 1);
   }));
   const pm = consultSell * 0.2;
-  const grandTotal = partsSell + markup + consultSell + pm;
-  return { byType, partsSell, markup, consultSell, pm, grandTotal };
+  const consultTotal = consultSell + pm;
+
+  // Apply consultancy discount if set
+  const discType = proposal.consultancyDiscountType;
+  const discAmt  = proposal.consultancyDiscountAmount ?? 0;
+  let consultDiscountValue = 0;
+  if (discAmt > 0 && discType && consultTotal > 0) {
+    consultDiscountValue = discType === 'monetary'
+      ? Math.min(discAmt, consultTotal)
+      : consultTotal * (discAmt / 100);
+  }
+  const consultNet = consultTotal - consultDiscountValue;
+
+  const upfrontNet = byType.Hardware + byType.Software + consultNet;
+  const grandTotal = upfrontNet; // excludes recurring (shown separately)
+
+  return { byType, consultSell, pm, consultTotal, consultDiscountValue, consultNet, upfrontNet, grandTotal };
 }
 
 const TYPE_LABELS: [PartType, string][] = [
@@ -297,30 +320,39 @@ export function CustomerProposalView() {
                             </tr>
                           );
                         })}
-                        {totals.markup > 0 && (
-                          <tr className={rowHover}>
-                            <td className="py-2.5 pr-4 text-sm">
-                              Markup ({proposal.markupPct}%)
-                            </td>
-                            <td className="py-2.5 text-right font-medium">{fmt(totals.markup)}</td>
-                          </tr>
-                        )}
-                        {totals.consultSell > 0 && (
+                        {totals.consultNet > 0 && (
                           <tr className={rowHover}>
                             <td className="py-2.5 pr-4">Professional Services</td>
-                            <td className="py-2.5 text-right font-medium">{fmt(totals.consultSell + totals.pm)}</td>
+                            <td className="py-2.5 text-right font-medium">{fmt(totals.consultNet)}</td>
+                          </tr>
+                        )}
+                        {totals.consultDiscountValue > 0 && (
+                          <tr className={rowHover}>
+                            <td className={clsx('py-2 pr-4 text-sm italic', muted)}>
+                              Consultancy discount
+                              {proposal.consultancyDiscountType === 'percentage' ? ` (${proposal.consultancyDiscountAmount}%)` : ''}
+                            </td>
+                            <td className="py-2 text-right text-sm text-red-500">−{fmt(totals.consultDiscountValue)}</td>
                           </tr>
                         )}
                       </tbody>
                       <tfoot>
+                        <tr className={clsx('border-t', darkMode ? 'border-slate-600' : 'border-gray-300')}>
+                          <td className={clsx('pt-3 pb-1.5 pr-4 text-sm', muted)}>Net Total (excl. VAT)</td>
+                          <td className={clsx('pt-3 pb-1.5 text-right text-sm', muted)}>{fmt(totals.grandTotal)}</td>
+                        </tr>
+                        <tr>
+                          <td className={clsx('py-1.5 pr-4 text-sm', muted)}>VAT (20%)</td>
+                          <td className={clsx('py-1.5 text-right text-sm', muted)}>{fmt(totals.grandTotal * 0.20)}</td>
+                        </tr>
                         <tr className={clsx('border-t font-bold', darkMode ? 'border-slate-600' : 'border-gray-300')}>
-                          <td className="pt-3 pb-2 pr-4">Grand Total</td>
-                          <td className="pt-3 pb-2 text-right text-base" style={{ color: primary }}>{fmt(totals.grandTotal)}</td>
+                          <td className="pt-3 pb-2 pr-4">Total (incl. VAT)</td>
+                          <td className="pt-3 pb-2 text-right text-base" style={{ color: primary }}>{fmt(totals.grandTotal * 1.20)}</td>
                         </tr>
                         {(totals.byType.Monthly > 0 || totals.byType.Annual > 0) && (
                           <tr>
                             <td colSpan={2} className={clsx('pb-2 text-xs', muted)}>
-                              * Grand Total excludes recurring costs
+                              * Recurring costs above are shown net of VAT and excluded from the total
                             </td>
                           </tr>
                         )}
@@ -406,24 +438,16 @@ export function CustomerProposalView() {
                             <tr className={clsx('text-xs', th)}>
                               <th className="px-6 py-2 text-left font-medium">Task</th>
                               <th className="px-4 py-2 text-left font-medium hidden sm:table-cell">Role</th>
-                              <th className="px-4 py-2 text-right font-medium">
-                                Days / Hrs
-                              </th>
                               <th className="px-6 py-2 text-right font-medium">Value</th>
                             </tr>
                           </thead>
                           <tbody className={clsx('divide-y', divider)}>
                             {phase.tasks.map(task => {
                               const value = task.days * task.dayRate * (task.rateMultiplier ?? 1);
-                              const unit  = task.unit ?? 'days';
-                              const qty   = unit === 'hours'
-                                ? `${Math.round(task.days * 7)} hrs`
-                                : `${task.days} ${task.days === 1 ? 'day' : 'days'}`;
                               return (
                                 <tr key={task.id} className={rowHover}>
                                   <td className="px-6 py-2.5 font-medium">{task.name}</td>
                                   <td className={clsx('px-4 py-2.5 hidden sm:table-cell', muted)}>{task.role}</td>
-                                  <td className={clsx('px-4 py-2.5 text-right', muted)}>{qty}</td>
                                   <td className="px-6 py-2.5 text-right font-semibold">{fmt(value)}</td>
                                 </tr>
                               );
@@ -440,9 +464,17 @@ export function CustomerProposalView() {
                       <span>Project Management (20%)</span>
                       <span>{fmt(pmTotal)}</span>
                     </div>
+                    {totals.consultDiscountValue > 0 && (
+                      <div className={clsx('flex justify-between text-sm', muted)}>
+                        <span className="italic">
+                          Discount{proposal.consultancyDiscountType === 'percentage' ? ` (${proposal.consultancyDiscountAmount}%)` : ''}
+                        </span>
+                        <span className="text-red-500">−{fmt(totals.consultDiscountValue)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm font-bold">
                       <span>Total Professional Services</span>
-                      <span style={{ color: primary }}>{fmt(grandConsult + pmTotal)}</span>
+                      <span style={{ color: primary }}>{fmt(totals.consultNet)}</span>
                     </div>
                   </div>
                 </div>
