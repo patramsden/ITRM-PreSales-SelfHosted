@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
-import { UserPlus, X, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { UserPlus, X, RefreshCw, CheckCircle2, AlertCircle, Loader2, ExternalLink, Ticket } from 'lucide-react';
 import type { Proposal } from '../../../types';
 import { useAuth, isPresalesAdmin } from '../../../contexts/AuthContext';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
 import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
 import { crmApi } from '../../../lib/api';
+import type { CrmTicket } from '../../../lib/api';
 import type { ProposalStatus, Currency } from '../../../types';
 
 type AmLookupState = 'idle' | 'loading' | 'found' | 'not_found' | 'error';
@@ -109,8 +110,45 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
     onUpdate({ collaboratorIds: proposal.collaboratorIds.filter(id => id !== userId) });
   };
 
+  // ── Customer intelligence (open tickets) ──────────────────────────────────
+  const [tickets, setTickets]           = useState<CrmTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsError, setTicketsError]   = useState<string | null>(null);
+  const crmId = proposal.crmCompanyId;
+
+  const loadTickets = useCallback(async (companyId: string) => {
+    const id = parseInt(companyId);
+    if (isNaN(id)) return;
+    setTicketsLoading(true); setTicketsError(null);
+    try {
+      const data = await crmApi.getTickets(id);
+      setTickets(data);
+    } catch {
+      setTicketsError('Could not load tickets from Autotask.');
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (crmId) loadTickets(crmId);
+    else setTickets([]);
+  }, [crmId, loadTickets]);
+
+  const QUEUE_COLORS: Record<string, string> = {
+    'account management': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    'pre-sales':          'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    'post-sale':          'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  };
+  const queueColor = (q: string) => {
+    const key = Object.keys(QUEUE_COLORS).find(k => q.toLowerCase().includes(k));
+    return key ? QUEUE_COLORS[key] : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300';
+  };
+
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className={crmId ? 'flex gap-6 items-start' : 'max-w-4xl space-y-8'}>
+      {/* ── Left column — all existing content ─────────────────────────── */}
+      <div className={crmId ? 'flex-1 min-w-0 space-y-8' : 'space-y-8'}>
       {/* Headline fields */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-5">Project Details</h2>
@@ -336,6 +374,86 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
           </div>
         )}
       </div>
+      </div>{/* end left column */}
+
+      {/* ── Right column — customer intelligence ───────────────────────── */}
+      {crmId && (
+        <div className="w-80 shrink-0 space-y-3">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <Ticket size={14} className="text-brand-500" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">Open Tickets</span>
+              </div>
+              <button
+                onClick={() => loadTickets(crmId)}
+                disabled={ticketsLoading}
+                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw size={12} className={ticketsLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {ticketsLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={18} className="animate-spin text-gray-400" />
+              </div>
+            )}
+
+            {ticketsError && !ticketsLoading && (
+              <div className="px-4 py-3 text-xs text-red-500 dark:text-red-400 flex items-center gap-2">
+                <AlertCircle size={12} className="shrink-0" />
+                {ticketsError}
+              </div>
+            )}
+
+            {!ticketsLoading && !ticketsError && tickets.length === 0 && (
+              <div className="px-4 py-6 text-xs text-center text-gray-400 dark:text-slate-500">
+                No open tickets found in the tracked queues.
+              </div>
+            )}
+
+            {!ticketsLoading && tickets.length > 0 && (
+              <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                {tickets.map(t => (
+                  <a
+                    key={t.id}
+                    href={t.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-medium text-gray-800 dark:text-slate-200 leading-snug group-hover:text-brand-600 dark:group-hover:text-brand-400 line-clamp-2">
+                        {t.title}
+                      </span>
+                      <ExternalLink size={10} className="text-gray-300 dark:text-slate-600 group-hover:text-brand-400 shrink-0 mt-0.5" />
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${queueColor(t.queue)}`}>
+                        {t.queue.split(':').pop()?.trim() ?? t.queue}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-slate-500">{t.status}</span>
+                      {t.createDate && (
+                        <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto">
+                          {new Date(t.createDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            <div className="px-4 py-2 border-t border-gray-100 dark:border-slate-700">
+              <p className="text-xs text-gray-400 dark:text-slate-500">
+                SAL: Account Management · CON: Pre-Sales · CON: Post-Sale
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

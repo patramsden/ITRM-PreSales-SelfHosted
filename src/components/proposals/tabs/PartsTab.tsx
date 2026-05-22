@@ -817,98 +817,118 @@ export function PartsTab({ proposal, editable, onUpdate }: Props) {
 
       {/* Add from catalog button */}
       {editable && (
-        <div className="relative">
-          <Button variant="secondary" onClick={() => showCatalog ? closeCatalog() : setShowCatalog(true)}>
-            <Package size={15} /> Add from Catalog
-          </Button>
+        <Button variant="secondary" onClick={() => setShowCatalog(true)}>
+          <Package size={15} /> Add from Catalog
+        </Button>
+      )}
 
-          {showCatalog && (
-            <div className="absolute top-full mt-1 left-0 w-[480px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl z-20 overflow-hidden">
-              {/* Search + type filter */}
-              <div className="p-3 border-b dark:border-slate-700 space-y-2">
-                <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    autoFocus
-                    className="w-full pl-8 pr-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    placeholder="Search catalog…"
-                    value={catSearch}
-                    onChange={e => setCatSearch(e.target.value)}
-                  />
-                </div>
-                {/* Type filter pills */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(['All', ...PART_TYPE_ORDER] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setCatTypeFilter(t)}
-                      className={clsx(
-                        'text-xs px-2.5 py-1 rounded-full border font-medium transition-colors',
-                        catTypeFilter === t
-                          ? 'bg-brand-600 border-brand-600 text-white'
-                          : 'bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400'
-                      )}
-                    >
-                      {t === 'All' ? 'All types' : TYPE_CONFIG[t].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+      {/* Catalog modal overlay */}
+      {showCatalog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50" onClick={closeCatalog} />
 
-              {/* Results */}
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-50 dark:divide-slate-700">
-                {filteredCatalog.length === 0 && (
-                  <div className="px-4 py-6 text-sm text-gray-400 dark:text-slate-500 text-center">No items match.</div>
+          {/* Panel */}
+          <div className="relative w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <Package size={16} className="text-brand-600 dark:text-brand-400" />
+                <span className="font-semibold text-gray-900 dark:text-slate-100">Add from Catalog</span>
+                {filteredCatalog.length > 0 && (
+                  <span className="text-xs text-gray-400 dark:text-slate-500">({filteredCatalog.length} items)</span>
                 )}
-                {filteredCatalog.map(item => {
-                  const pt     = item.partType ?? 'Hardware';
-                  const cfg    = TYPE_CONFIG[pt];
-                  const hasRel = (item.relatedIds ?? []).length > 0;
-                  const qty    = getCatQty(item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700"
-                    >
-                      {/* Description + meta */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{item.description}</span>
-                          {hasRel && (
-                            <span title={`${item.relatedIds!.length} related product${item.relatedIds!.length !== 1 ? 's' : ''}`}>
-                              <Link2 size={11} className="text-brand-400 shrink-0" />
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={clsx('text-xs px-1.5 py-0.5 rounded-full font-medium', cfg.badgeCls)}>
-                            {cfg.label}
-                          </span>
-                          <span className="text-xs text-gray-400 dark:text-slate-500">
-                            {item.sku && <>{item.sku} · </>}
-                            £{item.listPrice.toLocaleString()}
-                            {(pt === 'Monthly' || pt === 'Annual') && (
-                              <span>/{pt === 'Monthly' ? 'mo' : 'yr'}</span>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      {/* Qty stepper + Add */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <QtyStepper value={qty} onChange={n => setCatItemQty(item.id, n)} />
-                        <button
-                          onClick={() => addFromCatalog(item.id, qty)}
-                          className="text-xs px-3 py-1.5 rounded-lg font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+              </div>
+              <button onClick={closeCatalog} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                <XIcon size={16} />
+              </button>
+            </div>
+
+            {/* Search + type filter */}
+            <div className="px-5 py-3 border-b border-gray-200 dark:border-slate-700 space-y-2.5">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  autoFocus
+                  className="w-full pl-9 pr-3 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder="Search by name, SKU or description…"
+                  value={catSearch}
+                  onChange={e => setCatSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(['All', ...PART_TYPE_ORDER] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setCatTypeFilter(t)}
+                    className={clsx(
+                      'text-xs px-2.5 py-1 rounded-full border font-medium transition-colors',
+                      catTypeFilter === t
+                        ? 'bg-brand-600 border-brand-600 text-white'
+                        : 'bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400'
+                    )}
+                  >
+                    {t === 'All' ? 'All types' : TYPE_CONFIG[t].label}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-700">
+              {filteredCatalog.length === 0 && (
+                <div className="px-5 py-10 text-sm text-gray-400 dark:text-slate-500 text-center">
+                  No catalog items match your search.
+                </div>
+              )}
+              {filteredCatalog.map(item => {
+                const pt     = item.partType ?? 'Hardware';
+                const cfg    = TYPE_CONFIG[pt];
+                const hasRel = (item.relatedIds ?? []).length > 0;
+                const qty    = getCatQty(item.id);
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{item.description}</span>
+                        {hasRel && (
+                          <span title={`${item.relatedIds!.length} related product${item.relatedIds!.length !== 1 ? 's' : ''}`}>
+                            <Link2 size={11} className="text-brand-400 shrink-0" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={clsx('text-xs px-1.5 py-0.5 rounded-full font-medium', cfg.badgeCls)}>
+                          {cfg.label}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-slate-500">
+                          {item.sku && <>{item.sku} · </>}
+                          £{item.listPrice.toLocaleString()}
+                          {(pt === 'Monthly' || pt === 'Annual') && <span>/{pt === 'Monthly' ? 'mo' : 'yr'}</span>}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <QtyStepper value={qty} onChange={n => setCatItemQty(item.id, n)} />
+                      <button
+                        onClick={() => addFromCatalog(item.id, qty)}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium bg-brand-600 hover:bg-brand-700 text-white transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-200 dark:border-slate-700 flex justify-end">
+              <button onClick={closeCatalog} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 transition-colors">
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -177,6 +177,61 @@ router.get('/contacts', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
+// ─── GET /api/crm/tickets?companyId= ─────────────────────────────────────────
+
+const CUSTOMER_INTEL_QUEUES = ['Account Management', 'Pre-Sales', 'Post-Sale'];
+
+router.get('/tickets', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json([]); return; }
+    const companyId = parseInt((req.query.companyId as string) ?? '');
+    if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
+
+    const [allQueueValues, statusValues] = await Promise.all([
+      fetchPicklist(creds, 'Tickets', 'queueID'),
+      fetchPicklist(creds, 'Tickets', 'status'),
+    ]);
+
+    const targetQueues = allQueueValues.filter((v: AtPicklistValue) =>
+      v.isActive && CUSTOMER_INTEL_QUEUES.some(name => v.label.toLowerCase().includes(name.toLowerCase()))
+    );
+    const queueIds = targetQueues.map((v: AtPicklistValue) => v.value);
+    if (queueIds.length === 0) { res.json([]); return; }
+
+    const statusMap = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
+    const queueMap  = Object.fromEntries(allQueueValues.map((v: AtPicklistValue) => [v.value, v.label]));
+
+    const closedStatuses = statusValues
+      .filter((v: AtPicklistValue) => /complete|closed|cancelled|cancel/i.test(v.label))
+      .map((v: AtPicklistValue) => v.value);
+
+    const items = await atQuery<{
+      id: number; title: string; status: number; queueID: number;
+      createDate?: string; dueDateTime?: string; priority: number;
+    }>(
+      creds, 'Tickets',
+      [{ field: 'companyID', op: 'eq', value: companyId }],
+      ['id', 'title', 'status', 'queueID', 'createDate', 'dueDateTime', 'priority'],
+      100
+    );
+
+    const filtered = items
+      .filter(t => queueIds.includes(t.queueID) && !closedStatuses.includes(t.status))
+      .sort((a, b) => new Date(b.createDate ?? 0).getTime() - new Date(a.createDate ?? 0).getTime())
+      .slice(0, 15)
+      .map(t => ({
+        id: t.id, title: t.title,
+        status:     statusMap[t.status]  ?? `Status ${t.status}`,
+        queue:      queueMap[t.queueID]  ?? `Queue ${t.queueID}`,
+        createDate: t.createDate ?? null,
+        url:        `${creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '')}/Tickets/${t.id}`,
+      }));
+
+    res.json(filtered);
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
 router.get('/account-manager', requireAuth, async (req, res) => {
   try {
     const creds = await getCreds();

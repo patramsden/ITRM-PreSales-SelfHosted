@@ -116,6 +116,15 @@ export interface CrmContact {
   title?: string;
 }
 
+export interface CrmTicket {
+  id: number;
+  title: string;
+  status: string;
+  queue: string;
+  createDate: string | null;
+  url: string;
+}
+
 export interface AtPicklistValue {
   value: number;
   label: string;
@@ -134,6 +143,8 @@ export const crmApi = {
     api.post<{ ticketId: number; url: string }>('crm/create-ticket', data),
   getPicklist:        (entity: string, field: string) =>
     api.get<AtPicklistValue[]>(`crm/picklist?entity=${encodeURIComponent(entity)}&field=${encodeURIComponent(field)}`),
+  getTickets:         (companyId: number) =>
+    api.get<CrmTicket[]>(`crm/tickets?companyId=${companyId}`),
 };
 
 export const lookupsApi = {
