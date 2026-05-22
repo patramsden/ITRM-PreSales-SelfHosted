@@ -21,6 +21,7 @@ import { SharedProposalView } from './pages/SharedProposalView';
 import { CustomerProposalView } from './pages/CustomerProposalView';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Clauses } from './pages/Clauses';
+import { Help } from './pages/Help';
 import { ResetPassword } from './pages/ResetPassword';
 import { Profile } from './pages/Profile';
 import { Loader2 } from 'lucide-react';
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="/rate-cards" element={<RateCards />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/clauses" element={<Clauses />} />
+        <Route path="/help" element={<Help />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
