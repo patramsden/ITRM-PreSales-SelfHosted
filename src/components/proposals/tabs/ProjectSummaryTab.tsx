@@ -122,9 +122,11 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
     setTicketsLoading(true); setTicketsError(null);
     try {
       const data = await crmApi.getTickets(id);
-      setTickets(data);
-    } catch {
-      setTicketsError('Could not load tickets from Autotask.');
+      // Handle both array response and {tickets, _debug} shape
+      const arr = Array.isArray(data) ? data : (data as { tickets?: CrmTicket[] }).tickets ?? [];
+      setTickets(arr);
+    } catch (e) {
+      setTicketsError(e instanceof Error ? e.message : 'Could not load tickets from Autotask.');
     } finally {
       setTicketsLoading(false);
     }

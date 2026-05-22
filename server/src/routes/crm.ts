@@ -188,47 +188,75 @@ router.get('/tickets', requireAuth, async (req, res) => {
     const companyId = parseInt((req.query.companyId as string) ?? '');
     if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
 
-    const [allQueueValues, statusValues] = await Promise.all([
-      fetchPicklist(creds, 'Tickets', 'queueID'),
-      fetchPicklist(creds, 'Tickets', 'status'),
-    ]);
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+
+    let allQueueValues: AtPicklistValue[] = [];
+    let statusValues:   AtPicklistValue[] = [];
+    try {
+      [allQueueValues, statusValues] = await Promise.all([
+        fetchPicklist(creds, 'Tickets', 'queueID'),
+        fetchPicklist(creds, 'Tickets', 'status'),
+      ]);
+    } catch (e) { crmLog(`  Picklist fetch failed: ${String(e)}`); }
+
+    crmLog(`  All queue labels: ${allQueueValues.map((v: AtPicklistValue) => v.label).join(' | ')}`);
 
     const targetQueues = allQueueValues.filter((v: AtPicklistValue) =>
       v.isActive && CUSTOMER_INTEL_QUEUES.some(name => v.label.toLowerCase().includes(name.toLowerCase()))
     );
-    const queueIds = targetQueues.map((v: AtPicklistValue) => v.value);
-    if (queueIds.length === 0) { res.json([]); return; }
-
-    const statusMap = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
-    const queueMap  = Object.fromEntries(allQueueValues.map((v: AtPicklistValue) => [v.value, v.label]));
-
+    const queueIds     = targetQueues.map((v: AtPicklistValue) => v.value);
+    const statusMap    = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
+    const queueMap     = Object.fromEntries(allQueueValues.map((v: AtPicklistValue) => [v.value, v.label]));
     const closedStatuses = statusValues
       .filter((v: AtPicklistValue) => /complete|closed|cancelled|cancel/i.test(v.label))
       .map((v: AtPicklistValue) => v.value);
 
-    const items = await atQuery<{
-      id: number; title: string; status: number; queueID: number;
-      createDate?: string; dueDateTime?: string; priority: number;
-    }>(
+    crmLog(`  Target queue IDs: ${queueIds.join(', ')}`);
+
+    const raw = await atQuery<Record<string, unknown>>(
       creds, 'Tickets',
       [{ field: 'companyID', op: 'eq', value: companyId }],
-      ['id', 'title', 'status', 'queueID', 'createDate', 'dueDateTime', 'priority'],
-      100
+      undefined,
+      500
     );
 
-    const filtered = items
-      .filter(t => queueIds.includes(t.queueID) && !closedStatuses.includes(t.status))
+    crmLog(`  Raw tickets: ${raw.length}`);
+    if (raw.length > 0) crmLog(`  First ticket keys: ${Object.keys(raw[0]).join(', ')}`);
+
+    const getField = (r: Record<string, unknown>, ...names: string[]): unknown => {
+      for (const name of names) {
+        const key = Object.keys(r).find(k => k.toLowerCase() === name.toLowerCase());
+        if (key !== undefined) return r[key];
+      }
+      return undefined;
+    };
+
+    const tickets = raw
+      .map(r => ({
+        id:         getField(r, 'id') as number,
+        title:      (getField(r, 'title') as string) ?? '(no title)',
+        status:     getField(r, 'status') as number,
+        queueID:    getField(r, 'queueID', 'queueId') as number,
+        createDate: (getField(r, 'createDate', 'createDateTime') as string | null) ?? null,
+      }))
+      .filter(t => {
+        const inQueue   = queueIds.length === 0 || queueIds.includes(t.queueID);
+        const notClosed = closedStatuses.length === 0 || !closedStatuses.includes(t.status);
+        return inQueue && notClosed;
+      })
       .sort((a, b) => new Date(b.createDate ?? 0).getTime() - new Date(a.createDate ?? 0).getTime())
       .slice(0, 15)
       .map(t => ({
-        id: t.id, title: t.title,
+        id:         t.id,
+        title:      t.title,
         status:     statusMap[t.status]  ?? `Status ${t.status}`,
         queue:      queueMap[t.queueID]  ?? `Queue ${t.queueID}`,
-        createDate: t.createDate ?? null,
-        url:        `${creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '')}/Tickets/${t.id}`,
+        createDate: t.createDate,
+        url:        `${host}/Tickets/${t.id}`,
       }));
 
-    res.json(filtered);
+    crmLog(`  Filtered tickets: ${tickets.length}`);
+    res.json(tickets);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
