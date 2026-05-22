@@ -187,7 +187,7 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     const companies = await atQuery<{ id: number; accountManagerResourceID?: number }>(
       creds, 'Companies',
       [{ field: 'id', op: 'eq', value: companyId }],
-      ['id', 'accountManagerResourceID'], 1
+      undefined, 1  // no includeFields — Autotask rejects accountManagerResourceID in that filter
     );
     const resourceId = companies[0]?.accountManagerResourceID;
     if (!resourceId) { res.json({ name: null, contactId: null }); return; }
@@ -199,6 +199,40 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     );
     const r = resources[0];
     res.json({ name: r ? `${r.firstName} ${r.lastName}`.trim() : null, contactId: null });
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
+// ─── GET /api/crm/picklist?entity=&field= ────────────────────────────────────
+
+interface AtPicklistValue { value: number; label: string; isActive: boolean; isDefaultValue: boolean; }
+
+async function fetchPicklist(creds: AtCreds, entity: string, fieldName: string): Promise<AtPicklistValue[]> {
+  const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+  const url  = `${host}/atservicesrest/v1.0/${entity}/entityInformation/fields`;
+  crmLog(`→ GET ${url} (picklist: ${entity}.${fieldName})`);
+  const r = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'UserName': creds.username,
+      'Secret': creds.secret,
+      'ApiIntegrationCode': creds.integrationCode,
+    },
+  });
+  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`Autotask ${entity} fields (${r.status}): ${t.slice(0, 200)}`); }
+  const data = await r.json() as { fields?: Array<{ name: string; picklistValues?: AtPicklistValue[] }> };
+  const field = data.fields?.find((f: { name: string }) => f.name === fieldName);
+  return field?.picklistValues ?? [];
+}
+
+router.get('/picklist', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json([]); return; }
+    const entity    = ((req.query.entity    as string) ?? '').trim();
+    const fieldName = ((req.query.field as string) ?? '').trim();
+    if (!entity || !fieldName) { res.status(400).json({ error: 'entity and field are required' }); return; }
+    const values = await fetchPicklist(creds, entity, fieldName);
+    res.json(values);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
@@ -245,25 +279,37 @@ router.post('/create-ticket', requireAuth, async (req, res) => {
     }
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
 
-    // Look up the CON:Post Sale queue ID dynamically
-    const queueId = await getQueueId(host, creds, 'Post Sale');
+    // Load ticket config from app settings (fall back to defaults if not configured)
+    const s = await getAppSettingsDirect();
+    const cfgQueueId      = s['crm.autotask.ticket.queueId']      ? parseInt(s['crm.autotask.ticket.queueId'])      : null;
+    const cfgTicketTypeId = s['crm.autotask.ticket.ticketTypeId'] ? parseInt(s['crm.autotask.ticket.ticketTypeId']) : null;
+    const cfgPriorityId   = s['crm.autotask.ticket.priorityId']   ? parseInt(s['crm.autotask.ticket.priorityId'])   : null;
+    const cfgStatusId     = s['crm.autotask.ticket.statusId']      ? parseInt(s['crm.autotask.ticket.statusId'])      : null;
+
+    // Resolve queue: use stored config or fall back to dynamic "Post Sale" lookup
+    let queueId: number | null = cfgQueueId;
     if (!queueId) {
-      res.status(400).json({
-        error: 'Could not find a queue matching "Post Sale" in your Autotask tenant. ' +
-               'Check that the CON:Post Sale queue exists and the API user has permission to query it.',
-      }); return;
+      queueId = await getQueueId(host, creds, 'Post Sale');
+      if (!queueId) {
+        res.status(400).json({
+          error: 'Could not find a queue matching "Post Sale" in your Autotask tenant. ' +
+                 'Configure a specific queue in Settings → CRM → Ticket Export, or ensure the ' +
+                 'CON:Post Sale queue exists and the API user has permission to query it.',
+        }); return;
+      }
     }
 
     const url  = `${host}/atservicesrest/v1.0/Tickets`;
-    const body = {
+    const body: Record<string, unknown> = {
       title:       title.trim(),
       companyID,
       queueID:     queueId,
-      status:      1,   // New
-      priority:    3,   // Medium
+      status:      cfgStatusId   ?? 1,   // New
+      priority:    cfgPriorityId ?? 3,   // Medium
       description: description ?? '',
       dueDateTime: new Date(Date.now() + 7 * 86400000).toISOString(),
     };
+    if (cfgTicketTypeId) body.ticketType = cfgTicketTypeId;
     crmLog(`→ POST ${url} (create ticket)`);
     const r = await fetch(url, {
       method: 'POST',

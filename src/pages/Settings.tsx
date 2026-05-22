@@ -4,7 +4,7 @@ import { canAccessAdmin } from '../utils/permissions';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useStore } from '../store';
 import { api, settingsApi, authApi, totpApi, serviceKeyApi, crmApi, ssoApi } from '../lib/api';
-import type { AppSettings } from '../lib/api';
+import type { AppSettings, AtPicklistValue } from '../lib/api';
 import { LookupEditor } from '../components/ui/LookupEditor';
 import { Button } from '../components/ui/Button';
 import { useBranding } from '../contexts/BrandingContext';
@@ -15,7 +15,7 @@ import {
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
   Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
   Layout, GripVertical, ChevronUp, ChevronDown as ChevronDownIcon,
-  AlertTriangle, Database, Download,
+  AlertTriangle, Database, Download, Tag,
 } from 'lucide-react';
 import { parseLayout } from '../types/layout';
 import type { ProposalLayoutConfig, LayoutSection } from '../types/layout';
@@ -1087,6 +1087,14 @@ function CrmTab({ settings, onChange, isAdmin }: {
   const [testResult,  setTestResult]  = useState<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string } | null>(null);
   const [detecting,   setDetecting]   = useState(false);
 
+  // Ticket config picklists
+  const [picklists,       setPicklists]       = useState<{
+    queues: AtPicklistValue[]; priorities: AtPicklistValue[];
+    statuses: AtPicklistValue[]; ticketTypes: AtPicklistValue[];
+  } | null>(null);
+  const [picklistLoading, setPicklistLoading] = useState(false);
+  const [picklistError,   setPicklistError]   = useState<string | null>(null);
+
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
 
   const handleSave = async () => {
@@ -1117,6 +1125,28 @@ function CrmTab({ settings, onChange, isAdmin }: {
     try { setTestResult(await crmApi.testConnection()); }
     catch (e) { setTestResult({ success: false, message: e instanceof Error ? e.message : 'Test failed' }); }
     finally { setTesting(false); }
+  };
+
+  const loadPicklists = async () => {
+    setPicklistLoading(true); setPicklistError(null);
+    try {
+      const [queues, priorities, statuses, ticketTypes] = await Promise.all([
+        crmApi.getPicklist('Tickets', 'queueID'),
+        crmApi.getPicklist('Tickets', 'priority'),
+        crmApi.getPicklist('Tickets', 'status'),
+        crmApi.getPicklist('Tickets', 'ticketType'),
+      ]);
+      setPicklists({
+        queues:      queues.filter(v => v.isActive),
+        priorities:  priorities.filter(v => v.isActive),
+        statuses:    statuses.filter(v => v.isActive),
+        ticketTypes: ticketTypes.filter(v => v.isActive),
+      });
+    } catch (e) {
+      setPicklistError(e instanceof Error ? e.message : 'Failed to load Autotask picklists');
+    } finally {
+      setPicklistLoading(false);
+    }
   };
 
   const secretConfigured = settings['crm.autotask.secret.configured'] === 'true';
@@ -1203,6 +1233,107 @@ function CrmTab({ settings, onChange, isAdmin }: {
           </button>
         </div>
       )}
+
+      {/* ── Ticket Export Configuration ───────────────────────────── */}
+      <div className="border-t border-gray-200 dark:border-slate-700 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Tag size={16} className="text-brand-600 dark:text-brand-400" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">Ticket Export Configuration</div>
+              <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Fields used when creating a Post Sale ticket from a Won proposal
+              </div>
+            </div>
+          </div>
+          {isAdmin && (
+            <button type="button" onClick={loadPicklists} disabled={picklistLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 disabled:opacity-50 transition-colors">
+              {picklistLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {picklists ? 'Refresh' : 'Load options from Autotask'}
+            </button>
+          )}
+        </div>
+
+        {picklistError && (
+          <div className="mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+            <AlertCircle size={13} className="shrink-0" />
+            {picklistError}
+          </div>
+        )}
+
+        {!picklists && !picklistLoading && (
+          <p className="text-xs text-gray-400 dark:text-slate-500 italic">
+            Click "Load options from Autotask" to populate the dropdowns with live values from your tenant.
+            Without this step the ticket will use defaults (status: New, priority: Medium, first matching "Post Sale" queue).
+          </p>
+        )}
+
+        {picklists && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Queue */}
+            <FieldRow label="Queue">
+              <select
+                value={settings['crm.autotask.ticket.queueId'] ?? ''}
+                onChange={e => set('crm.autotask.ticket.queueId', e.target.value)}
+                disabled={!isAdmin}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+              >
+                <option value="">— Auto-detect "Post Sale" queue —</option>
+                {picklists.queues.map(v => (
+                  <option key={v.value} value={String(v.value)}>{v.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">The Autotask queue to assign new tickets to.</p>
+            </FieldRow>
+
+            {/* Priority */}
+            <FieldRow label="Priority">
+              <select
+                value={settings['crm.autotask.ticket.priorityId'] ?? ''}
+                onChange={e => set('crm.autotask.ticket.priorityId', e.target.value)}
+                disabled={!isAdmin}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+              >
+                <option value="">— Default (Medium) —</option>
+                {picklists.priorities.map(v => (
+                  <option key={v.value} value={String(v.value)}>{v.label}</option>
+                ))}
+              </select>
+            </FieldRow>
+
+            {/* Status */}
+            <FieldRow label="Initial Status">
+              <select
+                value={settings['crm.autotask.ticket.statusId'] ?? ''}
+                onChange={e => set('crm.autotask.ticket.statusId', e.target.value)}
+                disabled={!isAdmin}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+              >
+                <option value="">— Default (New) —</option>
+                {picklists.statuses.map(v => (
+                  <option key={v.value} value={String(v.value)}>{v.label}</option>
+                ))}
+              </select>
+            </FieldRow>
+
+            {/* Ticket Type */}
+            <FieldRow label="Ticket Type">
+              <select
+                value={settings['crm.autotask.ticket.ticketTypeId'] ?? ''}
+                onChange={e => set('crm.autotask.ticket.ticketTypeId', e.target.value)}
+                disabled={!isAdmin}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+              >
+                <option value="">— Not specified —</option>
+                {picklists.ticketTypes.map(v => (
+                  <option key={v.value} value={String(v.value)}>{v.label}</option>
+                ))}
+              </select>
+            </FieldRow>
+          </div>
+        )}
+      </div>
 
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
     </div>

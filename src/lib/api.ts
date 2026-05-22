@@ -116,6 +116,13 @@ export interface CrmContact {
   title?: string;
 }
 
+export interface AtPicklistValue {
+  value: number;
+  label: string;
+  isActive: boolean;
+  isDefaultValue: boolean;
+}
+
 export const crmApi = {
   status:             ()                  => api.get<{ configured: boolean }>('crm/status'),
   searchCompanies:    (search: string)    => api.get<CrmCompany[]>(`crm/companies?search=${encodeURIComponent(search)}`),
@@ -125,6 +132,8 @@ export const crmApi = {
   detectZone:         (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
   createTicket:       (data: { title: string; companyID: number; description?: string }) =>
     api.post<{ ticketId: number; url: string }>('crm/create-ticket', data),
+  getPicklist:        (entity: string, field: string) =>
+    api.get<AtPicklistValue[]>(`crm/picklist?entity=${encodeURIComponent(entity)}&field=${encodeURIComponent(field)}`),
 };
 
 export const lookupsApi = {
@@ -205,6 +214,12 @@ export interface AppSettings {
   'crm.autotask.username'?:              string;
   'crm.autotask.secret'?:                string;  // write-only
   'crm.autotask.secret.configured'?:     string;  // 'true'|'false' read-only indicator
+
+  // Autotask ticket export configuration
+  'crm.autotask.ticket.queueId'?:        string;  // numeric picklist value
+  'crm.autotask.ticket.ticketTypeId'?:   string;  // numeric picklist value
+  'crm.autotask.ticket.priorityId'?:     string;  // numeric picklist value
+  'crm.autotask.ticket.statusId'?:       string;  // numeric picklist value
 }
 
 export const settingsApi = {
