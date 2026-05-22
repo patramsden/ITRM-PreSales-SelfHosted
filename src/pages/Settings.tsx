@@ -14,7 +14,10 @@ import {
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
   Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
+  Layout, GripVertical, ChevronUp, ChevronDown as ChevronDownIcon,
 } from 'lucide-react';
+import { parseLayout } from '../types/layout';
+import type { ProposalLayoutConfig, LayoutSection } from '../types/layout';
 import type { AppLookups } from '../store';
 import clsx from 'clsx';
 
@@ -35,6 +38,7 @@ const TABS: Tab[] = [
   { id: 'provisioning', label: 'Provisioning',        icon: UserCheck,     adminOnly: true  },
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
   { id: 'email',        label: 'Email',               icon: Mail,          adminOnly: true  },
+  { id: 'layout',       label: 'Proposal Layout',     icon: Layout,        adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
 
@@ -1669,6 +1673,229 @@ function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onCh
   );
 }
 
+// ─── Layout tab ───────────────────────────────────────────────────────────────
+
+function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(!enabled)}
+      className={clsx(
+        'relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors',
+        enabled ? 'bg-brand-500' : 'bg-gray-300 dark:bg-slate-600',
+        disabled && 'opacity-50 cursor-not-allowed',
+      )}
+    >
+      <span className={clsx('inline-block h-4 w-4 rounded-full bg-white shadow transition-transform', enabled ? 'translate-x-4' : 'translate-x-0')} />
+    </button>
+  );
+}
+
+function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
+  const [layout, setLayout] = useState<ProposalLayoutConfig>(() => parseLayout((settings as Record<string, string | undefined>)['proposal.layout']));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const updateLayout = (next: ProposalLayoutConfig) => setLayout(next);
+
+  const updateSection = (idx: number, patch: Partial<LayoutSection>) => {
+    const sections = layout.sections.map((s, i) => i === idx ? { ...s, ...patch } : s);
+    updateLayout({ ...layout, sections });
+  };
+
+  const moveSection = (idx: number, dir: -1 | 1) => {
+    const sections = [...layout.sections];
+    const target = idx + dir;
+    if (target < 0 || target >= sections.length) return;
+    const a = { ...sections[idx], order: sections[target].order };
+    const b = { ...sections[target], order: sections[idx].order };
+    sections[idx] = a;
+    sections[target] = b;
+    updateLayout({ ...layout, sections: sections.sort((x, y) => x.order - y.order) });
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setSaved(false); setError(null);
+    try {
+      const next = { ...settings, 'proposal.layout': JSON.stringify(layout) } as AppSettings;
+      await settingsApi.update(next);
+      onChange(next);
+      setSaved(true); setTimeout(() => setSaved(false), 3000);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
+    finally { setSaving(false); }
+  };
+
+  const sections = [...layout.sections].sort((a, b) => a.order - b.order);
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={Layout} title="Proposal Layout" subtitle="Control sections, order and branding for customer proposals and PDF exports" adminOnly={!isAdmin} />
+
+      <div>
+        <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">Sections</div>
+        <div className="space-y-2">
+          {sections.map((section, idx) => (
+            <div key={section.id}>
+              <div className={clsx(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors',
+                section.enabled
+                  ? 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800'
+                  : 'border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 opacity-60',
+              )}>
+                <GripVertical size={14} className="text-gray-300 dark:text-slate-600 flex-shrink-0" />
+                <ToggleSwitch
+                  enabled={section.enabled}
+                  onChange={v => updateSection(idx, { enabled: v })}
+                  disabled={!isAdmin}
+                />
+                <span className="flex-1 text-sm font-medium text-gray-800 dark:text-slate-200">{section.label}</span>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveSection(idx, -1)}
+                      disabled={idx === 0}
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move up"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSection(idx, 1)}
+                      disabled={idx === sections.length - 1}
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move down"
+                    >
+                      <ChevronDownIcon size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {section.id === 'terms' && section.enabled && (
+                <div className="mt-1.5 ml-8">
+                  <textarea
+                    rows={6}
+                    value={section.content ?? ''}
+                    onChange={e => updateSection(idx, { content: e.target.value })}
+                    disabled={!isAdmin}
+                    placeholder="Enter your terms and conditions text here…"
+                    className={clsx(
+                      'w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y',
+                      !isAdmin && 'bg-gray-50 dark:bg-slate-800 text-gray-400 cursor-default',
+                    )}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
+          <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">Header</span>
+        </div>
+        <div className="px-4 py-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-gray-800 dark:text-slate-200">Show organisation logo</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Displays the branding logo in the proposal header</div>
+            </div>
+            <ToggleSwitch
+              enabled={layout.header.showLogo}
+              onChange={v => updateLayout({ ...layout, header: { ...layout.header, showLogo: v } })}
+              disabled={!isAdmin}
+            />
+          </div>
+          <FieldRow label="Company name override">
+            <TextInput
+              value={layout.header.companyName ?? ''}
+              onChange={v => updateLayout({ ...layout, header: { ...layout.header, companyName: v || undefined } })}
+              placeholder="Leave blank to use branding setting"
+              readOnly={!isAdmin}
+            />
+          </FieldRow>
+          <FieldRow label="Primary colour override">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={layout.header.primaryColor ?? '#2B3990'}
+                onChange={e => updateLayout({ ...layout, header: { ...layout.header, primaryColor: e.target.value } })}
+                disabled={!isAdmin}
+                className="w-9 h-9 rounded border border-gray-300 dark:border-slate-600 cursor-pointer disabled:cursor-not-allowed p-0.5"
+              />
+              <input
+                type="text"
+                value={layout.header.primaryColor ?? ''}
+                onChange={e => updateLayout({ ...layout, header: { ...layout.header, primaryColor: e.target.value || undefined } })}
+                placeholder="Leave blank to use branding setting (e.g. #2B3990)"
+                readOnly={!isAdmin}
+                className={clsx(inputCls, 'flex-1')}
+              />
+            </div>
+          </FieldRow>
+          <FieldRow label="Tagline / subtitle">
+            <TextInput
+              value={layout.header.tagline ?? ''}
+              onChange={v => updateLayout({ ...layout, header: { ...layout.header, tagline: v || undefined } })}
+              placeholder="e.g. Confidential Proposal"
+              readOnly={!isAdmin}
+            />
+          </FieldRow>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
+          <span className="text-xs font-semibold text-gray-700 dark:text-slate-300">Footer</span>
+        </div>
+        <div className="px-4 py-4 space-y-4">
+          <FieldRow label="Footer text">
+            <textarea
+              rows={2}
+              value={layout.footer.text ?? ''}
+              onChange={e => updateLayout({ ...layout, footer: { ...layout.footer, text: e.target.value || undefined } })}
+              disabled={!isAdmin}
+              placeholder={`Leave blank for default (e.g. ${settings['branding.companyName'] ?? 'ITRM'} — Confidential)`}
+              className={clsx(
+                'w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none',
+                !isAdmin && 'bg-gray-50 dark:bg-slate-800 text-gray-400 cursor-default',
+              )}
+            />
+          </FieldRow>
+          <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-slate-700">
+            <div>
+              <div className="text-sm font-medium text-gray-800 dark:text-slate-200">Show generation date</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Adds the export date to the footer</div>
+            </div>
+            <ToggleSwitch
+              enabled={layout.footer.showDate}
+              onChange={v => updateLayout({ ...layout, footer: { ...layout.footer, showDate: v } })}
+              disabled={!isAdmin}
+            />
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <div className="text-sm font-medium text-gray-800 dark:text-slate-200">Show page numbers</div>
+              <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Adds "Page X of Y" to PDF exports</div>
+            </div>
+            <ToggleSwitch
+              enabled={layout.footer.showPageNumbers}
+              onChange={v => updateLayout({ ...layout, footer: { ...layout.footer, showPageNumbers: v } })}
+              disabled={!isAdmin}
+            />
+          </div>
+        </div>
+      </div>
+
+      {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
+    </div>
+  );
+}
+
 // ─── Main Settings page ───────────────────────────────────────────────────────
 
 export function Settings() {
@@ -1739,6 +1966,7 @@ export function Settings() {
           {activeTab === 'provisioning'  && settingsLoaded && <ProvisioningTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'api'           && <ApiAccessTab isAdmin={isAdmin} />}
           {activeTab === 'email'         && settingsLoaded && <EmailTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
+          {activeTab === 'layout'        && settingsLoaded && <LayoutTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>
       </div>

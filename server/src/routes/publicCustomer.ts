@@ -13,7 +13,12 @@ router.get('/:token', async (req, res) => {
   try {
     const result = await getProposalForCustomer(req.params.token);
     if (!result) { res.status(404).json({ error: 'Customer link not found or expired' }); return; }
-    res.json(result);
+    const cfg = await getAppSettingsDirect().catch(() => ({}) as Record<string, string>);
+    const layoutRaw  = cfg[SETTING_KEYS.PROPOSAL_LAYOUT] ?? null;
+    const logoB64    = cfg['branding.logo'] ?? null;
+    const primaryColor = cfg['branding.primaryColor'] ?? '#2B3990';
+    const companyName  = cfg['branding.companyName'] ?? 'ITRM';
+    res.json({ ...result, layoutRaw, branding: { logoB64, primaryColor, companyName } });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 

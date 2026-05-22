@@ -23,7 +23,9 @@ import { ApprovalsTab } from '../components/proposals/tabs/ApprovalsTab';
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VersionHistoryPanel } from '../components/proposals/VersionHistoryPanel';
 import { ShareModal } from '../components/proposals/ShareModal';
-import { versionApi } from '../lib/api';
+import { versionApi, settingsApi } from '../lib/api';
+import { parseLayout, DEFAULT_LAYOUT } from '../types/layout';
+import type { ProposalLayoutConfig } from '../types/layout';
 import clsx from 'clsx';
 
 const DownloadProposalPdfButton = lazy(() =>
@@ -50,6 +52,14 @@ export function ProposalWorkspace() {
   const [exportBlockers, setExportBlockers] = useState<ExportBlocker[]>([]);
   const [pendingExport, setPendingExport] = useState<(() => void) | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [layoutConfig, setLayoutConfig] = useState<ProposalLayoutConfig | null>(null);
+
+  // Fetch layout config for PDF generation
+  useEffect(() => {
+    settingsApi.get()
+      .then(s => setLayoutConfig(parseLayout((s as Record<string, string | undefined>)['proposal.layout'])))
+      .catch(() => setLayoutConfig(DEFAULT_LAYOUT));
+  }, []);
 
   // Keep a ref to the latest proposal so the unmount cleanup can access it
   const proposalRef = useRef(proposal);
@@ -189,7 +199,7 @@ export function ProposalWorkspace() {
                         setShowExportMenu(false);
                       }
                     }}>
-                      <DownloadProposalPdfButton proposal={proposal} menuStyle />
+                      <DownloadProposalPdfButton proposal={proposal} menuStyle layout={layoutConfig ?? DEFAULT_LAYOUT} />
                     </div>
                   </Suspense>
                   {/* Excel */}

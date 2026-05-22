@@ -11,6 +11,8 @@ import { FileDown, Loader2, AlertCircle } from 'lucide-react';
 import type { Proposal, PartType } from '../../types';
 import { calcTotals } from '../../utils/totals';
 import { useBranding } from '../../contexts/BrandingContext';
+import { DEFAULT_LAYOUT } from '../../types/layout';
+import type { ProposalLayoutConfig } from '../../types/layout';
 
 // ─── Currency ─────────────────────────────────────────────────────────────────
 
@@ -99,10 +101,16 @@ interface DocProps {
   proposal: Proposal;
   companyName: string;
   primaryColor: string;
+  layout?: ProposalLayoutConfig;
 }
 
-function ProposalPdfDocument({ proposal, companyName, primaryColor }: DocProps) {
-  const styles  = makeStyles(primaryColor);
+function ProposalPdfDocument({ proposal, companyName, primaryColor, layout: layoutProp }: DocProps) {
+  const layout   = layoutProp ?? DEFAULT_LAYOUT;
+  const resolved = {
+    companyName: layout.header.companyName ?? companyName,
+    primaryColor: layout.header.primaryColor ?? primaryColor,
+  };
+  const styles  = makeStyles(resolved.primaryColor);
   const totals  = calcTotals(proposal);
   const fmt     = makeFmt(proposal.currency);
   const today   = new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -113,68 +121,126 @@ function ProposalPdfDocument({ proposal, companyName, primaryColor }: DocProps) 
   const anTotal = proposal.parts.filter(p => p.partType === 'Annual').reduce((s, p) => s + p.unitPrice * p.quantity, 0);
   const oneYrTco = totals.partsSell + totals.markupAmount + moTotal * 12 + totals.consultancySell;
 
+  const sectionEnabled = (id: string) =>
+    layout.sections.find(s => s.id === id)?.enabled ?? true;
+
+  const visibleSections = layout.sections
+    .filter(s => s.enabled)
+    .sort((a, b) => a.order - b.order);
+
   const footer = (
     <View style={styles.footer} fixed>
-      <Text>{companyName} — Confidential</Text>
-      <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+      <Text>
+        {layout.footer.text
+          ? layout.footer.text
+          : `${resolved.companyName} — Confidential`}
+        {layout.footer.showDate ? `  ·  ${today}` : ''}
+      </Text>
+      {layout.footer.showPageNumbers
+        ? <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+        : <Text />
+      }
     </View>
   );
 
+  // Build ordered page sections
+  const coverSection = visibleSections.find(s => s.id === 'cover');
+  const commercialSection = visibleSections.find(s => s.id === 'commercial');
+  const consultancySection = visibleSections.find(s => s.id === 'consultancy');
+  const sowSection = visibleSections.find(s => s.id === 'sow');
+  const termsSection = visibleSections.find(s => s.id === 'terms');
+
+  // For summary, milestones we check enabled status
+  const summaryEnabled = sectionEnabled('summary');
+  const milestonesEnabled = sectionEnabled('milestones');
+
   return (
-    <Document title={proposal.projectName} author={companyName}>
+    <Document title={proposal.projectName} author={resolved.companyName}>
 
       {/* ── Cover ── */}
-      <Page size="A4" style={styles.coverPage}>
-        <Text style={styles.coverBrand}>{companyName.toUpperCase()}</Text>
-        <Text style={styles.coverTitle}>{proposal.projectName}</Text>
-        <View style={styles.coverDivider} />
-        <Text style={styles.coverClient}>{proposal.client}</Text>
-        {proposal.accountManager && <Text style={styles.coverMeta}>Account Manager: {proposal.accountManager}</Text>}
-        <Text style={styles.coverMeta}>Date: {today}</Text>
-        <Text style={styles.coverMeta}>Reference: {proposal.ticketRef || proposal.id.slice(0, 8).toUpperCase()}</Text>
-        <Text style={styles.coverMeta}>Status: {proposal.status}</Text>
-      </Page>
+      {coverSection && (
+        <Page size="A4" style={styles.coverPage}>
+          <Text style={styles.coverBrand}>{resolved.companyName.toUpperCase()}</Text>
+          {layout.header.tagline && <Text style={[styles.coverBrand, { fontSize: 10, marginBottom: 20 }]}>{layout.header.tagline}</Text>}
+          <Text style={styles.coverTitle}>{proposal.projectName}</Text>
+          <View style={styles.coverDivider} />
+          <Text style={styles.coverClient}>{proposal.client}</Text>
+          {proposal.accountManager && <Text style={styles.coverMeta}>Account Manager: {proposal.accountManager}</Text>}
+          <Text style={styles.coverMeta}>Date: {today}</Text>
+          <Text style={styles.coverMeta}>Reference: {proposal.ticketRef || proposal.id.slice(0, 8).toUpperCase()}</Text>
+          <Text style={styles.coverMeta}>Status: {proposal.status}</Text>
+        </Page>
+      )}
+
+      {/* ── Executive Summary ── */}
+      {summaryEnabled && (proposal.objectives || proposal.businessRequirements || proposal.justification) && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.h1}>Executive Summary</Text>
+          <View style={styles.sectionDivider} />
+          {proposal.objectives && (
+            <>
+              <Text style={styles.h3}>Objectives</Text>
+              <Text style={styles.para}>{proposal.objectives}</Text>
+            </>
+          )}
+          {proposal.businessRequirements && (
+            <>
+              <Text style={styles.h3}>Business Requirements</Text>
+              <Text style={styles.para}>{proposal.businessRequirements}</Text>
+            </>
+          )}
+          {proposal.justification && (
+            <>
+              <Text style={styles.h3}>Justification</Text>
+              <Text style={styles.para}>{proposal.justification}</Text>
+            </>
+          )}
+          {footer}
+        </Page>
+      )}
 
       {/* ── Commercial Summary ── */}
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.h1}>Commercial Summary</Text>
-        <View style={styles.sectionDivider} />
+      {commercialSection && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.h1}>Commercial Summary</Text>
+          <View style={styles.sectionDivider} />
 
-        <View style={{ marginBottom: 16 }}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.thCell, { flex: 3 }]}>Category</Text>
-            <Text style={[styles.thCell, { flex: 1, textAlign: 'right' }]}>Amount</Text>
-          </View>
-          {[
-            { label: 'Hardware (one-off)',         value: hwTotal,                   show: hwTotal > 0 },
-            { label: 'Software (one-off)',          value: swTotal,                   show: swTotal > 0 },
-            { label: 'Monthly subscriptions',       value: moTotal,  suffix: '/mo',   show: moTotal > 0 },
-            { label: 'Annual subscriptions',        value: anTotal,  suffix: '/yr',   show: anTotal > 0 },
-            { label: 'Professional Services',       value: totals.consultancySell,    show: totals.consultancySell > 0 },
-          ].filter(r => r.show).map((r, i) => (
-            <View key={r.label} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
-              <Text style={[styles.tdCell, { flex: 3 }]}>{r.label}</Text>
-              <Text style={[styles.tdRight, { flex: 1 }]}>{fmt(r.value)}{r.suffix ?? ''}</Text>
+          <View style={{ marginBottom: 16 }}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.thCell, { flex: 3 }]}>Category</Text>
+              <Text style={[styles.thCell, { flex: 1, textAlign: 'right' }]}>Amount</Text>
             </View>
-          ))}
-        </View>
-
-        <View style={styles.totalsRow}>
-          <Text style={[styles.totalsCell, { flex: 3 }]}>Upfront Total (ex. recurring)</Text>
-          <Text style={[styles.totalsCellRight, { flex: 1 }]}>{fmt(totals.grandTotal)}</Text>
-        </View>
-        {(moTotal > 0 || anTotal > 0) && (
-          <View style={[styles.totalsRow, { marginTop: 4 }]}>
-            <Text style={[styles.totalsCell, { flex: 3 }]}>1-Year TCO</Text>
-            <Text style={[styles.totalsCellRight, { flex: 1 }]}>{fmt(oneYrTco)}</Text>
+            {[
+              { label: 'Hardware (one-off)',         value: hwTotal,                   show: hwTotal > 0 },
+              { label: 'Software (one-off)',          value: swTotal,                   show: swTotal > 0 },
+              { label: 'Monthly subscriptions',       value: moTotal,  suffix: '/mo',   show: moTotal > 0 },
+              { label: 'Annual subscriptions',        value: anTotal,  suffix: '/yr',   show: anTotal > 0 },
+              { label: 'Professional Services',       value: totals.consultancySell,    show: totals.consultancySell > 0 },
+            ].filter(r => r.show).map((r, i) => (
+              <View key={r.label} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
+                <Text style={[styles.tdCell, { flex: 3 }]}>{r.label}</Text>
+                <Text style={[styles.tdRight, { flex: 1 }]}>{fmt(r.value)}{r.suffix ?? ''}</Text>
+              </View>
+            ))}
           </View>
-        )}
 
-        {footer}
-      </Page>
+          <View style={styles.totalsRow}>
+            <Text style={[styles.totalsCell, { flex: 3 }]}>Upfront Total (ex. recurring)</Text>
+            <Text style={[styles.totalsCellRight, { flex: 1 }]}>{fmt(totals.grandTotal)}</Text>
+          </View>
+          {(moTotal > 0 || anTotal > 0) && (
+            <View style={[styles.totalsRow, { marginTop: 4 }]}>
+              <Text style={[styles.totalsCell, { flex: 3 }]}>1-Year TCO</Text>
+              <Text style={[styles.totalsCellRight, { flex: 1 }]}>{fmt(oneYrTco)}</Text>
+            </View>
+          )}
 
-      {/* ── Bill of Materials ── */}
-      {proposal.parts.length > 0 && (
+          {footer}
+        </Page>
+      )}
+
+      {/* ── Bill of Materials (consultancy section controls this too) ── */}
+      {(commercialSection || consultancySection) && proposal.parts.length > 0 && (
         <Page size="A4" style={styles.page}>
           <Text style={styles.h1}>Bill of Materials</Text>
           <View style={styles.sectionDivider} />
@@ -210,7 +276,7 @@ function ProposalPdfDocument({ proposal, companyName, primaryColor }: DocProps) 
       )}
 
       {/* ── Consultancy ── */}
-      {proposal.phases.length > 0 && (
+      {consultancySection && proposal.phases.length > 0 && (
         <Page size="A4" style={styles.page}>
           <Text style={styles.h1}>Professional Services</Text>
           <View style={styles.sectionDivider} />
@@ -246,12 +312,46 @@ function ProposalPdfDocument({ proposal, companyName, primaryColor }: DocProps) 
         </Page>
       )}
 
+      {/* ── Billing Milestones ── */}
+      {milestonesEnabled && proposal.milestones && proposal.milestones.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.h1}>Billing Milestones</Text>
+          <View style={styles.sectionDivider} />
+          <View style={styles.tableHeader}>
+            <Text style={[styles.thCell, { flex: 3 }]}>Milestone</Text>
+            <Text style={[styles.thCell, { flex: 1.5 }]}>Due Date</Text>
+            <Text style={[styles.thCell, { flex: 1.2, textAlign: 'right' }]}>Amount</Text>
+          </View>
+          {proposal.milestones.map((m, i) => {
+            const amount = totals.grandTotal * (m.percentage / 100);
+            return (
+              <View key={m.id} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
+                <Text style={[styles.tdCell, { flex: 3 }]}>{m.name}</Text>
+                <Text style={[styles.tdCell, { flex: 1.5 }]}>{m.dueDate ?? '—'}</Text>
+                <Text style={[styles.tdRight, { flex: 1.2 }]}>{fmt(amount)}</Text>
+              </View>
+            );
+          })}
+          {footer}
+        </Page>
+      )}
+
       {/* ── Statement of Work ── */}
-      {proposal.sowContent && (
+      {sowSection && proposal.sowContent && (
         <Page size="A4" style={styles.page}>
           <Text style={styles.h1}>Statement of Work</Text>
           <View style={styles.sectionDivider} />
           {renderSow(proposal.sowContent, styles)}
+          {footer}
+        </Page>
+      )}
+
+      {/* ── Terms & Conditions ── */}
+      {termsSection && termsSection.content && (
+        <Page size="A4" style={styles.page}>
+          <Text style={styles.h1}>Terms &amp; Conditions</Text>
+          <View style={styles.sectionDivider} />
+          {renderSow(termsSection.content, styles)}
           {footer}
         </Page>
       )}
@@ -262,7 +362,7 @@ function ProposalPdfDocument({ proposal, companyName, primaryColor }: DocProps) 
 
 // ─── Download button ──────────────────────────────────────────────────────────
 
-export function DownloadProposalPdfButton({ proposal, menuStyle = false }: { proposal: Proposal; menuStyle?: boolean }) {
+export function DownloadProposalPdfButton({ proposal, menuStyle = false, layout: layoutProp }: { proposal: Proposal; menuStyle?: boolean; layout?: ProposalLayoutConfig }) {
   const { companyName, primaryColor } = useBranding();
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -272,7 +372,8 @@ export function DownloadProposalPdfButton({ proposal, menuStyle = false }: { pro
     setLoading(true);
     setError(null);
     try {
-      const doc  = <ProposalPdfDocument proposal={proposal} companyName={companyName} primaryColor={primaryColor} />;
+      const layout = layoutProp ?? DEFAULT_LAYOUT;
+      const doc  = <ProposalPdfDocument proposal={proposal} companyName={companyName} primaryColor={primaryColor} layout={layout} />;
       const blob = await pdf(doc).toBlob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');

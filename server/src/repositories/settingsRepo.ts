@@ -33,6 +33,7 @@ export const SETTING_KEYS = {
   EMAIL_USER:              'email.user',
   EMAIL_PASSWORD:          'email.password',
   EMAIL_FROM:              'email.from',
+  PROPOSAL_LAYOUT:         'proposal.layout',
 } as const;
 
 export async function getAppSettings(): Promise<Record<string, string>> {

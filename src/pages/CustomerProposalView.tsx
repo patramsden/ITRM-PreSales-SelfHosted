@@ -4,6 +4,7 @@ import { Sun, Moon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { customerApi } from '../lib/api';
 import type { CustomerLink } from '../lib/api';
 import type { Proposal } from '../types';
+import { parseLayout } from '../types/layout';
 import clsx from 'clsx';
 
 const THEME_KEY = 'customer_theme';
@@ -44,6 +45,10 @@ export function CustomerProposalView() {
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [link, setLink] = useState<CustomerLink | null>(null);
+  const [layoutRaw, setLayoutRaw] = useState<string | undefined>(undefined);
+  const [branding, setBranding] = useState<{ logoB64: string | null; primaryColor: string; companyName: string }>({
+    logoB64: null, primaryColor: '#2B3990', companyName: 'ITRM',
+  });
 
   // Theme
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -59,9 +64,15 @@ export function CustomerProposalView() {
   useEffect(() => {
     if (!token) return;
     customerApi.getPublic(token)
-      .then(({ proposal: p, link: l }) => {
+      .then((data) => {
+        const p = data.proposal;
+        const l = data.link;
+        const lr = (data as Record<string, unknown>)['layoutRaw'] as string | undefined;
+        const b = (data as Record<string, unknown>)['branding'] as { logoB64: string | null; primaryColor: string; companyName: string } | undefined;
         setProposal(p);
         setLink(l);
+        if (lr !== undefined) setLayoutRaw(lr);
+        if (b) setBranding(b);
         // Set theme from link default if not already stored
         if (!localStorage.getItem(THEME_KEY)) {
           setDarkMode(l.defaultTheme === 'dark');
@@ -129,18 +140,28 @@ export function CustomerProposalView() {
   }
 
   const totals = calcTotals(proposal);
+  const layout = parseLayout(layoutRaw);
+  const visibleSections = layout.sections.filter(s => s.enabled).sort((a, b) => a.order - b.order);
+
+  // Resolved branding values (layout overrides branding settings)
+  const headerColor = layout.header.primaryColor ?? branding.primaryColor;
+  const companyName = layout.header.companyName ?? branding.companyName;
 
   return (
     <div className={clsx('min-h-screen', bg)}>
       {/* Header */}
       <header className={clsx('border-b px-6 py-4 flex items-center justify-between', card)}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xs">IT</span>
-          </div>
+          {layout.header.showLogo && branding.logoB64 ? (
+            <img src={branding.logoB64} alt={companyName} className="h-8 object-contain" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: headerColor }}>
+              <span className="text-white font-bold text-xs">{companyName.slice(0, 2).toUpperCase()}</span>
+            </div>
+          )}
           <div>
-            <div className="font-bold text-sm">ITRM</div>
-            <div className={clsx('text-xs', muted)}>Proposal Review</div>
+            <div className="font-bold text-sm">{companyName}</div>
+            <div className={clsx('text-xs', muted)}>{layout.header.tagline ?? 'Proposal Review'}</div>
           </div>
         </div>
         <button
@@ -175,124 +196,183 @@ export function CustomerProposalView() {
           </div>
         )}
 
-        {/* Project header */}
-        <div className={clsx('rounded-2xl border p-6', card)}>
-          <h1 className="text-2xl font-bold mb-1">{proposal.projectName}</h1>
-          <div className={clsx('text-sm', muted)}>
-            {proposal.client}
-            {proposal.accountManager && ` · Account Manager: ${proposal.accountManager}`}
-          </div>
-        </div>
-
-        {/* Commercial summary */}
-        <div className={clsx('rounded-2xl border overflow-hidden', card)}>
-          <div className="px-6 py-4 bg-gradient-to-r from-blue-900 to-teal-600">
-            <div className="text-white font-bold text-base">Commercial Summary</div>
-          </div>
-          <div className="px-6 py-4">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={clsx('border-b', darkMode ? 'border-slate-700' : 'border-gray-200')}>
-                  <th className={clsx('text-left py-2 pr-4 text-xs font-semibold uppercase tracking-wide', th)}>Category</th>
-                  <th className={clsx('text-right py-2 text-xs font-semibold uppercase tracking-wide', th)}>Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
-                {totals.partsSell > 0 && (
-                  <tr>
-                    <td className="py-2 pr-4">Parts &amp; Licenses</td>
-                    <td className="py-2 text-right font-medium">{fmt(totals.partsSell + totals.markup)}</td>
-                  </tr>
-                )}
-                {totals.consultSell > 0 && (
-                  <tr>
-                    <td className="py-2 pr-4">Professional Services</td>
-                    <td className="py-2 text-right font-medium">{fmt(totals.consultSell + totals.pm)}</td>
-                  </tr>
-                )}
-                <tr className={clsx('border-t font-bold', darkMode ? 'border-slate-600' : 'border-gray-300')}>
-                  <td className="py-2.5 pr-4">Grand Total</td>
-                  <td className="py-2.5 text-right text-lg">{fmt(totals.grandTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Parts */}
-        {proposal.parts.length > 0 && (
-          <div className={clsx('rounded-2xl border overflow-hidden', card)}>
-            <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Parts &amp; Licenses</div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={clsx('border-b', darkMode ? 'border-slate-700' : 'border-gray-100')}>
-                  <th className={clsx('text-left px-6 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Description</th>
-                  <th className={clsx('text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Qty</th>
-                  <th className={clsx('text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Unit Price</th>
-                  <th className={clsx('text-right px-6 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Line Total</th>
-                </tr>
-              </thead>
-              <tbody className={clsx('divide-y', darkMode ? 'divide-slate-700' : 'divide-gray-50')}>
-                {proposal.parts.map(p => (
-                  <tr key={p.id}>
-                    <td className="px-6 py-2.5">
-                      <div>{p.description}</div>
-                      {p.sku && <div className={clsx('text-xs', muted)}>{p.sku}</div>}
-                    </td>
-                    <td className={clsx('px-4 py-2.5 text-right', muted)}>{p.quantity}</td>
-                    <td className={clsx('px-4 py-2.5 text-right', muted)}>{fmt(p.unitPrice)}</td>
-                    <td className="px-6 py-2.5 text-right font-semibold">{fmt(p.unitPrice * p.quantity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Consultancy phases */}
-        {proposal.phases.length > 0 && (
-          <div className={clsx('rounded-2xl border overflow-hidden', card)}>
-            <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Professional Services</div>
-            {proposal.phases.map(phase => {
-              const phTotal = phase.tasks.reduce((s, t) => s + t.days * t.dayRate * (t.rateMultiplier ?? 1), 0);
+        {/* Sections driven by layout */}
+        {visibleSections.map(section => {
+          switch (section.id) {
+            case 'cover':
               return (
-                <div key={phase.id} className={clsx('border-b last:border-0', darkMode ? 'border-slate-700' : 'border-gray-100')}>
-                  <div className={clsx('px-6 py-2.5 font-semibold text-sm flex items-center justify-between', darkMode ? 'bg-slate-700/40' : 'bg-gray-50')}>
-                    <span>{phase.name}</span>
-                    <span>{fmt(phTotal)}</span>
+                <div key="cover" className={clsx('rounded-2xl border p-6', card)}>
+                  <h1 className="text-2xl font-bold mb-1">{proposal.projectName}</h1>
+                  <div className={clsx('text-sm', muted)}>
+                    {proposal.client}
+                    {proposal.accountManager && ` · Account Manager: ${proposal.accountManager}`}
                   </div>
-                  {phase.tasks.map(task => {
-                    const taskVal = task.days * task.dayRate * (task.rateMultiplier ?? 1);
-                    const unit = task.unit ?? 'days';
-                    const qty = unit === 'hours' ? (task.days * 7).toFixed(1) : task.days.toFixed(1);
+                  {proposal.ticketRef && (
+                    <div className={clsx('text-xs mt-1', muted)}>Reference: {proposal.ticketRef}</div>
+                  )}
+                </div>
+              );
+
+            case 'summary':
+              if (!proposal.objectives && !proposal.businessRequirements && !proposal.justification) return null;
+              return (
+                <div key="summary" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className="px-6 py-3 border-b font-semibold text-sm">
+                    <span className={th}>Executive Summary</span>
+                  </div>
+                  <div className="px-6 py-4 space-y-4">
+                    {proposal.objectives && (
+                      <div>
+                        <div className={clsx('text-xs font-semibold uppercase tracking-wide mb-1', muted)}>Objectives</div>
+                        <p className="text-sm">{proposal.objectives}</p>
+                      </div>
+                    )}
+                    {proposal.businessRequirements && (
+                      <div>
+                        <div className={clsx('text-xs font-semibold uppercase tracking-wide mb-1', muted)}>Business Requirements</div>
+                        <p className="text-sm">{proposal.businessRequirements}</p>
+                      </div>
+                    )}
+                    {proposal.justification && (
+                      <div>
+                        <div className={clsx('text-xs font-semibold uppercase tracking-wide mb-1', muted)}>Justification</div>
+                        <p className="text-sm">{proposal.justification}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+
+            case 'commercial':
+              return (
+                <div key="commercial" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className="px-6 py-4" style={{ background: `linear-gradient(to right, ${headerColor}dd, ${headerColor}88)` }}>
+                    <div className="text-white font-bold text-base">Commercial Summary</div>
+                  </div>
+                  <div className="px-6 py-4">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={clsx('border-b', darkMode ? 'border-slate-700' : 'border-gray-200')}>
+                          <th className={clsx('text-left py-2 pr-4 text-xs font-semibold uppercase tracking-wide', th)}>Category</th>
+                          <th className={clsx('text-right py-2 text-xs font-semibold uppercase tracking-wide', th)}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
+                        {totals.partsSell > 0 && (
+                          <tr>
+                            <td className="py-2 pr-4">Parts &amp; Licenses</td>
+                            <td className="py-2 text-right font-medium">{fmt(totals.partsSell + totals.markup)}</td>
+                          </tr>
+                        )}
+                        {totals.consultSell > 0 && (
+                          <tr>
+                            <td className="py-2 pr-4">Professional Services</td>
+                            <td className="py-2 text-right font-medium">{fmt(totals.consultSell + totals.pm)}</td>
+                          </tr>
+                        )}
+                        <tr className={clsx('border-t font-bold', darkMode ? 'border-slate-600' : 'border-gray-300')}>
+                          <td className="py-2.5 pr-4">Grand Total</td>
+                          <td className="py-2.5 text-right text-lg">{fmt(totals.grandTotal)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+
+            case 'consultancy':
+              if (proposal.phases.length === 0) return null;
+              return (
+                <div key="consultancy" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Consultancy Breakdown</div>
+                  {proposal.phases.map(phase => {
+                    const phTotal = phase.tasks.reduce((s, t) => s + t.days * t.dayRate * (t.rateMultiplier ?? 1), 0);
                     return (
-                      <div key={task.id} className={clsx('px-6 py-2 flex items-center justify-between text-sm', darkMode ? 'hover:bg-slate-700/30' : 'hover:bg-gray-50')}>
-                        <div>
-                          <span>{task.name}</span>
-                          <span className={clsx('ml-2 text-xs', muted)}>({qty} {unit})</span>
-                          <span className={clsx('ml-1 text-xs', muted)}>· {task.role}</span>
+                      <div key={phase.id} className={clsx('border-b last:border-0', darkMode ? 'border-slate-700' : 'border-gray-100')}>
+                        <div className={clsx('px-6 py-2.5 font-semibold text-sm flex items-center justify-between', darkMode ? 'bg-slate-700/40' : 'bg-gray-50')}>
+                          <span>{phase.name}</span>
+                          <span>{fmt(phTotal)}</span>
                         </div>
-                        <span className={clsx('font-medium', muted)}>{fmt(taskVal)}</span>
+                        {phase.tasks.map(task => {
+                          const taskVal = task.days * task.dayRate * (task.rateMultiplier ?? 1);
+                          const unit = task.unit ?? 'days';
+                          const qty = unit === 'hours' ? (task.days * 7).toFixed(1) : task.days.toFixed(1);
+                          return (
+                            <div key={task.id} className={clsx('px-6 py-2 flex items-center justify-between text-sm', darkMode ? 'hover:bg-slate-700/30' : 'hover:bg-gray-50')}>
+                              <div>
+                                <span>{task.name}</span>
+                                <span className={clsx('ml-2 text-xs', muted)}>({qty} {unit})</span>
+                                <span className={clsx('ml-1 text-xs', muted)}>· {task.role}</span>
+                              </div>
+                              <span className={clsx('font-medium', muted)}>{fmt(taskVal)}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
                 </div>
               );
-            })}
-          </div>
-        )}
 
-        {/* Statement of Work */}
-        {proposal.sowContent && (
-          <div className={clsx('rounded-2xl border overflow-hidden', card)}>
-            <div className={clsx('px-6 py-3 border-b font-semibold text-sm', th)}>Statement of Work</div>
-            <div className="px-6 py-4">
-              <pre className={clsx('text-sm whitespace-pre-wrap font-sans leading-relaxed', muted)}>
-                {proposal.sowContent}
-              </pre>
-            </div>
-          </div>
-        )}
+            case 'milestones':
+              if (!proposal.milestones || proposal.milestones.length === 0) return null;
+              return (
+                <div key="milestones" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Billing Milestones</div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={clsx('border-b', darkMode ? 'border-slate-700' : 'border-gray-100')}>
+                        <th className={clsx('text-left px-6 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Milestone</th>
+                        <th className={clsx('text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Due Date</th>
+                        <th className={clsx('text-right px-6 py-2.5 text-xs font-semibold uppercase tracking-wide', th)}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className={clsx('divide-y', darkMode ? 'divide-slate-700' : 'divide-gray-50')}>
+                      {proposal.milestones.map((m, i) => {
+                        const amount = totals.grandTotal * (m.percentage / 100);
+                        return (
+                          <tr key={i}>
+                            <td className="px-6 py-2.5">{m.name}</td>
+                            <td className={clsx('px-4 py-2.5 text-right', muted)}>{m.dueDate ?? '—'}</td>
+                            <td className="px-6 py-2.5 text-right font-semibold">{fmt(amount)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+
+            case 'sow':
+              if (!proposal.sowContent) return null;
+              return (
+                <div key="sow" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className={clsx('px-6 py-3 border-b font-semibold text-sm', th)}>Statement of Work</div>
+                  <div className="px-6 py-4">
+                    <pre className={clsx('text-sm whitespace-pre-wrap font-sans leading-relaxed', muted)}>
+                      {proposal.sowContent}
+                    </pre>
+                  </div>
+                </div>
+              );
+
+            case 'terms':
+              if (!section.content) return null;
+              return (
+                <div key="terms" className={clsx('rounded-2xl border overflow-hidden', card)}>
+                  <div className={clsx('px-6 py-3 border-b font-semibold text-sm', th)}>Terms &amp; Conditions</div>
+                  <div className="px-6 py-4">
+                    <pre className={clsx('text-sm whitespace-pre-wrap font-sans leading-relaxed', muted)}>
+                      {section.content}
+                    </pre>
+                  </div>
+                </div>
+              );
+
+            default:
+              return null;
+          }
+        })}
 
         {/* Signature section */}
         {link.approvalStatus === 'pending' && !signResult && (
@@ -380,7 +460,12 @@ export function CustomerProposalView() {
 
         {/* Footer */}
         <div className={clsx('text-center text-xs py-4', muted)}>
-          Powered by ITRM PreSales Portal · This link is for {proposal.client} only
+          {layout.footer.text
+            ? layout.footer.text
+            : `Powered by ${companyName} PreSales Portal · This link is for ${proposal.client} only`}
+          {layout.footer.showDate && (
+            <span className="ml-2">· Generated {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          )}
         </div>
 
       </main>

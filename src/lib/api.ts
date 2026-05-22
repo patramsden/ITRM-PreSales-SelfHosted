@@ -1,7 +1,6 @@
 /**
- * Thin fetch wrapper for the Express API (self-hosted).
- * In dev, points to the Express server on port 3001.
- * In production, uses same-origin routing via nginx.
+ * Thin fetch wrapper for the Azure Functions API.
+ * Base URL is empty in dev (Vite proxy) and in production (same origin via SWA routing).
  */
 
 const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
@@ -191,6 +190,9 @@ export interface AppSettings {
   'email.password.configured'?:  string;  // 'true'|'false' read-only indicator
   'email.from'?:                 string;  // "ITRM PreSales <noreply@example.com>"
 
+  // Proposal layout
+  'proposal.layout'?: string;  // JSON-serialised ProposalLayoutConfig
+
   // CRM — Autotask
   'crm.provider'?:                       string;  // 'autotask' | 'none'
   'crm.autotask.zoneUrl'?:               string;
@@ -265,7 +267,12 @@ export const customerApi = {
   getPublic: (token: string) =>
     fetch(`${BASE_URL}/api/customer/${token}`).then(r => {
       if (!r.ok) throw new Error('Not found');
-      return r.json() as Promise<{ proposal: Proposal; link: CustomerLink }>;
+      return r.json() as Promise<{
+        proposal: Proposal;
+        link: CustomerLink;
+        layoutRaw?: string;
+        branding?: { logoB64: string | null; primaryColor: string; companyName: string };
+      }>;
     }),
   sign: (token: string, data: { status: 'approved' | 'rejected'; notes?: string; signerName?: string }) =>
     fetch(`${BASE_URL}/api/customer/${token}/sign`, {
