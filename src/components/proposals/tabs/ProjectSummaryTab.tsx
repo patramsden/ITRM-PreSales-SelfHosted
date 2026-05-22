@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { UserPlus, X } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { UserPlus, X, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { Proposal } from '../../../types';
 import { useAuth, isPresalesAdmin } from '../../../contexts/AuthContext';
 import { useStore } from '../../../store';
@@ -7,6 +7,9 @@ import { Button } from '../../ui/Button';
 import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
 import { crmApi } from '../../../lib/api';
 import type { ProposalStatus, Currency } from '../../../types';
+
+type AmLookupState = 'idle' | 'loading' | 'found' | 'not_found' | 'error';
+type AmErrorState = { state: AmLookupState; message?: string };
 
 interface Props {
   proposal: Proposal;
@@ -59,6 +62,25 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
   const { currentUser } = useAuth();
   const users = useStore(s => s.users);
   const [collabSearch, setCollabSearch] = useState('');
+  const [amStatus, setAmStatus] = useState<AmErrorState>({ state: 'idle' });
+
+  const lookupAccountManager = useCallback(async (crmId: string, clientName: string) => {
+    const companyId = parseInt(crmId);
+    if (isNaN(companyId)) return;
+    setAmStatus({ state: 'loading' });
+    try {
+      const { name } = await crmApi.getAccountManager(companyId);
+      if (name) {
+        onUpdate({ accountManager: name, client: clientName, crmCompanyId: crmId });
+        setAmStatus({ state: 'found' });
+      } else {
+        setAmStatus({ state: 'not_found', message: 'No account manager assigned to this company in Autotask.' });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'CRM lookup failed';
+      setAmStatus({ state: 'error', message: msg });
+    }
+  }, [onUpdate]);
 
   const owner = users.find(u => u.id === proposal.ownerId);
   const collaborators = users.filter(u => proposal.collaboratorIds.includes(u.id));
@@ -99,16 +121,10 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               <AutotaskCompanyPicker
                 value={proposal.client}
                 crmId={proposal.crmCompanyId}
-                onChange={async (name, id) => {
+                onChange={(name, id) => {
                   onUpdate({ client: name, crmCompanyId: id });
-                  if (id) {
-                    try {
-                      const { name: amName } = await crmApi.getAccountManager(parseInt(id));
-                      if (amName) {
-                        onUpdate({ client: name, crmCompanyId: id, accountManager: amName });
-                      }
-                    } catch { /* non-fatal — AM lookup is best-effort */ }
-                  }
+                  setAmStatus({ state: 'idle' });
+                  if (id) lookupAccountManager(id, name);
                 }}
                 placeholder="Search Autotask or type client name…"
               />
@@ -128,7 +144,46 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
             )}
           </Field>
           <Field label="Account Manager">
-            <TextInput value={proposal.accountManager} onChange={v => onUpdate({ accountManager: v })} disabled={!editable} placeholder="Name" />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <TextInput
+                  value={proposal.accountManager}
+                  onChange={v => onUpdate({ accountManager: v })}
+                  disabled={!editable}
+                  placeholder={amStatus.state === 'loading' ? 'Looking up…' : 'Name'}
+                />
+                {/* Manual retry — only shown when a CRM company is linked */}
+                {editable && proposal.crmCompanyId && amStatus.state !== 'loading' && (
+                  <button
+                    type="button"
+                    onClick={() => lookupAccountManager(proposal.crmCompanyId!, proposal.client)}
+                    className="flex-shrink-0 p-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-400 transition-colors"
+                    title="Re-fetch account manager from CRM"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                )}
+                {amStatus.state === 'loading' && (
+                  <Loader2 size={16} className="flex-shrink-0 animate-spin text-brand-500" />
+                )}
+              </div>
+              {/* Inline status feedback */}
+              {amStatus.state === 'found' && (
+                <p className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                  <CheckCircle2 size={11} /> Set from CRM
+                </p>
+              )}
+              {amStatus.state === 'not_found' && (
+                <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertCircle size={11} /> {amStatus.message}
+                </p>
+              )}
+              {amStatus.state === 'error' && (
+                <p className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                  <AlertCircle size={11} /> {amStatus.message}
+                </p>
+              )}
+            </div>
           </Field>
           <Field label="Ticket Reference">
             <TextInput value={proposal.ticketRef ?? ''} onChange={v => onUpdate({ ticketRef: v })} disabled={!editable} placeholder="e.g. CRM-1042" />
