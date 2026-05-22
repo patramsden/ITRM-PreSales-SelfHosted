@@ -183,32 +183,40 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     if (!creds) { res.json({ name: null, contactId: null }); return; }
     const companyId = parseInt((req.query.companyId as string) ?? '');
     if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
-    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const amFieldName = await resolveAmFieldName(host, creds);
-    crmLog(`  Resolved AM field name: ${amFieldName ?? '(not found — fetching full record)'}`);
-
     const companies = await atQuery<Record<string, unknown>>(
       creds, 'Companies',
       [{ field: 'id', op: 'eq', value: companyId }],
-      amFieldName ? ['id', amFieldName] : undefined,
+      undefined,
       1
     );
-    if (!companies[0]) { res.json({ name: null, contactId: null }); return; }
+    if (!companies[0]) { res.json({ name: null, contactId: null, _debug: 'company not found' }); return; }
 
     const raw = companies[0];
-    crmLog(`  Company raw keys: ${Object.keys(raw).join(', ')}`);
+    const rawKeys = Object.keys(raw);
+    crmLog(`  Company raw keys (${rawKeys.length}): ${rawKeys.join(', ')}`);
 
-    const resourceId = (
-      (amFieldName ? raw[amFieldName] : undefined) ??
-      raw['accountManagerResourceID'] ??
-      raw['accountManagerResourceId'] ??
-      raw['AccountManagerResourceID'] ??
-      raw['AccountManagerResourceId']
-    ) as number | null | undefined;
+    const amKey = rawKeys.find(k => {
+      const lk = k.toLowerCase();
+      return lk === 'accountmanagerresourceid' || lk === 'accountmanagerid';
+    });
+    crmLog(`  Matched AM key: ${amKey ?? 'none'}`);
 
-    crmLog(`  accountManagerResourceID value: ${resourceId}`);
+    const candidateKeys = rawKeys.filter(k => {
+      const lk = k.toLowerCase();
+      return lk.includes('manager') || lk.includes('owner') || lk.includes('salesrep');
+    });
+    crmLog(`  Candidate AM-like keys: ${candidateKeys.join(', ') || 'none'}`);
 
-    if (!resourceId) { res.json({ name: null, contactId: null }); return; }
+    const resourceId = amKey ? (raw[amKey] as number | null | undefined) : undefined;
+    crmLog(`  Resource ID value: ${resourceId}`);
+
+    if (!resourceId) {
+      res.json({
+        name: null,
+        contactId: null,
+        _debug: `No account manager key found. Keys checked: ${rawKeys.length}. Candidates: ${candidateKeys.join(', ') || 'none'}`,
+      }); return;
+    }
 
     const resources = await atQuery<{ id: number; firstName: string; lastName: string }>(
       creds, 'Resources',

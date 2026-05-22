@@ -69,12 +69,14 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
     if (isNaN(companyId)) return;
     setAmStatus({ state: 'loading' });
     try {
-      const { name } = await crmApi.getAccountManager(companyId);
-      if (name) {
-        onUpdate({ accountManager: name, client: clientName, crmCompanyId: crmId });
+      const result = await crmApi.getAccountManager(companyId) as { name: string | null; contactId: number | null; _debug?: string };
+      if (result._debug) console.warn('[AM lookup]', result._debug);
+      if (result.name) {
+        onUpdate({ accountManager: result.name, client: clientName, crmCompanyId: crmId });
         setAmStatus({ state: 'found' });
       } else {
-        setAmStatus({ state: 'not_found', message: 'No account manager assigned to this company in Autotask.' });
+        const hint = result._debug ? ` (${result._debug})` : '';
+        setAmStatus({ state: 'not_found', message: `No account manager field found in Autotask response.${hint}` });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'CRM lookup failed';
