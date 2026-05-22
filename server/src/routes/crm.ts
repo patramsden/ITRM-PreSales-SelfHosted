@@ -183,13 +183,31 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     if (!creds) { res.json({ name: null, contactId: null }); return; }
     const companyId = parseInt((req.query.companyId as string) ?? '');
     if (isNaN(companyId)) { res.status(400).json({ error: 'companyId required' }); return; }
-    // Account manager is a Resource on the Company, not a Contact
-    const companies = await atQuery<{ id: number; accountManagerResourceID?: number }>(
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    const amFieldName = await resolveAmFieldName(host, creds);
+    crmLog(`  Resolved AM field name: ${amFieldName ?? '(not found — fetching full record)'}`);
+
+    const companies = await atQuery<Record<string, unknown>>(
       creds, 'Companies',
       [{ field: 'id', op: 'eq', value: companyId }],
-      undefined, 1  // no includeFields — Autotask rejects accountManagerResourceID in that filter
+      amFieldName ? ['id', amFieldName] : undefined,
+      1
     );
-    const resourceId = companies[0]?.accountManagerResourceID;
+    if (!companies[0]) { res.json({ name: null, contactId: null }); return; }
+
+    const raw = companies[0];
+    crmLog(`  Company raw keys: ${Object.keys(raw).join(', ')}`);
+
+    const resourceId = (
+      (amFieldName ? raw[amFieldName] : undefined) ??
+      raw['accountManagerResourceID'] ??
+      raw['accountManagerResourceId'] ??
+      raw['AccountManagerResourceID'] ??
+      raw['AccountManagerResourceId']
+    ) as number | null | undefined;
+
+    crmLog(`  accountManagerResourceID value: ${resourceId}`);
+
     if (!resourceId) { res.json({ name: null, contactId: null }); return; }
 
     const resources = await atQuery<{ id: number; firstName: string; lastName: string }>(
@@ -201,6 +219,35 @@ router.get('/account-manager', requireAuth, async (req, res) => {
     res.json({ name: r ? `${r.firstName} ${r.lastName}`.trim() : null, contactId: null });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
+
+// ─── Account manager field name resolver ─────────────────────────────────────
+
+let _cachedAmField: string | null | undefined;
+
+async function resolveAmFieldName(host: string, creds: AtCreds): Promise<string | null> {
+  if (_cachedAmField !== undefined) return _cachedAmField;
+  try {
+    const url = `${host}/atservicesrest/v1.0/Companies/entityInformation/fields`;
+    crmLog(`→ GET ${url} (AM field name lookup)`);
+    const r = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'UserName': creds.username,
+        'Secret': creds.secret,
+        'ApiIntegrationCode': creds.integrationCode,
+      },
+    });
+    if (!r.ok) { _cachedAmField = null; return null; }
+    const data = await r.json() as { fields?: Array<{ name: string }> };
+    const match = data.fields?.find((f: { name: string }) => f.name.toLowerCase() === 'accountmanagerresourceid');
+    _cachedAmField = match?.name ?? null;
+    crmLog(`  AM field resolved to: ${_cachedAmField}`);
+    return _cachedAmField;
+  } catch {
+    _cachedAmField = null;
+    return null;
+  }
+}
 
 // ─── GET /api/crm/picklist?entity=&field= ────────────────────────────────────
 
