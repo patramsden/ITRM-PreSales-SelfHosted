@@ -52,6 +52,7 @@ function toScimUser(u: User, baseUrl: string) {
       familyName: nameParts.slice(1).join(' ') || (nameParts[0] ?? ''),
     },
     displayName: u.name,
+    title: u.jobTitle ?? undefined,
     emails: [{ value: u.email, primary: true, type: 'work' }],
     active: u.isActive !== false,
     meta: { resourceType: 'User', location: `${baseUrl}/Users/${u.id}` },
@@ -129,14 +130,15 @@ router.post('/Users', async (req, res) => {
     const family   = ((body.name as Record<string, string>)?.familyName  ?? '').trim();
     const display  = (body.displayName as string ?? `${given} ${family}`).trim();
     const active   = body.active !== false;
+    const jobTitle = (body.title as string | undefined)?.trim() || undefined;
 
     if (!email) { res.status(400).json(scimError(400, 'userName (email) is required')); return; }
 
     // Check if user already exists
     const existing = await getUserByEmailAll(email);
     if (existing) {
-      await setUserActive(existing.id, active);
-      res.status(200).json(toScimUser({ ...existing, isActive: active }, baseUrl(req)));
+      await updateUserFromScim(existing.id, { isActive: active, jobTitle: jobTitle ?? null });
+      res.status(200).json(toScimUser({ ...existing, isActive: active, jobTitle: jobTitle ?? existing.jobTitle }, baseUrl(req)));
       return;
     }
 
@@ -144,6 +146,7 @@ router.post('/Users', async (req, res) => {
       id:           uuid(),
       name:         display || email,
       email,
+      jobTitle,
       appRole:      'sales',
       authProvider: 'saml',
       isActive:     active,
@@ -161,14 +164,15 @@ router.put('/Users/:id', async (req, res) => {
     const user = await getUserById(req.params.id);
     if (!user) { res.status(404).json(scimError(404, 'User not found')); return; }
 
-    const body    = req.body as Record<string, unknown>;
-    const given   = ((body.name as Record<string, string>)?.givenName  ?? '').trim();
-    const family  = ((body.name as Record<string, string>)?.familyName ?? '').trim();
-    const display = (body.displayName as string ?? `${given} ${family}`).trim();
-    const active  = body.active !== false;
+    const body     = req.body as Record<string, unknown>;
+    const given    = ((body.name as Record<string, string>)?.givenName  ?? '').trim();
+    const family   = ((body.name as Record<string, string>)?.familyName ?? '').trim();
+    const display  = (body.displayName as string ?? `${given} ${family}`).trim();
+    const active   = body.active !== false;
+    const jobTitle = (body.title as string | undefined)?.trim() ?? null;
 
-    await updateUserFromScim(req.params.id, { name: display || user.name, isActive: active });
-    res.json(toScimUser({ ...user, name: display || user.name, isActive: active }, baseUrl(req)));
+    await updateUserFromScim(req.params.id, { name: display || user.name, isActive: active, jobTitle });
+    res.json(toScimUser({ ...user, name: display || user.name, isActive: active, jobTitle: jobTitle ?? undefined }, baseUrl(req)));
   } catch (e) { res.status(500).json(scimError(500, String(e))); }
 });
 
@@ -184,8 +188,9 @@ router.patch('/Users/:id', async (req, res) => {
       op: string; path?: string; value: unknown;
     }>;
 
-    let updatedName:   string | undefined;
-    let updatedActive: boolean | undefined;
+    let updatedName:     string | undefined;
+    let updatedActive:   boolean | undefined;
+    let updatedJobTitle: string | null | undefined;
 
     for (const op of ops) {
       const operation = op.op.toLowerCase();
@@ -197,19 +202,26 @@ router.patch('/Users/:id', async (req, res) => {
       if ((path === 'displayname' || path === 'name.formatted') && operation === 'replace') {
         updatedName = String(op.value);
       }
+      if (path === 'title' && (operation === 'replace' || operation === 'add')) {
+        updatedJobTitle = op.value ? String(op.value).trim() : null;
+      }
       // Handle object-style patch (no path, value is an object)
       if (!op.path && typeof op.value === 'object' && op.value !== null) {
         const v = op.value as Record<string, unknown>;
         if ('active' in v) updatedActive = v.active === true || v.active === 'true';
         if ('displayName' in v) updatedName = String(v.displayName);
+        if ('title' in v) updatedJobTitle = v.title ? String(v.title).trim() : null;
       }
     }
 
-    await updateUserFromScim(req.params.id, { name: updatedName, isActive: updatedActive });
+    await updateUserFromScim(req.params.id, {
+      name: updatedName, isActive: updatedActive, jobTitle: updatedJobTitle,
+    });
     res.json(toScimUser({
       ...user,
       name:     updatedName     ?? user.name,
       isActive: updatedActive   ?? user.isActive,
+      jobTitle: updatedJobTitle !== undefined ? (updatedJobTitle ?? undefined) : user.jobTitle,
     }, baseUrl(req)));
   } catch (e) { res.status(500).json(scimError(500, String(e))); }
 });

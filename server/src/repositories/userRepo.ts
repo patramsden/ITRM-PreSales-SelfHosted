@@ -158,11 +158,25 @@ export async function setUserActive(id: string, active: boolean): Promise<void> 
   await query('UPDATE users SET is_active=$2 WHERE id=$1', [id, active]);
 }
 
-export async function updateUserFromScim(id: string, updates: { name?: string; isActive?: boolean }): Promise<void> {
+export async function updateUserFromScim(
+  id: string,
+  updates: { name?: string; isActive?: boolean; jobTitle?: string | null },
+): Promise<void> {
+  const setClauses: string[] = [];
+  const params: unknown[] = [id];
+
   if (updates.name !== undefined) {
-    await query('UPDATE users SET name=$2 WHERE id=$1', [id, updates.name]);
+    params.push(updates.name);
+    setClauses.push(`name=$${params.length}`);
   }
   if (updates.isActive !== undefined) {
-    await query('UPDATE users SET is_active=$2 WHERE id=$1', [id, updates.isActive]);
+    params.push(updates.isActive);
+    setClauses.push(`is_active=$${params.length}`);
   }
+  if (updates.jobTitle !== undefined) {
+    params.push(updates.jobTitle ?? null);
+    setClauses.push(`job_title=$${params.length}`);
+  }
+  if (setClauses.length === 0) return;
+  await query(`UPDATE users SET ${setClauses.join(', ')} WHERE id=$1`, params);
 }
