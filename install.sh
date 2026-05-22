@@ -266,13 +266,35 @@ for i in $(seq 1 10); do
 done
 success "systemd service 'itrm-presales' enabled and started"
 
-# ─── Step 8: nginx configuration (HTTP only — certbot upgrades to HTTPS) ─────
+# ─── Step 8: nginx configuration ─────────────────────────────────────────────
 info "Step 8/9 — Configuring nginx..."
 
 NGINX_CONF="/etc/nginx/sites-available/itrm-presales"
+NGINX_SNIPPET="/etc/nginx/snippets/itrm-presales-security.conf"
 
-# Always start with a plain HTTP config so nginx -t passes before certbot runs.
-# certbot --nginx will add the SSL server block and all TLS directives itself.
+# ── Write the shared security-headers snippet ─────────────────────────────────
+# This file is included in every location block that sets its own add_header
+# directives, because nginx does NOT inherit server-block add_header directives
+# into child location blocks that define their own add_header.
+mkdir -p /etc/nginx/snippets
+cat > "$NGINX_SNIPPET" <<'SNIPPETEOF'
+## ITRM PreSales — security response headers
+## Included in every nginx location block that sets its own add_header.
+## NOTE: If you sit behind Cloudflare (or another proxy) with HSTS already
+##       enabled, remove the Strict-Transport-Security line to avoid the
+##       "Multiple HSTS header entries" scanner warning.
+add_header Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload" always;
+add_header X-Frame-Options            "DENY"                               always;
+add_header X-Content-Type-Options     "nosniff"                            always;
+add_header Referrer-Policy            "strict-origin-when-cross-origin"    always;
+add_header Cross-Origin-Resource-Policy "same-origin"                      always;
+add_header Permissions-Policy         "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" always;
+add_header Content-Security-Policy    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
+SNIPPETEOF
+
+# ── Write the initial HTTP-only config (certbot will add the HTTPS block) ──────
+# We write a minimal HTTP config first so nginx -t passes before certbot runs.
+# After certbot succeeds we overwrite with the full hardened HTTPS config.
 cat > "$NGINX_CONF" <<NGINXEOF
 server {
     listen 80;
@@ -284,11 +306,65 @@ server {
         root /var/www/certbot;
     }
 
+    ## Redirect everything else to HTTPS
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+NGINXEOF
+
+ln -sfn "$NGINX_CONF" /etc/nginx/sites-enabled/itrm-presales
+
+# Disable default site if present
+[[ -f /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
+
+nginx -t && systemctl reload nginx
+success "nginx configured (HTTP redirect only)"
+
+# ─── Step 9: Let's Encrypt certificate ───────────────────────────────────────
+if [[ "$SKIP_SSL" == false ]]; then
+  info "Step 9/9 — Obtaining Let's Encrypt certificate for ${DOMAIN}..."
+  # Use certonly so certbot gets the cert without rewriting our nginx config.
+  certbot certonly \
+    --nginx \
+    --non-interactive \
+    --agree-tos \
+    --register-unsafely-without-email \
+    -d "$DOMAIN" && {
+
+    # Now write the full hardened HTTPS config (certbot has the cert on disk).
+    cat > "$NGINX_CONF" <<NGINXEOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://\$host\$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${DOMAIN};
+
+    ## Hide nginx version
+    server_tokens off;
+
+    ## TLS (managed by Certbot)
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    ## Security headers (applies to location / and any block without add_header)
+    include ${NGINX_SNIPPET};
+
     ## Compression
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+    gzip_min_length 1024;
 
-    ## API proxy → Express server
+    ## API proxy → Express server (no add_header — inherits server-block headers)
     location /api/ {
         proxy_pass         http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
@@ -303,41 +379,45 @@ server {
     ## Frontend static files
     root ${APP_DIR}/dist;
     index index.html;
-    location / { try_files \$uri \$uri/ /index.html; }
-    location ~* \.(js|css|woff2?|ttf|svg|png|ico)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+
+    ## index.html — no-cache so users always get the latest build after deploys
+    location = /index.html {
+        include ${NGINX_SNIPPET};
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
+        add_header Pragma        "no-cache"                                               always;
+        add_header Expires       "0"                                                      always;
+        try_files \$uri =404;
+    }
+
+    ## Vite content-hashed assets — cache forever (hash changes on rebuild)
+    location /assets/ {
+        include ${NGINX_SNIPPET};
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files \$uri =404;
+    }
+
+    ## Other static assets (fonts, icons, SVGs)
+    location ~* \.(woff2?|ttf|svg|png|ico)$ {
+        include ${NGINX_SNIPPET};
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files \$uri =404;
+    }
+
+    ## SPA catch-all (no add_header — inherits server-block security headers)
+    location / {
+        try_files \$uri \$uri/ /index.html;
     }
 }
 NGINXEOF
 
-ln -sfn "$NGINX_CONF" /etc/nginx/sites-enabled/itrm-presales
-
-# Disable default site if present
-[[ -f /etc/nginx/sites-enabled/default ]] && rm -f /etc/nginx/sites-enabled/default
-
-nginx -t && systemctl reload nginx
-success "nginx configured (HTTP)"
-
-# ─── Step 9: Let's Encrypt certificate ───────────────────────────────────────
-if [[ "$SKIP_SSL" == false ]]; then
-  info "Step 9/9 — Obtaining Let's Encrypt certificate for ${DOMAIN}..."
-  # certbot --nginx reads the existing HTTP config, obtains a cert, and
-  # automatically rewrites the config to add the HTTPS server block.
-  certbot --nginx \
-    --non-interactive \
-    --agree-tos \
-    --register-unsafely-without-email \
-    -d "$DOMAIN" && {
-    # Add HSTS header that certbot doesn't set by default
-    sed -i '/ssl_certificate/a\    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;' "$NGINX_CONF"
     nginx -t && systemctl reload nginx
     # Set up automatic renewal
     (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | sort -u | crontab -
-    success "TLS certificate obtained and auto-renewal configured"
+    success "TLS certificate obtained, hardened HTTPS config applied, auto-renewal configured"
   } || {
-    warn "Certbot failed — the app is running on HTTP. Retry TLS later with:"
-    warn "  sudo certbot --nginx -d ${DOMAIN}"
+    warn "Certbot failed — the app is running on HTTP only. Retry TLS later with:"
+    warn "  sudo certbot certonly --nginx -d ${DOMAIN}"
+    warn "  Then copy nginx.conf.template to ${NGINX_CONF} and reload nginx."
   }
 else
   info "Step 9/9 — Skipping SSL (--skip-ssl)"
