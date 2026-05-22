@@ -90,6 +90,7 @@ export function Proposals() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Client</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Owner</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide hidden lg:table-cell">Account Manager</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Value</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">Modified</th>
               <th className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-center">Clone</th>
@@ -99,7 +100,7 @@ export function Proposals() {
           <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-gray-400 dark:text-slate-500 text-sm">No proposals match your filter.</td>
+                <td colSpan={9} className="text-center py-12 text-gray-400 dark:text-slate-500 text-sm">No proposals match your filter.</td>
               </tr>
             )}
             {filtered.map(p => {
@@ -127,6 +128,7 @@ export function Proposals() {
                   <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400">{p.client}</td>
                   <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                   <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400">{owner?.name ?? '—'}</td>
+                  <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400 hidden lg:table-cell">{p.accountManager || <span className="text-gray-300 dark:text-slate-600">—</span>}</td>
                   <td className="px-4 py-3.5 text-right font-semibold text-gray-900 dark:text-slate-100">{fmt(totals.grandTotal)}</td>
                   <td className="px-4 py-3.5 text-right text-gray-400 dark:text-slate-500">{p.dateModified}</td>
                   <td className="px-4 py-3.5 text-center" onClick={e => e.stopPropagation()}>
