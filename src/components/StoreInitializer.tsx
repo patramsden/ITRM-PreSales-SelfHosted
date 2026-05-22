@@ -3,7 +3,8 @@
  * Renders a full-screen loading state while in flight, then renders children.
  * Falls back to seed data if the API is unreachable (dev without a running API).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -12,26 +13,50 @@ import {
 import type { AppLookups } from '../store';
 import type { Proposal, User, Template, CatalogItem, RateCard } from '../types';
 
+const REFRESH_COOLDOWN_MS = 30_000; // don't re-fetch more than once every 30 s
+
 interface Props { children: React.ReactNode }
 
 export function StoreInitializer({ children }: Props) {
   const { initialized, initFromApi } = useStore();
   const { authLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const lastRefreshed = useRef<number>(0);
+  const location = useLocation();
 
+  // Re-fetch all data, throttled to at most once per REFRESH_COOLDOWN_MS
+  const refreshAll = async () => {
+    const now = Date.now();
+    if (now - lastRefreshed.current < REFRESH_COOLDOWN_MS) return;
+    lastRefreshed.current = now;
+    try {
+      const [proposals, users, templates, catalog, rateCards, lookups] = await Promise.all([
+        proposalApi.list(),
+        userApi.list(),
+        templateApi.list(),
+        catalogApi.list(),
+        rateCardApi.list(),
+        lookupsApi.get(),
+      ]) as [Proposal[], User[], Template[], CatalogItem[], RateCard[], AppLookups];
+      useStore.setState({ proposals, users, templates, catalog, rateCards, lookups });
+    } catch { /* silent background refresh — never break the UI */ }
+  };
+
+  // Re-fetch when the tab becomes visible again (user switches back from another tab/app)
   useEffect(() => {
     if (!initialized) return;
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Silently re-fetch proposals to pick up any changes made in other tabs or by other users
-        proposalApi.list().then(proposals => {
-          useStore.setState({ proposals });
-        }).catch(() => { /* ignore — background refresh */ });
-      }
+      if (document.visibilityState === 'visible') refreshAll();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [initialized]);
+  }, [initialized]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch on route change so navigating to Catalog/Users/etc shows fresh data
+  useEffect(() => {
+    if (!initialized) return;
+    refreshAll();
+  }, [location.pathname, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Wait until auth has resolved before fetching data
