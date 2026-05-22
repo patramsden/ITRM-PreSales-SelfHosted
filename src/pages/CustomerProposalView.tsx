@@ -64,11 +64,7 @@ export function CustomerProposalView() {
   useEffect(() => {
     if (!token) return;
     customerApi.getPublic(token)
-      .then((data) => {
-        const p = data.proposal;
-        const l = data.link;
-        const lr = (data as Record<string, unknown>)['layoutRaw'] as string | undefined;
-        const b = (data as Record<string, unknown>)['branding'] as { logoB64: string | null; primaryColor: string; companyName: string } | undefined;
+      .then(({ proposal: p, link: l, layoutRaw: lr, branding: b }) => {
         setProposal(p);
         setLink(l);
         if (lr !== undefined) setLayoutRaw(lr);
@@ -217,7 +213,7 @@ export function CustomerProposalView() {
               if (!proposal.objectives && !proposal.businessRequirements && !proposal.justification) return null;
               return (
                 <div key="summary" className={clsx('rounded-2xl border overflow-hidden', card)}>
-                  <div className="px-6 py-3 border-b font-semibold text-sm">
+                  <div className="px-6 py-3 border-b font-semibold text-sm" style={{ borderColor: 'inherit' }}>
                     <span className={th}>Executive Summary</span>
                   </div>
                   <div className="px-6 py-4 space-y-4">
@@ -280,39 +276,44 @@ export function CustomerProposalView() {
                 </div>
               );
 
-            case 'consultancy':
+            case 'consultancy': {
               if (proposal.phases.length === 0) return null;
+              // Roll up totals per resource role across all phases
+              const roleMap: Record<string, number> = {};
+              proposal.phases.forEach(ph => ph.tasks.forEach(t => {
+                const val = t.days * t.dayRate * (t.rateMultiplier ?? 1);
+                roleMap[t.role] = (roleMap[t.role] ?? 0) + val;
+              }));
+              const roles = Object.entries(roleMap).sort((a, b) => b[1] - a[1]);
+              const consultTotal = roles.reduce((s, [, v]) => s + v, 0);
               return (
                 <div key="consultancy" className={clsx('rounded-2xl border overflow-hidden', card)}>
-                  <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Consultancy Breakdown</div>
-                  {proposal.phases.map(phase => {
-                    const phTotal = phase.tasks.reduce((s, t) => s + t.days * t.dayRate * (t.rateMultiplier ?? 1), 0);
-                    return (
-                      <div key={phase.id} className={clsx('border-b last:border-0', darkMode ? 'border-slate-700' : 'border-gray-100')}>
-                        <div className={clsx('px-6 py-2.5 font-semibold text-sm flex items-center justify-between', darkMode ? 'bg-slate-700/40' : 'bg-gray-50')}>
-                          <span>{phase.name}</span>
-                          <span>{fmt(phTotal)}</span>
-                        </div>
-                        {phase.tasks.map(task => {
-                          const taskVal = task.days * task.dayRate * (task.rateMultiplier ?? 1);
-                          const unit = task.unit ?? 'days';
-                          const qty = unit === 'hours' ? (task.days * 7).toFixed(1) : task.days.toFixed(1);
-                          return (
-                            <div key={task.id} className={clsx('px-6 py-2 flex items-center justify-between text-sm', darkMode ? 'hover:bg-slate-700/30' : 'hover:bg-gray-50')}>
-                              <div>
-                                <span>{task.name}</span>
-                                <span className={clsx('ml-2 text-xs', muted)}>({qty} {unit})</span>
-                                <span className={clsx('ml-1 text-xs', muted)}>· {task.role}</span>
-                              </div>
-                              <span className={clsx('font-medium', muted)}>{fmt(taskVal)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                  <div className={clsx('px-6 py-3 border-b', th, 'font-semibold text-sm')}>Professional Services</div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={clsx('border-b text-xs font-semibold uppercase tracking-wide', darkMode ? 'border-slate-700 text-slate-500' : 'border-gray-100 text-gray-400')}>
+                        <th className="px-6 py-2.5 text-left">Resource Type</th>
+                        <th className="px-6 py-2.5 text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className={clsx('divide-y', darkMode ? 'divide-slate-700' : 'divide-gray-50')}>
+                      {roles.map(([role, value]) => (
+                        <tr key={role} className={clsx(darkMode ? 'hover:bg-slate-700/30' : 'hover:bg-gray-50')}>
+                          <td className="px-6 py-3 font-medium">{role}</td>
+                          <td className="px-6 py-3 text-right">{fmt(value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className={clsx('border-t font-semibold', darkMode ? 'border-slate-600' : 'border-gray-200')}>
+                        <td className="px-6 py-3">Total Professional Services</td>
+                        <td className="px-6 py-3 text-right">{fmt(consultTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
               );
+            }
 
             case 'milestones':
               if (!proposal.milestones || proposal.milestones.length === 0) return null;
