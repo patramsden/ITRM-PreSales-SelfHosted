@@ -8,19 +8,21 @@ import { getProposalRole, canEdit, canDelete, canAccessAdmin } from '../utils/pe
 import { getExportBlockers } from '../utils/exportGuard';
 import type { ExportBlocker } from '../utils/exportGuard';
 import { ExportGuardModal } from '../components/proposals/ExportGuardModal';
-import { exportProposalToExcel } from '../utils/exportExcel';
-import { convertToPlannerProject } from '../utils/planner';
+// xlsx (~400 kB) and msal-browser are loaded on-demand only when the user triggers the action
+const importExcel   = () => import('../utils/exportExcel').then(m => m.exportProposalToExcel);
+const importPlanner = () => import('../utils/planner').then(m => m.convertToPlannerProject);
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/Badge';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ProjectSummaryTab } from '../components/proposals/tabs/ProjectSummaryTab';
 import { PartsTab } from '../components/proposals/tabs/PartsTab';
-import { ConsultancyTab } from '../components/proposals/tabs/ConsultancyTab';
-import { SowTab } from '../components/proposals/tabs/SowTab';
-import { TotalsTab } from '../components/proposals/tabs/TotalsTab';
-import { BillingTab } from '../components/proposals/tabs/BillingTab';
-import { ApprovalsTab } from '../components/proposals/tabs/ApprovalsTab';
-import { DiscountTab } from '../components/proposals/tabs/DiscountTab';
+// Heavier tabs are lazy-loaded so each becomes its own chunk
+const ConsultancyTab = lazy(() => import('../components/proposals/tabs/ConsultancyTab').then(m => ({ default: m.ConsultancyTab })));
+const BillingTab     = lazy(() => import('../components/proposals/tabs/BillingTab').then(m => ({ default: m.BillingTab })));
+const ApprovalsTab   = lazy(() => import('../components/proposals/tabs/ApprovalsTab').then(m => ({ default: m.ApprovalsTab })));
+const DiscountTab    = lazy(() => import('../components/proposals/tabs/DiscountTab').then(m => ({ default: m.DiscountTab })));
+const SowTab         = lazy(() => import('../components/proposals/tabs/SowTab').then(m => ({ default: m.SowTab })));
+const TotalsTab      = lazy(() => import('../components/proposals/tabs/TotalsTab').then(m => ({ default: m.TotalsTab })));
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
 import { ProposalExpiryBanner } from '../components/proposals/ProposalExpiryBanner';
@@ -126,6 +128,7 @@ export function ProposalWorkspace() {
     setPlannerLoading(true);
     setPlannerError(null);
     try {
+      const convertToPlannerProject = await importPlanner();
       const url = await convertToPlannerProject(proposal);
       updateProposal(proposal.id, { plannerUrl: url }, currentUser?.name ?? currentUser?.email);
       window.open(url, '_blank');
@@ -209,7 +212,7 @@ export function ProposalWorkspace() {
                   </Suspense>
                   {/* Excel */}
                   <button
-                    onClick={() => { guardedExport(() => exportProposalToExcel(proposal)); setShowExportMenu(false); }}
+                    onClick={() => { guardedExport(() => { importExcel().then(fn => fn(proposal)); }); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 text-left"
                   >
                     <FileSpreadsheet size={15} className="text-green-600 flex-shrink-0" />
@@ -326,34 +329,36 @@ export function ProposalWorkspace() {
 
       {/* Tab content */}
       <div className="flex-1 p-8 bg-gray-50 dark:bg-slate-900">
-        {activeTab === 'Summary' && (
-          <ProjectSummaryTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Parts' && (
-          <PartsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Consultancy' && (
-          <ConsultancyTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Billing' && (
-          <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Approvals' && (
-          <ApprovalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name)} />
-        )}
-        {activeTab === 'Discount' && (
-          <DiscountTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Statement of Work' && (
-          <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {activeTab === 'Totals & Approval' && (
-          <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
-        )}
-        {/* Comments are always open — all authenticated users can post regardless of proposal role */}
-        {activeTab === 'Comments' && currentUser && (
-          <CommentsThread proposalId={proposal.id} currentUser={currentUser} editable={true} />
-        )}
+        <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-gray-400" /></div>}>
+          {activeTab === 'Summary' && (
+            <ProjectSummaryTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Parts' && (
+            <PartsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Consultancy' && (
+            <ConsultancyTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Billing' && (
+            <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Approvals' && (
+            <ApprovalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name)} />
+          )}
+          {activeTab === 'Discount' && (
+            <DiscountTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Statement of Work' && (
+            <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Totals & Approval' && (
+            <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {/* Comments are always open — all authenticated users can post regardless of proposal role */}
+          {activeTab === 'Comments' && currentUser && (
+            <CommentsThread proposalId={proposal.id} currentUser={currentUser} editable={true} />
+          )}
+        </Suspense>
       </div>
 
       <ConfirmDialog
