@@ -346,8 +346,9 @@ export function ProposalWorkspace() {
         {activeTab === 'Totals & Approval' && (
           <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
+        {/* Comments are always open — all authenticated users can post regardless of proposal role */}
         {activeTab === 'Comments' && currentUser && (
-          <CommentsThread proposalId={proposal.id} currentUser={currentUser} editable={editable} />
+          <CommentsThread proposalId={proposal.id} currentUser={currentUser} editable={true} />
         )}
       </div>
 
