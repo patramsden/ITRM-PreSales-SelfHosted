@@ -20,6 +20,12 @@ async function getCreds(): Promise<AtCreds | null> {
   return { zoneUrl, username, secret, integrationCode };
 }
 
+// ─── Autotask web UI URL helper ───────────────────────────────────────────────
+function atWebUrl(apiHost: string, ticketId: number): string {
+  const webHost = apiHost.replace(/webservices(\d+)/i, 'ww$1');
+  return `${webHost}/Autotask/views/ticket/viewticket.aspx?ticketID=${ticketId}`;
+}
+
 // ─── Verbose logger (always on for CRM — helps diagnose auth issues) ─────────
 
 function crmLog(msg: string, ...args: unknown[]) {
@@ -245,7 +251,7 @@ router.get('/tickets', requireAuth, async (req, res) => {
         status:       statusMap[t.statusNum] ?? `Status ${t.statusNum}`,
         queue:        queueMap[t.queueNum]   ?? `Queue ${t.queueNum}`,
         createDate:   t.createDate,
-        url:          `${host}/Tickets/${t.id}`,
+        url:          atWebUrl(host, t.id),
       }));
 
     res.json(tickets);
@@ -458,7 +464,7 @@ router.post('/create-ticket', requireAuth, async (req, res) => {
     }
     const data = await r.json() as { itemId?: number };
     const ticketId = data.itemId;
-    res.json({ ticketId, url: `${host}/Tickets/${ticketId}` });
+    res.json({ ticketId, url: atWebUrl(host, ticketId as number) });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
