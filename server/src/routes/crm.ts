@@ -197,7 +197,7 @@ router.get('/account-manager', requireAuth, async (req, res) => {
 
     const amKey = rawKeys.find(k => {
       const lk = k.toLowerCase();
-      return lk === 'accountmanagerresourceid' || lk === 'accountmanagerid';
+      return lk === 'accountmanagerresourceid' || lk === 'accountmanagerid' || lk === 'ownerresourceid';
     });
     crmLog(`  Matched AM key: ${amKey ?? 'none'}`);
 
