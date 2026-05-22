@@ -211,6 +211,15 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
           <Field label="Date of Proposal">
             <TextInput value={proposal.dateCreated} onChange={v => onUpdate({ dateCreated: v })} disabled={!editable} />
           </Field>
+          <Field label="Proposal Expires">
+            <input
+              type="date"
+              value={proposal.expiresAt ?? ''}
+              onChange={e => onUpdate({ expiresAt: e.target.value || undefined })}
+              disabled={!editable}
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 dark:disabled:bg-slate-800 disabled:text-gray-400"
+            />
+          </Field>
           <Field label="Markup %">
             <input
               type="number"

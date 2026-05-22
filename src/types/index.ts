@@ -175,6 +175,47 @@ export interface Proposal {
   trbApprovedFingerprint?: string;
   /** Same as trbApprovedFingerprint but for the 5K review completion. */
   fiveKApprovedFingerprint?: string;
+
+  // ── Win/Loss capture ──────────────────────────────────────────────────────
+  wonLostReason?: 'Price' | 'Competitor' | 'Timing' | 'Budget' | 'Technical fit' | 'Relationship' | 'No decision' | 'Other';
+  competitorName?: string;
+  wonLostNote?: string;
+  wonLostAt?: string;
+
+  // ── Expiry ────────────────────────────────────────────────────────────────
+  /** ISO date string — show warning when ≤7 days away or past */
+  expiresAt?: string;
+
+  // ── Discount approval ─────────────────────────────────────────────────────
+  discountStatus?: 'not_required' | 'pending' | 'approved' | 'waived' | 'stale';
+  discountApprovedBy?: string;
+  discountApprovedAt?: string;
+  discountApprovalNote?: string;
+
+  // ── Autotask project link ─────────────────────────────────────────────────
+  atProjectId?: string;
+}
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+export interface ProposalComment {
+  id: string;
+  proposalId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+// ─── Clause library ───────────────────────────────────────────────────────────
+
+export interface Clause {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────

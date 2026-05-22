@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, BookTemplate, Package, CreditCard,
-  Settings, ShieldCheck, Users, LogOut, Sun, Moon, Kanban,
+  Settings, ShieldCheck, Users, LogOut, Sun, Moon, Kanban, BookOpen,
 } from 'lucide-react';
 import { UserAvatar } from '../../pages/Profile';
 import { useAuth, isPresalesAdmin } from '../../contexts/AuthContext';
@@ -17,6 +17,7 @@ const nav = [
   { to: '/templates', label: 'Templates', icon: BookTemplate, adminOnly: false },
   { to: '/catalog', label: 'Catalog', icon: Package, adminOnly: false },
   { to: '/rate-cards', label: 'Rate Cards', icon: CreditCard, adminOnly: false },
+  { to: '/clauses',    label: 'Clauses',    icon: BookOpen,   adminOnly: false },
   { to: '/users', label: 'Users', icon: Users, adminOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings, adminOnly: false },
 ];

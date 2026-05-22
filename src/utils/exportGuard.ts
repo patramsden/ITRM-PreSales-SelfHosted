@@ -7,7 +7,7 @@ export interface ExportBlocker {
   reason: string;
 }
 
-export function getExportBlockers(proposal: Proposal, rateCards?: RateCard[]): ExportBlocker[] {
+export function getExportBlockers(proposal: Proposal, rateCards?: RateCard[], discountFloor = 10): ExportBlocker[] {
   const totals = calcTotals(proposal, rateCards);
   // GP = grandTotal - total cost (parts + consultancy including PM)
   const gp = totals.grandTotal - totals.partsCost - totals.consultancyCost;
@@ -32,5 +32,17 @@ export function getExportBlockers(proposal: Proposal, rateCards?: RateCard[]): E
       }
     }
   }
+
+  // Discount approval check
+  if (proposal.markupPct < discountFloor) {
+    const ds = proposal.discountStatus;
+    if (!ds || ds === 'pending' || ds === 'stale') {
+      const reason = ds === 'stale'
+        ? `Markup changed after discount approval — re-approval required before export`
+        : `Markup (${proposal.markupPct}%) is below the ${discountFloor}% floor — discount approval required before export`;
+      blockers.push({ review: 'Discount Approval', reason });
+    }
+  }
+
   return blockers;
 }

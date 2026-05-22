@@ -20,6 +20,7 @@ import { UserManagement } from './pages/UserManagement';
 import { SharedProposalView } from './pages/SharedProposalView';
 import { CustomerProposalView } from './pages/CustomerProposalView';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { Clauses } from './pages/Clauses';
 import { ResetPassword } from './pages/ResetPassword';
 import { Profile } from './pages/Profile';
 import { Loader2 } from 'lucide-react';
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/rate-cards" element={<RateCards />} />
         <Route path="/users" element={<UserManagement />} />
+        <Route path="/clauses" element={<Clauses />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
       </Route>

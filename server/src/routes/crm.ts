@@ -202,4 +202,48 @@ router.get('/account-manager', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
+// ─── POST /api/crm/create-project ─────────────────────────────────────────────
+
+router.post('/create-project', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.status(400).json({ error: 'CRM not configured' }); return; }
+    const { projectName, companyID, description } = req.body as {
+      projectName?: string; companyID?: number; description?: string;
+    };
+    if (!projectName?.trim() || !companyID) {
+      res.status(400).json({ error: 'projectName and companyID required' }); return;
+    }
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    const url  = `${host}/atservicesrest/v1.0/Projects`;
+    const body = {
+      projectName: projectName.trim(),
+      companyID,
+      status: 1,
+      description: description ?? '',
+      startDateTime: new Date().toISOString(),
+      estimatedTime: 0,
+    };
+    crmLog(`→ POST ${url} (create project)`);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'UserName': creds.username,
+        'Secret': creds.secret,
+        'ApiIntegrationCode': creds.integrationCode,
+      },
+      body: JSON.stringify(body),
+    });
+    crmLog(`← ${r.status} ${r.statusText}`);
+    if (!r.ok) {
+      const text = await r.text().catch(() => r.statusText);
+      throw new Error(`Autotask Projects (${r.status}): ${text.slice(0, 300)}`);
+    }
+    const data = await r.json() as { itemId?: number };
+    const projectId = data.itemId;
+    res.json({ projectId, url: `${host}/Projects/${projectId}` });
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
 export default router;

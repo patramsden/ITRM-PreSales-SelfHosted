@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CheckCircle, AlertCircle, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, AlertCircle, Users, TrendingDown, ExternalLink, Loader2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Proposal, ProposalStatus, PartType } from '../../../types';
 import { calcTotals } from '../../../utils/totals';
@@ -7,7 +7,12 @@ import { HOURS_PER_DAY } from '../../../utils/rates';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
 import { StatusBadge } from '../../ui/Badge';
+import { WonLostModal, type WonLostData } from '../../proposals/WonLostModal';
+import { crmApi } from '../../../lib/api';
 import clsx from 'clsx';
+
+const GP_WARN_PCT  = 25;  // amber
+const GP_ALERT_PCT = 15;  // red
 
 interface Props {
   proposal: Proposal;
@@ -66,8 +71,16 @@ function TableRow({
 // ─── main component ───────────────────────────────────────────────────────────
 
 export function TotalsTab({ proposal, editable, onUpdate }: Props) {
-  const [confirmStatus, setConfirmStatus] = useState<ProposalStatus | null>(null);
+  const [confirmStatus, setConfirmStatus]       = useState<ProposalStatus | null>(null);
+  const [wonLostStatus, setWonLostStatus]       = useState<'Won' | 'Lost' | null>(null);
+  const [crmConfigured, setCrmConfigured]       = useState(false);
+  const [atLoading, setAtLoading]               = useState(false);
+  const [atError, setAtError]                   = useState<string | null>(null);
   const { rateCards } = useStore();
+
+  useEffect(() => {
+    crmApi.status().then(r => setCrmConfigured(r.configured)).catch(() => {});
+  }, []);
   const totals = calcTotals(proposal, rateCards);
   const fmt = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2 })}`;
 
@@ -129,8 +142,39 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
       setConfirmStatus(status);
       return;
     }
+    if (status === 'Won' || status === 'Lost') {
+      setWonLostStatus(status);
+      return;
+    }
     onUpdate({ status });
     setConfirmStatus(null);
+  };
+
+  const handleWonLostConfirm = (data: WonLostData) => {
+    if (!wonLostStatus) return;
+    onUpdate({
+      status: wonLostStatus,
+      wonLostAt: new Date().toISOString(),
+      wonLostReason: data.wonLostReason as Proposal['wonLostReason'],
+      competitorName: data.competitorName || undefined,
+      wonLostNote: data.wonLostNote || undefined,
+    });
+    setWonLostStatus(null);
+  };
+
+  const handleCreateAtProject = async () => {
+    if (!proposal.crmCompanyId) return;
+    setAtLoading(true); setAtError(null);
+    try {
+      const res = await crmApi.createProject({
+        projectName: proposal.projectName,
+        companyID: parseInt(proposal.crmCompanyId),
+        description: proposal.objectives ?? '',
+      });
+      onUpdate({ atProjectId: String(res.projectId) });
+    } catch (e) {
+      setAtError(e instanceof Error ? e.message : 'Failed to create project');
+    } finally { setAtLoading(false); }
   };
 
   return (
@@ -236,10 +280,50 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 p-5 shadow-sm">
             <div className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Quick Stats</div>
             <div className="space-y-2.5">
-              <StatRow label="Avg GP%" value={`${avgGpPct.toFixed(1)}%`} valueClass={avgGpPct >= 20 ? 'text-emerald-600' : avgGpPct >= 10 ? 'text-amber-600' : 'text-red-600'} />
-              <StatRow label="Total Cost" value={fmt(tco.cost)} />
-              <StatRow label="Gross Profit" value={fmt(tco.gp)} valueClass="text-emerald-600" />
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500 dark:text-slate-400">Avg GP%</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={clsx('font-semibold',
+                    avgGpPct >= GP_WARN_PCT ? 'text-emerald-600' :
+                    avgGpPct >= GP_ALERT_PCT ? 'text-amber-600 dark:text-amber-400' :
+                    'text-red-600 dark:text-red-400'
+                  )}>
+                    {avgGpPct.toFixed(1)}%
+                  </span>
+                  {avgGpPct < GP_ALERT_PCT && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                      <TrendingDown size={10} /> Low margin
+                    </span>
+                  )}
+                  {avgGpPct >= GP_ALERT_PCT && avgGpPct < GP_WARN_PCT && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      <TrendingDown size={10} /> Thin margin
+                    </span>
+                  )}
+                </div>
+              </div>
+              <StatRow label="Total Cost"    value={fmt(tco.cost)} />
+              <StatRow label="Gross Profit"  value={fmt(tco.gp)} valueClass="text-emerald-600" />
             </div>
+            {/* Per-category alerts */}
+            {[
+              { label: 'Hardware', sell: hw.sell, gp: hw.gp },
+              { label: 'Software', sell: sw.sell, gp: sw.gp },
+              { label: 'Consultancy', sell: cons.sell, gp: cons.gp },
+            ].filter(x => x.sell > 0).map(x => {
+              const pct = (x.gp / x.sell) * 100;
+              if (pct >= GP_WARN_PCT) return null;
+              return (
+                <div key={x.label} className={clsx(
+                  'flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg mt-1',
+                  pct < GP_ALERT_PCT ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                                     : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+                )}>
+                  <TrendingDown size={11} />
+                  {x.label} GP: {pct.toFixed(1)}%
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -352,9 +436,49 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
             </div>
           )}
           {proposal.status === 'Won' && (
-            <div className="flex items-center gap-2 mt-2 text-green-700 text-sm">
-              <CheckCircle size={16} />
-              <span>Congratulations! This proposal is marked as Won.</span>
+            <div className="space-y-3 mt-2">
+              <div className="flex items-center gap-2 text-green-700 text-sm">
+                <CheckCircle size={16} />
+                <span>Congratulations! This proposal is marked as Won.</span>
+              </div>
+              {/* Win/loss data display */}
+              {proposal.wonLostReason && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg text-xs space-y-1">
+                  <div><span className="text-gray-500 dark:text-slate-400">Reason won: </span><span className="font-medium">{proposal.wonLostReason}</span></div>
+                  {proposal.competitorName && <div><span className="text-gray-500 dark:text-slate-400">Competitor: </span><span className="font-medium">{proposal.competitorName}</span></div>}
+                  {proposal.wonLostNote && <div className="italic text-gray-600 dark:text-slate-400">"{proposal.wonLostNote}"</div>}
+                </div>
+              )}
+              {/* Autotask project push */}
+              {crmConfigured && proposal.crmCompanyId && (
+                <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+                  {proposal.atProjectId ? (
+                    <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                      <CheckCircle size={14} />
+                      <span>Autotask project created (ID: {proposal.atProjectId})</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <button
+                        onClick={handleCreateAtProject}
+                        disabled={atLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {atLoading ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                        Create Autotask Project
+                      </button>
+                      {atError && <p className="text-xs text-red-500">{atError}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {proposal.status === 'Lost' && proposal.wonLostReason && (
+            <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/10 rounded-lg text-xs space-y-1">
+              <div><span className="text-gray-500 dark:text-slate-400">Reason lost: </span><span className="font-medium">{proposal.wonLostReason}</span></div>
+              {proposal.competitorName && <div><span className="text-gray-500 dark:text-slate-400">Lost to: </span><span className="font-medium">{proposal.competitorName}</span></div>}
+              {proposal.wonLostNote && <div className="italic text-gray-600 dark:text-slate-400">"{proposal.wonLostNote}"</div>}
             </div>
           )}
           {proposal.status === 'Approved' && editable && (
@@ -364,6 +488,15 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
           )}
         </div>
       </div>
+
+      {/* Win/Loss modal */}
+      {wonLostStatus && (
+        <WonLostModal
+          status={wonLostStatus}
+          onConfirm={handleWonLostConfirm}
+          onCancel={() => setWonLostStatus(null)}
+        />
+      )}
 
       {/* Confirm submit dialog */}
       {confirmStatus && (

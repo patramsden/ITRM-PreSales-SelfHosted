@@ -21,6 +21,9 @@ import { TotalsTab } from '../components/proposals/tabs/TotalsTab';
 import { BillingTab } from '../components/proposals/tabs/BillingTab';
 import { ApprovalsTab } from '../components/proposals/tabs/ApprovalsTab';
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
+import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
+import { ProposalExpiryBanner } from '../components/proposals/ProposalExpiryBanner';
+import { CommentsThread } from '../components/proposals/CommentsThread';
 import { VersionHistoryPanel } from '../components/proposals/VersionHistoryPanel';
 import { ShareModal } from '../components/proposals/ShareModal';
 import { versionApi, settingsApi } from '../lib/api';
@@ -32,7 +35,7 @@ const DownloadProposalPdfButton = lazy(() =>
   import('../components/proposals/ProposalPdf').then(m => ({ default: m.DownloadProposalPdfButton }))
 );
 
-const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Statement of Work', 'Totals & Approval'] as const;
+const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProposalWorkspace() {
@@ -98,10 +101,11 @@ export function ProposalWorkspace() {
   const editable = canEdit(proposal, currentUser);
   const deletable = canDelete(proposal, currentUser);
   const isAdminUser = canAccessAdmin(currentUser);
-  const rateCards = useStore(s => s.rateCards);
+  const rateCards           = useStore(s => s.rateCards);
+  const discountMarkupFloor = useStore(s => s.discountMarkupFloor);
 
   const guardedExport = (action: () => void) => {
-    const blockers = getExportBlockers(proposal, rateCards);
+    const blockers = getExportBlockers(proposal, rateCards, discountMarkupFloor);
     if (blockers.length > 0) {
       setExportBlockers(blockers);
       setPendingExport(() => action);
@@ -312,8 +316,12 @@ export function ProposalWorkspace() {
         </div>
       </div>
 
-      {/* TRB review banner — visible to all when review is in flight or decided */}
+      {/* TRB review banner */}
       <TrbReviewBanner proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+      {/* Vendor quote expiry banner */}
+      <VendorQuoteExpiryBanner proposal={proposal} />
+      {/* Proposal expiry banner */}
+      <ProposalExpiryBanner proposal={proposal} />
 
       {/* Tab content */}
       <div className="flex-1 p-8 bg-gray-50 dark:bg-slate-900">
@@ -337,6 +345,9 @@ export function ProposalWorkspace() {
         )}
         {activeTab === 'Totals & Approval' && (
           <TotalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+        )}
+        {activeTab === 'Comments' && currentUser && (
+          <CommentsThread proposalId={proposal.id} currentUser={currentUser} editable={editable} />
         )}
       </div>
 

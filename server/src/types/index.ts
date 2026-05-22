@@ -132,6 +132,34 @@ export interface Proposal {
   reference?: string;
   trbApprovedFingerprint?: string;
   fiveKApprovedFingerprint?: string;
+  wonLostReason?: string;
+  competitorName?: string;
+  wonLostNote?: string;
+  wonLostAt?: string;
+  expiresAt?: string;
+  discountStatus?: 'not_required' | 'pending' | 'approved' | 'waived' | 'stale';
+  discountApprovedBy?: string;
+  discountApprovedAt?: string;
+  discountApprovalNote?: string;
+  atProjectId?: string;
+}
+
+export interface ProposalComment {
+  id: string;
+  proposalId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Clause {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 // ─── Template ────────────────────────────────────────────────────────────────

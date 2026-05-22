@@ -316,10 +316,50 @@ export async function ensureSchema(): Promise<void> {
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_notes TEXT`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_meeting_date DATE`,
 
-    // Review fingerprints — captures financial state at approval/completion so
-    // subsequent edits can auto-detect that re-review is required (status 'stale')
+    // Review fingerprints
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS trb_approved_fingerprint   TEXT`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS five_k_approved_fingerprint TEXT`,
+
+    // Win/loss capture
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS won_lost_reason  VARCHAR(50)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS competitor_name  VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS won_lost_note    TEXT`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS won_lost_at      TIMESTAMPTZ`,
+
+    // Proposal expiry
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS expires_at DATE`,
+
+    // Discount approval
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_status        VARCHAR(20)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_approved_by   VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_approved_at   TIMESTAMPTZ`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS discount_approval_note TEXT`,
+
+    // Autotask project link
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS at_project_id VARCHAR(100)`,
+
+    // Discount floor default setting
+    `INSERT INTO app_settings (key, value) VALUES ('discount.markupFloor', '10') ON CONFLICT (key) DO NOTHING`,
+
+    // Proposal comments
+    `CREATE TABLE IF NOT EXISTS proposal_comments (
+      id          VARCHAR(100) NOT NULL PRIMARY KEY,
+      proposal_id VARCHAR(100) NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+      author_id   VARCHAR(100) NOT NULL,
+      author_name VARCHAR(255) NOT NULL,
+      content     TEXT         NOT NULL,
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
+
+    // Clause library
+    `CREATE TABLE IF NOT EXISTS clauses (
+      id         VARCHAR(100) NOT NULL PRIMARY KEY,
+      title      VARCHAR(500) NOT NULL,
+      category   VARCHAR(100) NOT NULL DEFAULT 'General',
+      content    TEXT         NOT NULL,
+      created_by VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )`,
   ];
 
   for (const stmt of migrations) {

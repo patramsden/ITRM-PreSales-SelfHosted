@@ -37,7 +37,28 @@ export function Dashboard() {
     const decided = byStatus.Won.length + byStatus.Lost.length;
     const winRate = decided > 0 ? (byStatus.Won.length / decided) * 100 : 0;
     const wonValue = byStatus.Won.reduce((sum, p) => sum + calcTotals(p).grandTotal, 0);
-    return { total, totalValue, byStatus, winRate, wonValue };
+
+    // AM leaderboard — from Won proposals
+    const amMap: Record<string, { count: number; totalValue: number; totalCycleDays: number }> = {};
+    for (const p of byStatus.Won) {
+      const am = p.accountManager?.trim() || 'Unassigned';
+      const val = calcTotals(p).grandTotal;
+      const cycle = (new Date(p.dateModified).getTime() - new Date(p.dateCreated).getTime()) / 86400000;
+      if (!amMap[am]) amMap[am] = { count: 0, totalValue: 0, totalCycleDays: 0 };
+      amMap[am].count++;
+      amMap[am].totalValue += val;
+      amMap[am].totalCycleDays += cycle;
+    }
+    const amStats = Object.entries(amMap)
+      .map(([am, d]) => ({
+        am,
+        count: d.count,
+        avgDeal: d.totalValue / d.count,
+        avgCycle: Math.round(d.totalCycleDays / d.count),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return { total, totalValue, byStatus, winRate, wonValue, amStats };
   }, [proposals]);
 
   const recentProposals = useMemo(
@@ -87,6 +108,38 @@ export function Dashboard() {
         <MetricCard label="Win Rate" value={`${stats.winRate.toFixed(0)}%`} sub="won vs decided" color="text-green-600 dark:text-green-400" />
         <MetricCard label="Value Won" value={fmt(stats.wonValue)} sub="closed-won" color="text-emerald-600 dark:text-emerald-400" />
       </div>
+
+      {/* AM Leaderboard */}
+      {stats.amStats.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden mb-8">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Account Manager Leaderboard</h2>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Closed-won deals only</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-slate-700/40 border-b border-gray-100 dark:border-slate-700">
+                  <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">Account Manager</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">Deals Won</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">Avg Deal Value</th>
+                  <th className="text-right px-5 py-2.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">Avg Cycle (days)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
+                {stats.amStats.map(row => (
+                  <tr key={row.am} className="hover:bg-gray-50 dark:hover:bg-slate-700/40">
+                    <td className="px-5 py-2.5 font-medium text-gray-800 dark:text-slate-200">{row.am}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-green-600 dark:text-green-400">{row.count}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-700 dark:text-slate-300">{fmt(row.avgDeal)}</td>
+                    <td className="px-5 py-2.5 text-right text-gray-500 dark:text-slate-400">{row.avgCycle}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Status breakdown + chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

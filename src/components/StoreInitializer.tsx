@@ -9,16 +9,17 @@ import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import {
   proposalApi, userApi, templateApi, catalogApi, rateCardApi, lookupsApi,
+  clauseApi, settingsApi,
 } from '../lib/api';
 import type { AppLookups } from '../store';
-import type { Proposal, User, Template, CatalogItem, RateCard } from '../types';
+import type { Proposal, User, Template, CatalogItem, RateCard, Clause } from '../types';
 
 const REFRESH_COOLDOWN_MS = 30_000; // don't re-fetch more than once every 30 s
 
 interface Props { children: React.ReactNode }
 
 export function StoreInitializer({ children }: Props) {
-  const { initialized, initFromApi } = useStore();
+  const { initialized, initFromApi, setDiscountMarkupFloor } = useStore();
   const { authLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const lastRefreshed = useRef<number>(0);
@@ -30,15 +31,16 @@ export function StoreInitializer({ children }: Props) {
     if (now - lastRefreshed.current < REFRESH_COOLDOWN_MS) return;
     lastRefreshed.current = now;
     try {
-      const [proposals, users, templates, catalog, rateCards, lookups] = await Promise.all([
+      const [proposals, users, templates, catalog, rateCards, lookups, clauses] = await Promise.all([
         proposalApi.list(),
         userApi.list(),
         templateApi.list(),
         catalogApi.list(),
         rateCardApi.list(),
         lookupsApi.get(),
-      ]) as [Proposal[], User[], Template[], CatalogItem[], RateCard[], AppLookups];
-      useStore.setState({ proposals, users, templates, catalog, rateCards, lookups });
+        clauseApi.list().catch(() => [] as Clause[]),
+      ]) as [Proposal[], User[], Template[], CatalogItem[], RateCard[], AppLookups, Clause[]];
+      useStore.setState({ proposals, users, templates, catalog, rateCards, lookups, clauses });
     } catch { /* silent background refresh — never break the UI */ }
   };
 
@@ -66,7 +68,7 @@ export function StoreInitializer({ children }: Props) {
 
     async function load() {
       try {
-        const [proposals, users, templates, catalog, rateCards, lookups] =
+        const [proposals, users, templates, catalog, rateCards, lookups, clauses, settings] =
           await Promise.all([
             proposalApi.list(),
             userApi.list(),
@@ -74,10 +76,15 @@ export function StoreInitializer({ children }: Props) {
             catalogApi.list(),
             rateCardApi.list(),
             lookupsApi.get(),
-          ]) as [Proposal[], User[], Template[], CatalogItem[], RateCard[], AppLookups];
+            clauseApi.list().catch(() => [] as Clause[]),
+            settingsApi.get().catch(() => ({})),
+          ]) as [Proposal[], User[], Template[], CatalogItem[], RateCard[], AppLookups, Clause[], Record<string, string>];
 
         if (!cancelled) {
           initFromApi({ proposals, users, templates, catalog, rateCards, lookups });
+          useStore.setState({ clauses });
+          const floor = parseFloat(settings['discount.markupFloor'] ?? '10');
+          if (!isNaN(floor)) setDiscountMarkupFloor(floor);
         }
       } catch (e) {
         if (!cancelled) {

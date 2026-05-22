@@ -306,6 +306,11 @@ interface AppStore {
   templates: Template[];
   catalog: CatalogItem[];
   rateCards: RateCard[];
+  clauses: import('../types').Clause[];
+
+  // Discount approval floor (from app_settings, default 10)
+  discountMarkupFloor: number;
+  setDiscountMarkupFloor: (floor: number) => void;
 
   // Users
   addUser: (user: User) => void;
@@ -333,6 +338,11 @@ interface AppStore {
   updateRateCard: (id: string, updates: Partial<RateCard>) => void;
   deleteRateCard: (id: string) => void;
 
+  // Clauses
+  addClause: (clause: import('../types').Clause) => void;
+  updateClause: (id: string, clause: import('../types').Clause) => void;
+  deleteClause: (id: string) => void;
+
   // Lookups
   lookups: AppLookups;
   updateLookup: (key: keyof AppLookups, values: string[]) => void;
@@ -358,6 +368,7 @@ const sync = {
   catalog:    () => import('../lib/api').then(m => m.catalogApi),
   rateCards:  () => import('../lib/api').then(m => m.rateCardApi),
   lookups:    () => import('../lib/api').then(m => m.lookupsApi),
+  clauses:    () => import('../lib/api').then(m => m.clauseApi),
 };
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -370,9 +381,13 @@ export const useStore = create<AppStore>()((set, get) => ({
   templates: SEED_TEMPLATES,
   catalog: SEED_CATALOG,
   rateCards: SEED_RATE_CARDS,
+  clauses: [],
   lookups: SEED_LOOKUPS,
+  discountMarkupFloor: 10,
   initialized: false,
   apiError: null,
+
+  setDiscountMarkupFloor: (floor) => set({ discountMarkupFloor: floor }),
 
   // ── Bulk init from API (called once on app load) ──────────────────────────
   initFromApi: (data) => set({
@@ -424,7 +439,7 @@ export const useStore = create<AppStore>()((set, get) => ({
 
       // When making a financial edit: check whether an existing approval is now stale.
       // Only fires when the update is NOT itself a review-status change.
-      if (isFinancialUpdate && !('trbStatus' in updates) && !('fiveKStatus' in updates)) {
+      if (isFinancialUpdate && !('trbStatus' in updates) && !('fiveKStatus' in updates) && !('discountStatus' in updates)) {
         const merged = { ...existing, ...updates } as Proposal;
 
         if (existing.trbStatus === 'approved' && existing.trbApprovedFingerprint) {
@@ -435,6 +450,23 @@ export const useStore = create<AppStore>()((set, get) => ({
         if (existing.fiveKStatus === 'complete' && existing.fiveKApprovedFingerprint) {
           if (financiallyChangedSince(merged, existing.fiveKApprovedFingerprint)) {
             reviewExtra.fiveKStatus = 'stale';
+          }
+        }
+
+        // Discount approval: if markupPct changed, re-evaluate requirement
+        if ('markupPct' in updates) {
+          const floor = get().discountMarkupFloor;
+          const newMarkup = (updates.markupPct as number);
+          const prevDiscount = existing.discountStatus;
+          if (newMarkup < floor) {
+            // Below floor
+            if (prevDiscount === 'approved') reviewExtra.discountStatus = 'stale';
+            else if (!prevDiscount || prevDiscount === 'not_required') reviewExtra.discountStatus = 'pending';
+          } else {
+            // Above floor — clear requirement if not yet approved
+            if (prevDiscount === 'pending' || prevDiscount === 'stale') {
+              reviewExtra.discountStatus = 'not_required';
+            }
           }
         }
       }
@@ -531,6 +563,20 @@ export const useStore = create<AppStore>()((set, get) => ({
   deleteRateCard: (id) => {
     set(s => ({ rateCards: s.rateCards.filter(r => r.id !== id) }));
     sync.rateCards().then(a => a.delete(id)).catch(onErr('deleteRateCard'));
+  },
+
+  // ── Clauses ───────────────────────────────────────────────────────────────
+  addClause: (clause) => {
+    set(s => ({ clauses: [...s.clauses, clause] }));
+    sync.clauses().then(a => a.create({ title: clause.title, category: clause.category, content: clause.content, createdBy: clause.createdBy })).catch(onErr('addClause'));
+  },
+  updateClause: (id, clause) => {
+    set(s => ({ clauses: s.clauses.map(c => c.id === id ? clause : c) }));
+    sync.clauses().then(a => a.update(id, clause)).catch(onErr('updateClause'));
+  },
+  deleteClause: (id) => {
+    set(s => ({ clauses: s.clauses.filter(c => c.id !== id) }));
+    sync.clauses().then(a => a.delete(id)).catch(onErr('deleteClause'));
   },
 
   // ── Lookups ───────────────────────────────────────────────────────────────

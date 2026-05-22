@@ -72,6 +72,16 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     reference:        (r.reference        as string) ?? undefined,
     trbApprovedFingerprint:   (r.trb_approved_fingerprint   as string) ?? undefined,
     fiveKApprovedFingerprint: (r.five_k_approved_fingerprint as string) ?? undefined,
+    wonLostReason:        (r.won_lost_reason as string) ?? undefined,
+    competitorName:       (r.competitor_name as string) ?? undefined,
+    wonLostNote:          (r.won_lost_note   as string) ?? undefined,
+    wonLostAt:            r.won_lost_at ? (r.won_lost_at as Date).toISOString() : undefined,
+    expiresAt:            r.expires_at ? (r.expires_at as Date).toISOString().split('T')[0] : undefined,
+    discountStatus:       (r.discount_status as Proposal['discountStatus']) ?? undefined,
+    discountApprovedBy:   (r.discount_approved_by   as string) ?? undefined,
+    discountApprovedAt:   r.discount_approved_at ? (r.discount_approved_at as Date).toISOString() : undefined,
+    discountApprovalNote: (r.discount_approval_note as string) ?? undefined,
+    atProjectId:          (r.at_project_id as string) ?? undefined,
     parts, phases,
   };
 }
@@ -188,8 +198,11 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
        planner_url,template_id,trb_status,trb_review_notes,trb_reviewed_by,trb_reviewed_at,
        five_k_status,five_k_attendees,five_k_notes,five_k_meeting_date,
        client_contact,crm_company_id,milestones,reference,
-       trb_approved_fingerprint,five_k_approved_fingerprint)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
+       trb_approved_fingerprint,five_k_approved_fingerprint,
+       won_lost_reason,competitor_name,won_lost_note,won_lost_at,
+       expires_at,discount_status,discount_approved_by,discount_approved_at,discount_approval_note,
+       at_project_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -202,7 +215,13 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
      p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
      p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
      reference,
-     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null],
+     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null,
+     p.wonLostReason ?? null, p.competitorName ?? null, p.wonLostNote ?? null,
+     p.wonLostAt ? new Date(p.wonLostAt) : null,
+     p.expiresAt ?? null,
+     p.discountStatus ?? null, p.discountApprovedBy ?? null,
+     p.discountApprovedAt ? new Date(p.discountApprovedAt) : null,
+     p.discountApprovalNote ?? null, p.atProjectId ?? null],
   );
   await writeNested(p);
   return { ...p, reference };
@@ -217,7 +236,10 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        trb_status=$22,trb_review_notes=$23,trb_reviewed_by=$24,trb_reviewed_at=$25,
        five_k_status=$26,five_k_attendees=$27,five_k_notes=$28,five_k_meeting_date=$29,
        client_contact=$30,crm_company_id=$31,milestones=$32,
-       trb_approved_fingerprint=$33,five_k_approved_fingerprint=$34
+       trb_approved_fingerprint=$33,five_k_approved_fingerprint=$34,
+       won_lost_reason=$35,competitor_name=$36,won_lost_note=$37,won_lost_at=$38,
+       expires_at=$39,discount_status=$40,discount_approved_by=$41,
+       discount_approved_at=$42,discount_approval_note=$43,at_project_id=$44
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -230,7 +252,13 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      JSON.stringify(p.fiveKAttendees ?? []), p.fiveKNotes ?? null,
      p.fiveKMeetingDate ? new Date(p.fiveKMeetingDate) : null,
      p.clientContact ?? null, p.crmCompanyId ?? null, JSON.stringify(p.milestones ?? []),
-     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null],
+     p.trbApprovedFingerprint ?? null, p.fiveKApprovedFingerprint ?? null,
+     p.wonLostReason ?? null, p.competitorName ?? null, p.wonLostNote ?? null,
+     p.wonLostAt ? new Date(p.wonLostAt) : null,
+     p.expiresAt ?? null,
+     p.discountStatus ?? null, p.discountApprovedBy ?? null,
+     p.discountApprovedAt ? new Date(p.discountApprovedAt) : null,
+     p.discountApprovalNote ?? null, p.atProjectId ?? null],
   );
   await writeNested(p);
 }

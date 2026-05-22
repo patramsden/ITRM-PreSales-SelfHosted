@@ -3,7 +3,7 @@
  * Base URL is empty in dev (Vite proxy) and in production (same origin via SWA routing).
  */
 
-const BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+const BASE = import.meta.env.DEV ? 'http://localhost:7071' : '';
 
 function getToken(): string | null {
   return localStorage.getItem('auth_token');
@@ -42,7 +42,7 @@ import type {
 } from '../types';
 import type { AppLookups } from '../store';
 
-const BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
+const BASE_URL = import.meta.env.DEV ? 'http://localhost:7071' : '';
 
 export const mfaEnrollApi = {
   start:    (enrollToken: string) =>
@@ -123,6 +123,8 @@ export const crmApi = {
   getAccountManager:  (companyId: number) => api.get<{ name: string | null; contactId: number | null }>(`crm/account-manager?companyId=${companyId}`),
   testConnection:     ()                  => api.post<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string }>('crm/test', {}),
   detectZone:         (username: string)  => api.post<{ zoneUrl: string }>('crm/detect-zone', { username }),
+  createProject:      (data: { projectName: string; companyID: number; description?: string }) =>
+    api.post<{ projectId: number; url: string }>('crm/create-project', data),
 };
 
 export const lookupsApi = {
@@ -192,6 +194,9 @@ export interface AppSettings {
 
   // Proposal layout
   'proposal.layout'?: string;  // JSON-serialised ProposalLayoutConfig
+
+  // Discount approval floor
+  'discount.markupFloor'?: string;  // minimum markup % before discount approval is required
 
   // CRM — Autotask
   'crm.provider'?:                       string;  // 'autotask' | 'none'
@@ -288,6 +293,25 @@ export const serviceKeyApi = {
   status:   () => api.get<{ configured: boolean }>('settings/service-key/status'),
   generate: () => api.post<{ serviceApiKey: string }>('settings/service-key', {}),
   revoke:   () => api.delete<void>('settings/service-key'),
+};
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+
+import type { ProposalComment, Clause } from '../types';
+
+export const commentApi = {
+  list:   (pid: string)                       => api.get<ProposalComment[]>(`proposals/${pid}/comments`),
+  create: (pid: string, data: { content: string }) => api.post<ProposalComment>(`proposals/${pid}/comments`, data),
+  delete: (id: string)                        => api.delete<void>(`comments/delete/${id}`),
+};
+
+// ─── Clause library ───────────────────────────────────────────────────────────
+
+export const clauseApi = {
+  list:   ()                             => api.get<Clause[]>('clauses'),
+  create: (c: Omit<Clause, 'id' | 'createdAt'>) => api.post<Clause>('clauses', c),
+  update: (id: string, c: Clause)        => api.put<Clause>(`clauses/${id}`, c),
+  delete: (id: string)                   => api.delete<void>(`clauses/${id}`),
 };
 
 // ─── Profile (self-service) ───────────────────────────────────────────────────

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, Loader2, Save, RefreshCw, Info } from 'lucide-react';
+import { Sparkles, Loader2, Save, RefreshCw, Info, BookOpen } from 'lucide-react';
 import type { Proposal } from '../../../types';
 import { Button } from '../../ui/Button';
 import { generateSoW } from '../../../services/sowGenerator';
 import { getAiConfig, PROVIDER_LABELS, PROVIDER_COLORS } from '../../../config/aiConfig';
+import { ClausePickerModal } from '../../proposals/ClausePickerModal';
 import clsx from 'clsx';
 
 interface Props {
@@ -16,6 +17,13 @@ export function SowTab({ proposal, editable, onUpdate }: Props) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState(proposal.sowContent ?? '');
+  const [showClausePicker, setShowClausePicker] = useState(false);
+
+  const handleInsertClause = (clauseContent: string) => {
+    const newContent = content ? `${content}\n\n${clauseContent}` : clauseContent;
+    setContent(newContent);
+    onUpdate({ sowContent: newContent });
+  };
 
   const config = getAiConfig();
   const providerLabel = PROVIDER_LABELS[config.provider];
@@ -74,6 +82,11 @@ export function SowTab({ proposal, editable, onUpdate }: Props) {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {editable && (
+              <Button variant="secondary" size="sm" onClick={() => setShowClausePicker(true)}>
+                <BookOpen size={14} /> Insert Clause
+              </Button>
+            )}
             {editable && content && (
               <Button variant="secondary" size="sm" onClick={generate} disabled={generating}>
                 <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
@@ -130,6 +143,13 @@ export function SowTab({ proposal, editable, onUpdate }: Props) {
           )}
         </div>
       </div>
+
+      {showClausePicker && (
+        <ClausePickerModal
+          onInsert={handleInsertClause}
+          onClose={() => setShowClausePicker(false)}
+        />
+      )}
     </div>
   );
 }

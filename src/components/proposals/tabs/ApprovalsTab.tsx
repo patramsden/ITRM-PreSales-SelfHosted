@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   CheckCircle, XCircle, Clock, Users, FileText, CalendarDays,
-  Copy, Check, AlertTriangle, ChevronDown, ChevronUp, ExternalLink, RefreshCw,
+  Copy, Check, AlertTriangle, ChevronDown, ChevronUp, ExternalLink, RefreshCw, Tag,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Proposal } from '../../../types';
@@ -9,6 +9,7 @@ import { customerApi, type CustomerLink } from '../../../lib/api';
 import { calcTotals } from '../../../utils/totals';
 import { requiredReviews, REVIEW_THRESHOLDS } from '../../../config/approvals';
 import { useStore } from '../../../store';
+import { useAuth } from '../../../contexts/AuthContext';
 import { buildTrbMailtoUrl } from '../../../utils/mailtoUrl';
 import { buildTeamsMeetingUrl, buildOutlookUrl } from '../../../utils/teamsUrl';
 
@@ -201,6 +202,147 @@ function AttendeeInput({
           onKeyDown={handleKeyDown}
           onBlur={() => { if (input.trim()) add(input); }}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Discount Approval section ────────────────────────────────────────────────
+
+const DISCOUNT_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
+  not_required: { label: 'Not required',     color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  pending:      { label: 'Approval required', color: 'text-amber-700 bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
+  approved:     { label: 'Approved',          color: 'text-green-700 bg-green-50  border-green-200',  dot: 'bg-green-500'  },
+  waived:       { label: 'Waived',            color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
+  stale:        { label: 'Re-approval needed',color: 'text-orange-700 bg-orange-50 border-orange-300',dot: 'bg-orange-500' },
+};
+
+function DiscountApprovalSection({ proposal, editable, onUpdate }: Props) {
+  const { discountMarkupFloor } = useStore();
+  const { currentUser } = useAuth();
+  const [expanded, setExpanded] = useState(false);
+  const [note, setNote] = useState('');
+
+  const status = proposal.discountStatus ?? (proposal.markupPct < discountMarkupFloor ? 'pending' : 'not_required');
+  const isRequired = proposal.markupPct < discountMarkupFloor;
+  const cfg = DISCOUNT_STATUS_CONFIG[status] ?? DISCOUNT_STATUS_CONFIG.not_required;
+
+  const handleApprove = () => {
+    onUpdate({
+      discountStatus: 'approved',
+      discountApprovedBy: currentUser?.name ?? 'Unknown',
+      discountApprovedAt: new Date().toISOString(),
+      discountApprovalNote: note.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 overflow-hidden shadow-sm">
+      <div
+        className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/50 select-none"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <div className={clsx('w-2 h-2 rounded-full flex-shrink-0', cfg.dot)} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-gray-800 dark:text-slate-200">Discount Approval</div>
+          <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+            {isRequired
+              ? `Required — markup (${proposal.markupPct}%) is below the ${discountMarkupFloor}% floor`
+              : `Not required — markup (${proposal.markupPct}%) is at or above the ${discountMarkupFloor}% floor`}
+          </div>
+        </div>
+        <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border flex-shrink-0', cfg.color)}>
+          {cfg.label}
+        </span>
+        {expanded ? <ChevronUp size={15} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={15} className="text-gray-400 flex-shrink-0" />}
+      </div>
+
+      {expanded && (
+        <div className="px-6 pb-5 pt-1 space-y-4 border-t border-gray-50 dark:border-slate-700">
+          {!isRequired && (
+            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-slate-500 py-2">
+              <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
+              Markup is above the floor — no discount approval required.
+            </div>
+          )}
+
+          {isRequired && (
+            <>
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                This proposal's markup is below the company floor of {discountMarkupFloor}%.
+                A senior commercial approval is required before this proposal can be exported.
+                The floor can be adjusted in Settings.
+              </p>
+
+              {/* Stale */}
+              {status === 'stale' && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
+                  <AlertTriangle size={16} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="text-sm font-semibold text-orange-900 dark:text-orange-200">Markup changed after approval</div>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">The markup percentage was changed after the discount was approved. A new approval is required.</p>
+                    {editable && (
+                      <button
+                        onClick={() => onUpdate({ discountStatus: 'pending', discountApprovalNote: undefined, discountApprovedBy: undefined, discountApprovedAt: undefined })}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-600 hover:bg-orange-700 text-white"
+                      >
+                        <RefreshCw size={12} /> Reset &amp; Re-request Approval
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Approved/waived display */}
+              {(status === 'approved' || status === 'waived') && (
+                <div className={clsx('flex items-start gap-3 p-4 rounded-xl border',
+                  status === 'approved' ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200')}>
+                  <CheckCircle size={16} className={clsx('mt-0.5 flex-shrink-0', status === 'approved' ? 'text-green-600' : 'text-gray-400')} />
+                  <div className="text-sm space-y-1">
+                    <div className="font-semibold text-gray-900 dark:text-slate-100 capitalize">{status}</div>
+                    {proposal.discountApprovedBy && <div className="text-gray-600 dark:text-slate-400">By <span className="font-medium">{proposal.discountApprovedBy}</span>{proposal.discountApprovedAt && ` · ${new Date(proposal.discountApprovedAt).toLocaleDateString('en-GB')}`}</div>}
+                    {proposal.discountApprovalNote && <div className="text-gray-500 italic">"{proposal.discountApprovalNote}"</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Approval form */}
+              {editable && (status === 'pending') && (
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-xl space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Tag size={14} className="text-indigo-500" />
+                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Approve Discount</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="Approval notes (optional)…"
+                    className="w-full border border-indigo-300 dark:border-indigo-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleApprove} className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white">Approve</button>
+                    <button onClick={() => onUpdate({ discountStatus: 'waived' })} className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-gray-400 hover:bg-gray-500 text-white">Waive</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Override */}
+              {editable && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-gray-400 dark:text-slate-500">Override:</span>
+                  {(['pending', 'approved', 'waived'] as const).map(s => (
+                    <button key={s} onClick={() => onUpdate({ discountStatus: s })}
+                      className={clsx('px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize',
+                        status === s ? DISCOUNT_STATUS_CONFIG[s].color : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-400')}>
+                      {DISCOUNT_STATUS_CONFIG[s].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -514,6 +656,9 @@ export function ApprovalsTab({ proposal, editable, onUpdate }: Props) {
           </div>
         )}
       </div>
+
+      {/* ── Discount Approval ────────────────────────────────────────────── */}
+      <DiscountApprovalSection proposal={proposal} editable={editable} onUpdate={onUpdate} />
 
       {/* ── Customer Decision ────────────────────────────────────────────── */}
       <CustomerDecisionSection proposal={proposal} />
