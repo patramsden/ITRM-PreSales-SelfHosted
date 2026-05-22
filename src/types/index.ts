@@ -194,6 +194,13 @@ export interface Proposal {
 
   // ── Autotask project link ─────────────────────────────────────────────────
   atProjectId?: string;
+
+  // ── Consultancy discount (customer-facing) ────────────────────────────────
+  /** 'monetary' = fixed £ amount off consultancy; 'percentage' = % off consultancy */
+  consultancyDiscountType?: 'monetary' | 'percentage';
+  /** Discount value — £ amount or %, depending on type. 0 = no discount. */
+  consultancyDiscountAmount?: number;
+  consultancyDiscountNote?: string;
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
@@ -290,8 +297,12 @@ export interface ProposalTotals {
   baseConsultancySell: number;
   /** Auto-calculated: 20% of baseConsultancySell. */
   pmValue: number;
-  /** baseConsultancySell + pmValue */
+  /** baseConsultancySell + pmValue (pre-discount) */
   consultancySell: number;
+  /** Computed £ discount applied to consultancy (0 if none). */
+  consultancyDiscountValue: number;
+  /** consultancySell minus the discount — what the customer pays for consultancy. */
+  consultancyDiscountedSell: number;
   consultancyCost: number;
   markupAmount: number;
   grandTotal: number;

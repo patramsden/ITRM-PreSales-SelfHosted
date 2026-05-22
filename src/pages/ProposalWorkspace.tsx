@@ -20,6 +20,7 @@ import { SowTab } from '../components/proposals/tabs/SowTab';
 import { TotalsTab } from '../components/proposals/tabs/TotalsTab';
 import { BillingTab } from '../components/proposals/tabs/BillingTab';
 import { ApprovalsTab } from '../components/proposals/tabs/ApprovalsTab';
+import { DiscountTab } from '../components/proposals/tabs/DiscountTab';
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
 import { ProposalExpiryBanner } from '../components/proposals/ProposalExpiryBanner';
@@ -35,7 +36,7 @@ const DownloadProposalPdfButton = lazy(() =>
   import('../components/proposals/ProposalPdf').then(m => ({ default: m.DownloadProposalPdfButton }))
 );
 
-const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
+const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProposalWorkspace() {
@@ -298,7 +299,7 @@ export function ProposalWorkspace() {
 
         {/* Tabs */}
 
-        <div className="flex gap-0 border-b border-gray-200 dark:border-slate-700 -mb-px">
+        <div className="flex gap-0 border-b border-gray-200 dark:border-slate-700 -mb-px overflow-x-auto scrollbar-none">
           {TABS.map(tab => (
             <button
               key={tab}
@@ -339,6 +340,9 @@ export function ProposalWorkspace() {
         )}
         {activeTab === 'Approvals' && (
           <ApprovalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name)} />
+        )}
+        {activeTab === 'Discount' && (
+          <DiscountTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
         )}
         {activeTab === 'Statement of Work' && (
           <SowTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />

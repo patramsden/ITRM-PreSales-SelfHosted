@@ -142,6 +142,9 @@ export interface Proposal {
   discountApprovedAt?: string;
   discountApprovalNote?: string;
   atProjectId?: string;
+  consultancyDiscountType?:   'monetary' | 'percentage';
+  consultancyDiscountAmount?: number;
+  consultancyDiscountNote?:   string;
 }
 
 export interface ProposalComment {

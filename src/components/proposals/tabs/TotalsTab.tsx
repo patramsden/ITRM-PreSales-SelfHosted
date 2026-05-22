@@ -91,14 +91,15 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
   const an = typeTotal(proposal, 'Annual');
   const cons = {
     cost: totals.consultancyCost,
-    sell: totals.consultancySell,
-    gp: totals.consultancySell - totals.consultancyCost,
+    sell: totals.consultancyDiscountedSell,   // post-discount
+    gp:   totals.consultancyDiscountedSell - totals.consultancyCost,
   };
+  const hasDiscount = (proposal.consultancyDiscountAmount ?? 0) > 0;
 
   const upfrontTotal = {
     cost: hw.cost + sw.cost + cons.cost,
     sell: hw.sell + sw.sell + cons.sell,
-    gp: hw.gp + sw.gp + cons.gp,
+    gp:   hw.gp  + sw.gp  + cons.gp,
   };
   const annualSubs = { cost: an.cost, sell: an.sell, gp: an.gp };
   const monthlyX12 = { cost: mo.cost * 12, sell: mo.sell * 12, gp: mo.gp * 12 };
@@ -223,7 +224,11 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
                 <TableRow label="Software"              cadence="Upfront"              cost={sw.cost}             gp={sw.gp}             total={sw.sell} />
                 <TableRow label="Monthly Subscriptions" cadence="Per month"            cost={mo.cost}             gp={mo.gp}             total={mo.sell} />
                 <TableRow label="Annual Subscriptions"  cadence="Per year"             cost={an.cost}             gp={an.gp}             total={an.sell} />
-                <TableRow label="Consultancy"           cadence="Upfront"              cost={cons.cost}           gp={cons.gp}           total={cons.sell} />
+                <TableRow
+                  label={hasDiscount ? `Consultancy (−${proposal.consultancyDiscountType === 'percentage' ? `${proposal.consultancyDiscountAmount}%` : fmt(totals.consultancyDiscountValue)} discount)` : 'Consultancy'}
+                  cadence="Upfront"
+                  cost={cons.cost} gp={cons.gp} total={cons.sell}
+                />
                 <TableRow label="Upfront Total"         cadence="HW + SW + Consultancy" cost={upfrontTotal.cost}  gp={upfrontTotal.gp}   total={upfrontTotal.sell} bold />
                 <TableRow label="1st Year Monthly Subs" cadence="Monthly × 12"         cost={monthlyX12.cost}     gp={monthlyX12.gp}     total={monthlyX12.sell} bold />
                 <TableRow label="1st Year TCO"          cadence="Upfront + 12m + Annual" cost={tco.cost}          gp={tco.gp}            total={tco.sell} bold accent />

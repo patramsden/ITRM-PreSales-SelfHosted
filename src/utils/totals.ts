@@ -41,10 +41,21 @@ export function calcTotals(proposal: Proposal, rateCards?: RateCard[]): Proposal
   const pmValue = baseConsultancySell * PM_RATE;
   const consultancySell = baseConsultancySell + pmValue;
 
+  // Apply consultancy discount (never reduces sell below 0)
+  const discType = proposal.consultancyDiscountType;
+  const discAmt  = proposal.consultancyDiscountAmount ?? 0;
+  let consultancyDiscountValue = 0;
+  if (discAmt > 0 && discType) {
+    consultancyDiscountValue = discType === 'monetary'
+      ? Math.min(discAmt, consultancySell)
+      : Math.min(consultancySell * (discAmt / 100), consultancySell);
+  }
+  const consultancyDiscountedSell = consultancySell - consultancyDiscountValue;
+
   const markupAmount = partsSell * (proposal.markupPct / 100);
-  const grandTotal = partsSell + markupAmount + consultancySell;
+  const grandTotal = partsSell + markupAmount + consultancyDiscountedSell;
   const totalCost = partsCost + consultancyCost + pmValue * 0.7;
   const marginPct = grandTotal > 0 ? ((grandTotal - totalCost) / grandTotal) * 100 : 0;
 
-  return { partsCost, partsSell, baseConsultancySell, pmValue, consultancySell, consultancyCost, markupAmount, grandTotal, marginPct };
+  return { partsCost, partsSell, baseConsultancySell, pmValue, consultancySell, consultancyDiscountValue, consultancyDiscountedSell, consultancyCost, markupAmount, grandTotal, marginPct };
 }

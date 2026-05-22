@@ -422,7 +422,7 @@ export const useStore = create<AppStore>()((set, get) => ({
 
     // ── Review re-trigger logic ──────────────────────────────────────────────
     // Financial keys — changes to these may invalidate an existing approval.
-    const FINANCIAL_KEYS: (keyof Proposal)[] = ['parts', 'phases', 'markupPct', 'currency'];
+    const FINANCIAL_KEYS: (keyof Proposal)[] = ['parts', 'phases', 'markupPct', 'currency', 'consultancyDiscountAmount', 'consultancyDiscountType'];
     const isFinancialUpdate = existing && FINANCIAL_KEYS.some(k => k in updates);
 
     const reviewExtra: Partial<Proposal> = {};
@@ -435,6 +435,15 @@ export const useStore = create<AppStore>()((set, get) => ({
       // When 5K is being marked complete: capture fingerprint
       if (updates.fiveKStatus === 'complete') {
         reviewExtra.fiveKApprovedFingerprint = computeReviewFingerprint({ ...existing, ...updates });
+      }
+
+      // Consultancy discount: any non-zero discount mandates TRB
+      if ('consultancyDiscountAmount' in updates && !('trbStatus' in updates)) {
+        const newAmt = (updates.consultancyDiscountAmount ?? 0) as number;
+        const currentTrb = existing.trbStatus;
+        if (newAmt > 0 && currentTrb !== 'sent' && currentTrb !== 'approved' && currentTrb !== 'waived') {
+          reviewExtra.trbStatus = 'pending';
+        }
       }
 
       // When making a financial edit: check whether an existing approval is now stale.

@@ -338,6 +338,11 @@ export async function ensureSchema(): Promise<void> {
     // Autotask project link
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS at_project_id VARCHAR(100)`,
 
+    // Consultancy discount
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS consultancy_discount_type   VARCHAR(20)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS consultancy_discount_amount DECIMAL(12,2)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS consultancy_discount_note   TEXT`,
+
     // Discount floor default setting
     `INSERT INTO app_settings (key, value) VALUES ('discount.markupFloor', '10') ON CONFLICT (key) DO NOTHING`,
 
