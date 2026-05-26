@@ -372,17 +372,42 @@ const sync = {
 };
 
 const today = () => new Date().toISOString().split('T')[0];
-const onErr  = (label: string) => (e: unknown) =>
-  console.error(`[store] ${label} API sync failed:`, e);
 
-export const useStore = create<AppStore>()((set, get) => ({
-  users: SEED_USERS,
+/**
+ * Called when a background API sync fails. Logs to console and surfaces a
+ * dismissible banner so users know their change may not have been saved —
+ * rather than silently losing it.
+ */
+const onErr = (label: string) => (e: unknown) => {
+  console.error(`[store] ${label} API sync failed:`, e);
+  // Dispatch a custom event that the UI can listen to and show a toast
+  window.dispatchEvent(new CustomEvent('store:sync-error', {
+    detail: { label, message: e instanceof Error ? e.message : String(e) },
+  }));
+};
+
+// Seed bundles exported so StoreInitializer can use them as a dev fallback
+// when the API is unreachable. Never shown to users in production.
+export const SEED_DATA = {
+  users:     SEED_USERS,
   proposals: SEED_PROPOSALS,
   templates: SEED_TEMPLATES,
-  catalog: SEED_CATALOG,
+  catalog:   SEED_CATALOG,
   rateCards: SEED_RATE_CARDS,
+  lookups:   SEED_LOOKUPS,
+};
+
+export const useStore = create<AppStore>()((set, get) => ({
+  // Start empty — populated by StoreInitializer from the API.
+  // Seed data is intentionally NOT the default so it can never leak into
+  // a production session or race with a background refresh.
+  users: [],
+  proposals: [],
+  templates: [],
+  catalog: [],
+  rateCards: [],
   clauses: [],
-  lookups: SEED_LOOKUPS,
+  lookups: { catalogCategories: [], departments: [] },
   discountMarkupFloor: 10,
   initialized: false,
   apiError: null,

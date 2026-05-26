@@ -5,7 +5,7 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useStore } from '../store';
+import { useStore, SEED_DATA } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import {
   proposalApi, userApi, templateApi, catalogApi, rateCardApi, lookupsApi,
@@ -21,8 +21,19 @@ interface Props { children: React.ReactNode }
 export function StoreInitializer({ children }: Props) {
   const { initialized, initFromApi, setDiscountMarkupFloor } = useStore();
   const { authLoading } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const lastRefreshed = useRef<number>(0);
+
+  // Listen for background mutation failures and surface a dismissible banner
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { label } = (e as CustomEvent<{ label: string; message: string }>).detail;
+      setSyncError(`Save failed (${label}) — refresh the page if your change didn't persist.`);
+    };
+    window.addEventListener('store:sync-error', handler);
+    return () => window.removeEventListener('store:sync-error', handler);
+  }, []);
   const location = useLocation();
 
   // Re-fetch all data, throttled to at most once per REFRESH_COOLDOWN_MS
@@ -89,12 +100,17 @@ export function StoreInitializer({ children }: Props) {
       } catch (e) {
         if (!cancelled) {
           console.warn('[StoreInitializer] API unavailable, using seed data:', e);
-          // Mark as initialized with seed data so the app still works
-          initFromApi(useStore.getState());
+          // In dev: fall back to seed data so the app is usable without an API.
+          // In prod: initialise with empty collections — real data only from API.
+          if (import.meta.env.DEV) {
+            initFromApi(SEED_DATA);
+          } else {
+            initFromApi({ proposals: [], users: [], templates: [], catalog: [], rateCards: [], lookups: { catalogCategories: [], departments: [] } });
+          }
           setError(
             import.meta.env.DEV
               ? 'API not running — showing seed data. Start the Functions API on port 7071.'
-              : String(e)
+              : 'Could not load data. Please refresh the page.'
           );
         }
       }
@@ -117,9 +133,19 @@ export function StoreInitializer({ children }: Props) {
 
   return (
     <>
+      {/* Dev-only: API unreachable banner */}
       {error && import.meta.env.DEV && (
         <div className="fixed bottom-4 right-4 z-50 max-w-sm bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-xs text-amber-800 shadow-lg">
           <strong>Dev mode:</strong> {error}
+        </div>
+      )}
+      {/* Mutation sync failure — shown in any environment */}
+      {syncError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-full bg-red-50 border border-red-300 rounded-xl px-4 py-3 text-xs text-red-800 shadow-lg flex items-center justify-between gap-3">
+          <span>⚠ {syncError}</span>
+          <button onClick={() => setSyncError(null)} className="shrink-0 text-red-600 hover:text-red-800 font-medium underline">
+            Dismiss
+          </button>
         </div>
       )}
       {children}
