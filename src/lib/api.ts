@@ -270,6 +270,15 @@ export interface AppSettings {
   'support.doc.companyAddress'?:       string;  // footer address line
   'support.doc.companyWebsite'?:       string;  // footer website
   'support.doc.companyPhone'?:         string;  // footer phone
+  // Per-section images (base64 data URLs)
+  'support.doc.image.intro'?:                string;
+  'support.doc.image.background'?:           string;
+  'support.doc.image.staff'?:                string;
+  'support.doc.image.certifications'?:       string;
+  'support.doc.image.serviceRequirements'?:  string;
+  'support.doc.image.businessRequirements'?: string;
+  'support.doc.image.contractualTerms'?:     string;
+  'support.doc.image.confidentialityNotice'?:string;
 }
 
 export const settingsApi = {

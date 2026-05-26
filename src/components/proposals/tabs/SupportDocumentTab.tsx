@@ -13,7 +13,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Printer, Pencil, Check, X, Plus, Trash2, GripVertical, Info } from 'lucide-react';
+import { Printer, Pencil, Check, X, Plus, Trash2, GripVertical, Info, ImagePlus } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import { useBranding } from '../../../contexts/BrandingContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -141,8 +141,10 @@ function DocPage({ children, brandColor, pageNum, totalPages, companyName, logo,
   docVersion?: string;
 }) {
   return (
+    /* Force light-mode text so the white paper page is always readable,
+       regardless of whether the surrounding app is in dark mode.          */
     <div className="relative bg-white shadow-sm mb-6 print:mb-0 print:shadow-none"
-         style={{ minHeight: '297mm' }}>
+         style={{ minHeight: '297mm', color: '#111' }}>
       {/* Right accent bar */}
       <div className="absolute right-0 top-0 bottom-0 w-1.5 print:w-2"
            style={{ backgroundColor: brandColor, opacity: 0.85 }} />
@@ -225,23 +227,39 @@ function DocTable({ headers, rows }: { headers: string[]; rows: (string | React.
 // ─── Boilerplate editor ───────────────────────────────────────────────────────
 
 function BoilerplateSection({
-  sectionKey, text, isAdmin, onSave, label,
+  sectionKey, text, isAdmin, onSave, label, imageDataUrl, onSaveImage,
 }: {
   sectionKey: string;
   text: string;
   isAdmin: boolean;
   onSave: (key: string, value: string) => Promise<void>;
   label: string;
+  imageDataUrl?: string;
+  onSaveImage?: (key: string, dataUrl: string | null) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async () => {
     setSaving(true);
     await onSave(sectionKey, draft);
     setSaving(false);
     setEditing(false);
+  };
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const dataUrl = ev.target?.result as string;
+      await onSaveImage?.(sectionKey, dataUrl);
+    };
+    reader.readAsDataURL(file);
+    // Reset the input so the same file can be re-selected
+    e.target.value = '';
   };
 
   if (editing) {
@@ -253,7 +271,28 @@ function BoilerplateSection({
           rows={12}
           className="w-full text-xs font-sans border border-brand-400 rounded p-2 resize-y focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white dark:bg-slate-700 dark:text-slate-100"
         />
-        <div className="flex gap-2 mt-1">
+        {/* Image area */}
+        <div className="mt-2 flex items-start gap-3 flex-wrap">
+          {imageDataUrl && (
+            <div className="relative inline-block">
+              <img src={imageDataUrl} alt="Section image" className="max-h-24 max-w-xs rounded border border-gray-200 object-contain" />
+              <button
+                type="button"
+                onClick={() => onSaveImage?.(sectionKey, null)}
+                title="Remove image"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 print:hidden"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          )}
+          <label className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-dashed border-gray-400 dark:border-slate-500 rounded cursor-pointer hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 text-gray-500 dark:text-slate-400 transition-colors">
+            <ImagePlus size={12} /> {imageDataUrl ? 'Replace image' : 'Add image'}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleImageFile} className="sr-only" />
+          </label>
+          <span className="text-[10px] text-gray-400 dark:text-slate-500 self-center">Image appears below section text in the document</span>
+        </div>
+        <div className="flex gap-2 mt-2">
           <button
             onClick={handleSave}
             disabled={saving}
@@ -278,6 +317,12 @@ function BoilerplateSection({
       <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">
         {text || <em className="text-gray-400">(no content — click Edit to add)</em>}
       </div>
+      {/* Inline image */}
+      {imageDataUrl && (
+        <div className="mt-3">
+          <img src={imageDataUrl} alt="Section image" className="max-h-40 object-contain" />
+        </div>
+      )}
       {isAdmin && (
         <button
           onClick={() => { setDraft(text); setEditing(true); }}
@@ -360,6 +405,7 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
 
   // ── Boilerplate state ────────────────────────────────────────────────────
   const [bp, setBp] = useState<Record<string, string>>(DEFAULTS);
+  const [bpImages, setBpImages] = useState<Record<string, string>>({});
   const [companyAddress, setCompanyAddress] = useState('');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyPhone, setCompanyPhone]     = useState('');
@@ -376,6 +422,13 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
         contractualTerms:     s['support.doc.contractualTerms']     || DEFAULTS.contractualTerms,
         confidentialityNotice:s['support.doc.confidentialityNotice']|| DEFAULTS.confidentialityNotice,
       });
+      // Load any stored section images
+      const imgs: Record<string, string> = {};
+      for (const key of ['intro','background','staff','certifications','serviceRequirements','businessRequirements','contractualTerms','confidentialityNotice']) {
+        const imgKey = `support.doc.image.${key}` as keyof AppSettings;
+        if (s[imgKey]) imgs[key] = s[imgKey] as string;
+      }
+      setBpImages(imgs);
       setCompanyAddress(s['support.doc.companyAddress'] || '');
       setCompanyWebsite(s['support.doc.companyWebsite'] || '');
       setCompanyPhone(s['support.doc.companyPhone'] || '');
@@ -385,6 +438,16 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
   const saveBoilerplate = useCallback(async (key: string, value: string) => {
     await settingsApi.update({ [`support.doc.${key}`]: value } as AppSettings);
     setBp(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const saveImage = useCallback(async (key: string, dataUrl: string | null) => {
+    await settingsApi.update({ [`support.doc.image.${key}`]: dataUrl ?? '' } as AppSettings);
+    setBpImages(prev => {
+      const next = { ...prev };
+      if (dataUrl) next[key] = dataUrl;
+      else delete next[key];
+      return next;
+    });
   }, []);
 
   // ── Contract update helper ───────────────────────────────────────────────
@@ -548,6 +611,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.confidentialityNotice}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.confidentialityNotice}
               label="Confidentiality Notice"
             />
 
@@ -592,6 +657,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.intro}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.intro}
               label="Company Introduction"
             />
           </DocPage>
@@ -604,6 +671,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.background}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.background}
               label="Company Background"
             />
           </DocPage>
@@ -616,6 +685,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.staff}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.staff}
               label="Staff & Qualifications"
             />
           </DocPage>
@@ -628,6 +699,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.certifications}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.certifications}
               label="Certifications"
             />
           </DocPage>
@@ -640,6 +713,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.serviceRequirements}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.serviceRequirements}
               label="Service Requirements"
             />
           </DocPage>
@@ -652,6 +727,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.businessRequirements}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.businessRequirements}
               label="Business Requirements"
             />
           </DocPage>
@@ -664,6 +741,8 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               text={bp.contractualTerms}
               isAdmin={isAdmin}
               onSave={saveBoilerplate}
+              onSaveImage={saveImage}
+              imageDataUrl={bpImages.contractualTerms}
               label="Contractual Requirements"
             />
 
