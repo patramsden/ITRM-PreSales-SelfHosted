@@ -219,7 +219,10 @@ function CatalogAddonPicker({
 
 export function SupportProposalWizard({ onClose, onCreate, currentUserId, currentUserName }: Props) {
   const [step, setStep] = useState(0);
-  const { catalog, users } = useStore(s => ({ catalog: s.catalog, users: s.users }));
+  // Use separate selectors — a single selector returning {} creates a new reference
+  // every render, causing an infinite re-render loop (React error #185).
+  const catalog = useStore(s => s.catalog);
+  const users   = useStore(s => s.users);
 
   // ── Step 1: Contract details ────────────────────────────────────────────
   const [projectName,    setProjectName]    = useState('');
