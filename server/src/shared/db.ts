@@ -373,6 +373,10 @@ export async function ensureSchema(): Promise<void> {
     // Status rename: 'Draft' → 'New', 'With Account Manager' → 'Sent to Customer'
     `UPDATE proposals SET status = 'New'              WHERE status = 'Draft'`,
     `UPDATE proposals SET status = 'Sent to Customer' WHERE status = 'With Account Manager'`,
+
+    // Catalog support add-on flags
+    `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_support_addon        BOOLEAN NOT NULL DEFAULT false`,
+    `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS support_addon_price_type VARCHAR(20) NOT NULL DEFAULT 'per_seat'`,
   ];
 
   for (const stmt of migrations) {

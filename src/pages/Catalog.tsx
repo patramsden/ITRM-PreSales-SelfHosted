@@ -310,6 +310,51 @@ function ItemForm({ item, itemId, categories, allItems, onChange }: ItemFormProp
           onChange={ids => onChange({ ...item, relatedIds: ids })}
         />
       )}
+
+      {/* Support add-on flag */}
+      <div className="border border-gray-200 dark:border-slate-600 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => onChange({ ...item, isSupportAddon: !item.isSupportAddon })}
+            className={clsx(
+              'mt-0.5 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors',
+              item.isSupportAddon
+                ? 'bg-brand-600 border-brand-600 text-white'
+                : 'border-gray-300 dark:border-slate-500'
+            )}
+            aria-checked={item.isSupportAddon}
+          >
+            {item.isSupportAddon && <svg viewBox="0 0 12 12" className="w-3 h-3 fill-current"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </button>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-gray-800 dark:text-slate-200">Available as Support Add-on</div>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+              When enabled, this item appears in the support proposal wizard's add-on picker.
+            </p>
+            {item.isSupportAddon && (
+              <div className="mt-2 flex items-center gap-3">
+                <span className="text-xs text-gray-600 dark:text-slate-400">Billing type:</span>
+                {(['per_seat', 'flat'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => onChange({ ...item, supportAddonPriceType: t })}
+                    className={clsx(
+                      'px-2.5 py-1 text-xs font-medium rounded-full border transition-colors',
+                      (item.supportAddonPriceType ?? 'per_seat') === t
+                        ? 'bg-brand-600 border-brand-600 text-white'
+                        : 'border-gray-300 dark:border-slate-500 text-gray-600 dark:text-slate-300'
+                    )}
+                  >
+                    {t === 'per_seat' ? 'Per seat / month' : 'Flat fee / month'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -449,7 +494,14 @@ export function Catalog() {
               const relCount = (item.relatedIds ?? []).length;
               return (
                 <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                  <td className="px-5 py-3 font-medium text-gray-900 dark:text-slate-100">{item.description}</td>
+                  <td className="px-5 py-3">
+                    <div className="font-medium text-gray-900 dark:text-slate-100">{item.description}</div>
+                    {item.isSupportAddon && (
+                      <span className="inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                        Support Add-on · {item.supportAddonPriceType === 'flat' ? 'flat/mo' : 'per seat/mo'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-slate-400 font-mono text-xs">{item.sku}</td>
                   <td className="px-4 py-3"><TypeBadge type={item.partType} /></td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{item.category}</td>

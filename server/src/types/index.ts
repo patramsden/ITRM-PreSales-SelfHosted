@@ -168,6 +168,8 @@ export interface Proposal {
 
 // ─── Support / managed-service contract ──────────────────────────────────────
 
+export type SupportHours = 'standard' | 'extended' | 'premium';
+
 export interface SupportAddOn {
   id: string;
   name: string;
@@ -175,16 +177,42 @@ export interface SupportAddOn {
   price: number;
 }
 
+export interface SupportScopeItem {
+  id: string;
+  service: string;
+  included: boolean;
+}
+
 export interface SupportContract {
-  tier: string;
+  supportHours?: SupportHours;
   pricePerSeat: number;
   seats: number;
-  term: 12 | 24 | 36;
+  partTimeSeats?: number;
+  term: 12 | 36 | 60;
+  termDiscountPct?: number;
   billingCycle: 'monthly' | 'quarterly' | 'annually';
+  tier?: string;
   tierDescription?: string;
   addOns: SupportAddOn[];
   inclusions: string[];
   exclusions: string[];
+  contactName?: string;
+  contactTitle?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactMobile?: string;
+  contactAddress?: string;
+  clientContactName?: string;
+  commencementDate?: string;
+  noticePeriod?: string;
+  paymentTermsText?: string;
+  site?: string;
+  slaCriticalHours?: number;
+  slaStandardHours?: number;
+  slaServiceRequestHours?: number;
+  onboardingCost?: number;
+  scopeOfServices?: SupportScopeItem[];
+  documentVersion?: string;
 }
 
 export interface ProposalComment {
@@ -229,6 +257,8 @@ export interface CatalogItem {
   listPrice: number;
   partType?: PartType;
   relatedIds?: string[];
+  isSupportAddon?: boolean;
+  supportAddonPriceType?: 'per_seat' | 'flat';
 }
 
 // ─── Rate Cards ──────────────────────────────────────────────────────────────

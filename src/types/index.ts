@@ -226,20 +226,32 @@ export interface SupportScopeItem {
   included: boolean;
 }
 
+export type SupportHours = 'standard' | 'extended' | 'premium';
+
 export interface SupportContract {
-  /** Service tier label displayed to the client (e.g. "Gold Managed Service") */
-  tier: string;
-  /** Per-seat monthly price for the base tier */
+  /**
+   * Support coverage band — determines the default per-seat price.
+   * standard = Mon–Fri 9–5 (£40), extended = Mon–Fri 8–6 (£50), premium = Mon–Fri 7–7 (£60).
+   * Defaults to 'standard'.
+   */
+  supportHours?: SupportHours;
+  /** Per-seat monthly price (set from supportHours default but overrideable) */
   pricePerSeat: number;
-  /** Number of users covered */
+  /** Number of full-time users covered */
   seats: number;
-  /** Contract length in months */
-  term: 12 | 24 | 36;
+  /** Number of part-time users covered (billed at 50% of pricePerSeat) */
+  partTimeSeats?: number;
+  /** Contract length in months: 12 = 1yr, 36 = 3yr, 60 = 5yr */
+  term: 12 | 36 | 60;
+  /** Term discount applied to the base per-seat price only (0–5 for 3yr, 0–10 for 5yr) */
+  termDiscountPct?: number;
   /** How often the client is invoiced */
   billingCycle: 'monthly' | 'quarterly' | 'annually';
-  /** Optional short description of what the tier covers */
+  /** Legacy tier label — kept for backward compat and document display */
+  tier?: string;
+  /** Optional short description of what the service covers */
   tierDescription?: string;
-  /** Additional services layered on top of the base tier */
+  /** Additional services layered on top of the base contract */
   addOns: SupportAddOn[];
   /** Bullet-point inclusions shown in the proposal */
   inclusions: string[];
@@ -333,6 +345,10 @@ export interface CatalogItem {
   partType?: PartType;
   /** IDs of related catalog items shown as "frequently bought together" when added to a quote. */
   relatedIds?: string[];
+  /** When true, this item appears in the support add-on picker in the support proposal wizard. */
+  isSupportAddon?: boolean;
+  /** Determines whether the add-on is billed per seat or as a flat monthly fee when used in support contracts. */
+  supportAddonPriceType?: 'per_seat' | 'flat';
 }
 
 // ─── Rate Cards ──────────────────────────────────────────────────────────────
