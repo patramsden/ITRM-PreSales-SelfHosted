@@ -196,7 +196,13 @@ router.get('/tickets', requireAuth, async (req, res) => {
 
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
 
-    let queueIds: number[] = [];
+    // Load panel config from settings
+    const appSettings = await getAppSettingsDirect();
+    const configuredQueueIds = (appSettings['crm.tickets.queueIds'] ?? '')
+      .split(',').map((s: string) => parseInt(s.trim())).filter((n: number) => !isNaN(n));
+    const daysBack = parseInt(appSettings['crm.tickets.daysBack'] ?? '90') || 90;
+
+    let queueIds: number[] = configuredQueueIds;
     let queueMap:  Record<number, string> = {};
     let statusMap: Record<number, string> = {};
     try {
@@ -204,21 +210,25 @@ router.get('/tickets', requireAuth, async (req, res) => {
         fetchPicklist(creds, 'Tickets', 'queueID'),
         fetchPicklist(creds, 'Tickets', 'status'),
       ]);
-      const targets = queueValues.filter((v: AtPicklistValue) =>
-        v.isActive && CUSTOMER_INTEL_QUEUES.some(n => v.label.toLowerCase().includes(n.toLowerCase()))
-      );
-      queueIds  = targets.map((v: AtPicklistValue) => v.value);
       queueMap  = Object.fromEntries(queueValues.map((v: AtPicklistValue) => [v.value, v.label]));
       statusMap = Object.fromEntries(statusValues.map((v: AtPicklistValue) => [v.value, v.label]));
-      crmLog(`  Resolved queues: ${targets.map((v: AtPicklistValue) => `${v.label}=${v.value}`).join(', ')}`);
+      if (queueIds.length === 0) {
+        const targets = queueValues.filter((v: AtPicklistValue) =>
+          v.isActive && CUSTOMER_INTEL_QUEUES.some(n => v.label.toLowerCase().includes(n.toLowerCase()))
+        );
+        queueIds = targets.map((v: AtPicklistValue) => v.value);
+        crmLog(`  Queues resolved by name: ${targets.map((v: AtPicklistValue) => `${v.label}=${v.value}`).join(', ')}`);
+      } else {
+        crmLog(`  Queues from settings: ${queueIds.join(', ')}`);
+      }
     } catch (e) { crmLog(`  Picklist error: ${String(e)}`); }
 
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysBack);
 
     const filter: unknown[] = [
       { field: 'companyID',  op: 'eq',  value: companyId },
-      { field: 'createDate', op: 'gte', value: threeMonthsAgo.toISOString() },
+      { field: 'createDate', op: 'gte', value: cutoff.toISOString() },
     ];
     if (queueIds.length > 0) filter.push({ field: 'queueID', op: 'in', value: queueIds });
 

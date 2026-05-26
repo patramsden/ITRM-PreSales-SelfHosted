@@ -232,6 +232,10 @@ export interface AppSettings {
   'crm.autotask.ticket.ticketTypeId'?:   string;  // numeric picklist value
   'crm.autotask.ticket.priorityId'?:     string;  // numeric picklist value
   'crm.autotask.ticket.statusId'?:       string;  // numeric picklist value
+
+  // Ticket panel (proposal summary tab) configuration
+  'crm.tickets.queueIds'?:  string;  // comma-separated numeric queue IDs
+  'crm.tickets.daysBack'?:  string;  // number of days to look back (default 90)
 }
 
 export const settingsApi = {

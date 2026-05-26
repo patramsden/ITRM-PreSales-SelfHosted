@@ -1087,13 +1087,18 @@ function CrmTab({ settings, onChange, isAdmin }: {
   const [testResult,  setTestResult]  = useState<{ success: boolean; message: string; zoneUrl?: string; detectedZone?: string; username?: string; integrationCodeHint?: string } | null>(null);
   const [detecting,   setDetecting]   = useState(false);
 
-  // Ticket config picklists
+  // Ticket export picklists (queue, priority, status, type)
   const [picklists,       setPicklists]       = useState<{
     queues: AtPicklistValue[]; priorities: AtPicklistValue[];
     statuses: AtPicklistValue[]; ticketTypes: AtPicklistValue[];
   } | null>(null);
   const [picklistLoading, setPicklistLoading] = useState(false);
   const [picklistError,   setPicklistError]   = useState<string | null>(null);
+
+  // Ticket panel queue picker (separate load, all queues for checkbox selection)
+  const [panelQueues,        setPanelQueues]        = useState<AtPicklistValue[]>([]);
+  const [panelQueuesLoading, setPanelQueuesLoading] = useState(false);
+  const [panelQueuesError,   setPanelQueuesError]   = useState<string | null>(null);
 
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
 
@@ -1148,6 +1153,33 @@ function CrmTab({ settings, onChange, isAdmin }: {
       setPicklistLoading(false);
     }
   };
+
+  const loadPanelQueues = async () => {
+    setPanelQueuesLoading(true); setPanelQueuesError(null);
+    try {
+      const queues = await crmApi.getPicklist('Tickets', 'queueID');
+      setPanelQueues(queues.filter(v => v.isActive));
+    } catch (e) {
+      setPanelQueuesError(e instanceof Error ? e.message : 'Failed to load queues from Autotask');
+    } finally {
+      setPanelQueuesLoading(false);
+    }
+  };
+
+  // Toggle a queue in the comma-separated crm.tickets.queueIds setting
+  const togglePanelQueue = (queueId: number) => {
+    const current = (settings['crm.tickets.queueIds'] ?? '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const idStr = String(queueId);
+    const next = current.includes(idStr)
+      ? current.filter(x => x !== idStr)
+      : [...current, idStr];
+    set('crm.tickets.queueIds', next.join(','));
+  };
+
+  const selectedPanelQueueIds = new Set(
+    (settings['crm.tickets.queueIds'] ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  );
 
   const secretConfigured = settings['crm.autotask.secret.configured'] === 'true';
 
@@ -1333,6 +1365,106 @@ function CrmTab({ settings, onChange, isAdmin }: {
             </FieldRow>
           </div>
         )}
+      </div>
+
+      {/* ── Ticket Panel Configuration ────────────────────────────────── */}
+      <div className="border-t border-gray-200 dark:border-slate-700 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Tag size={16} className="text-brand-600 dark:text-brand-400" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">Ticket Panel — Proposal Summary</div>
+              <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Controls which queues and date range appear in the open-tickets panel on each proposal
+              </div>
+            </div>
+          </div>
+          {isAdmin && (
+            <button type="button" onClick={loadPanelQueues} disabled={panelQueuesLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 disabled:opacity-50 transition-colors">
+              {panelQueuesLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {panelQueues.length > 0 ? 'Refresh queues' : 'Load queues from Autotask'}
+            </button>
+          )}
+        </div>
+
+        {panelQueuesError && (
+          <div className="mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+            <AlertCircle size={13} className="shrink-0" /> {panelQueuesError}
+          </div>
+        )}
+
+        {/* Days back */}
+        <FieldRow label="Lookback period (days)">
+          <div className="flex items-center gap-2 max-w-xs">
+            <input
+              type="number" min={1} max={365}
+              value={settings['crm.tickets.daysBack'] ?? '90'}
+              onChange={e => set('crm.tickets.daysBack', e.target.value)}
+              disabled={!isAdmin}
+              className="w-24 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+            />
+            <span className="text-sm text-gray-500 dark:text-slate-400">days back from today</span>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Only tickets created within this window will appear. Default: 90.</p>
+        </FieldRow>
+
+        {/* Queue checkboxes */}
+        <div className="mt-4">
+          <div className="text-xs font-medium text-gray-600 dark:text-slate-400 mb-2">
+            Queues to show
+            {selectedPanelQueueIds.size > 0 && (
+              <span className="ml-2 text-brand-600 dark:text-brand-400">{selectedPanelQueueIds.size} selected</span>
+            )}
+          </div>
+
+          {panelQueues.length === 0 && !panelQueuesLoading && (
+            <p className="text-xs text-gray-400 dark:text-slate-500 italic">
+              Click "Load queues from Autotask" to see available queues.
+              {selectedPanelQueueIds.size > 0 && ` (${selectedPanelQueueIds.size} queue IDs currently saved)`}
+              {selectedPanelQueueIds.size === 0 && ' Without a selection the panel defaults to Account Management, Pre-Sales, and Post-Sale queues.'}
+            </p>
+          )}
+
+          {panelQueues.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+              {panelQueues.map(q => {
+                const checked = selectedPanelQueueIds.has(String(q.value));
+                return (
+                  <label
+                    key={q.value}
+                    className={clsx(
+                      'flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors',
+                      checked
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700 text-brand-800 dark:text-brand-200'
+                        : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-brand-300',
+                      !isAdmin && 'cursor-not-allowed opacity-60',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => isAdmin && togglePanelQueue(q.value)}
+                      disabled={!isAdmin}
+                      className="rounded accent-brand-600"
+                    />
+                    <span className="truncate">{q.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedPanelQueueIds.size > 0 && isAdmin && (
+            <button
+              type="button"
+              onClick={() => set('crm.tickets.queueIds', '')}
+              className="mt-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              Clear selection (revert to defaults)
+            </button>
+          )}
+        </div>
       </div>
 
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}
