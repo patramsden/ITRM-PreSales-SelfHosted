@@ -66,8 +66,8 @@ export function SharedProposalView() {
       <header className="bg-[#2B3990] py-5 px-8">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/itrm-logo.svg" alt="ITRM" className="h-8 brightness-0 invert" />
-            <span className="text-white text-sm font-medium opacity-80">PreSales</span>
+            <img src="/msp-logo.svg" alt="MSP SalesPro" className="h-8 brightness-0 invert" />
+            <span className="text-white text-sm font-medium opacity-80">MSP SalesPro</span>
           </div>
           <span className="text-white text-xs opacity-60">Proposal Preview</span>
         </div>
@@ -155,7 +155,7 @@ export function SharedProposalView() {
 
       {/* Footer */}
       <footer className="text-center py-8 text-xs text-gray-400 dark:text-slate-500">
-        Powered by ITRM PreSales · This document is confidential
+        Powered by MSP SalesPro · This document is confidential
       </footer>
     </div>
   );

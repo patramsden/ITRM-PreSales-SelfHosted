@@ -41,7 +41,7 @@ export function buildTrbMailtoUrl(proposal: Proposal, opts: TrbEmailOptions): st
     ``,
     `──────────────────────────────────────────`,
     opts.from ? `Submitted by: ${opts.from}` : '',
-    `ITRM PreSales`,
+    `MSP SalesPro`,
   ].filter(l => l !== undefined).join('\r\n');
 
   const params = new URLSearchParams();

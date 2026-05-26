@@ -36,7 +36,7 @@ export function buildTeamsMeetingUrl(
     '',
     review.description,
     '',
-    'Please review the proposal in ITRM PreSales before this meeting.',
+    'Please review the proposal in MSP SalesPro before this meeting.',
   ].join('\n');
 
   const params = new URLSearchParams({

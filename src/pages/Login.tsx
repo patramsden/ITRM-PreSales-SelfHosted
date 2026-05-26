@@ -339,7 +339,7 @@ export function Login() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-8">
-          <img src={logo ?? '/itrm-logo.svg'} alt={companyName} className="h-12 mx-auto mb-4 brightness-0 invert" />
+          <img src={logo ?? '/msp-logo.svg'} alt={companyName} className="h-12 mx-auto mb-4 brightness-0 invert" />
           <p className="text-sm text-white/60 mt-1">{subtitle} · Sign in to continue</p>
         </div>
 

@@ -54,7 +54,7 @@ export function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center p-4" style={bgStyle}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src={logo ?? '/itrm-logo.svg'} alt={companyName} className="h-12 mx-auto mb-4 brightness-0 invert" />
+          <img src={logo ?? '/msp-logo.svg'} alt={companyName} className="h-12 mx-auto mb-4 brightness-0 invert" />
           <p className="text-sm text-white/60 mt-1">{subtitle} · Set new password</p>
         </div>
 

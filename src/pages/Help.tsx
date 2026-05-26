@@ -53,7 +53,7 @@ const ARTICLES: Article[] = [
     title: 'App Overview',
     category: 'start',
     content: [
-      { type: 'p', text: 'ITRM PreSales is a proposal management platform built for presales teams at managed service providers. It covers the full lifecycle of a commercial proposal — from first draft through internal review, client sign-off, and delivery handover.' },
+      { type: 'p', text: 'MSP SalesPro is a proposal management platform built for presales teams at managed service providers. It covers the full lifecycle of a commercial proposal — from first draft through internal review, client sign-off, and delivery handover.' },
       { type: 'h2', text: 'Core concepts' },
       { type: 'ul', items: [
         'Proposals — the central object. Each proposal has a project name, client, bill of materials (parts), consultancy effort (phases and tasks), a statement of work, and a commercial summary.',

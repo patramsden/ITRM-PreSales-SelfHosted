@@ -396,7 +396,7 @@ function BrandingTab({ settings, onChange, isAdmin }: {
       <div className="grid grid-cols-2 gap-4">
         <FieldRow label="Company Name">
           <TextInput value={company} onChange={v => set('branding.companyName', v)}
-            placeholder="ITRM" readOnly={!isAdmin} />
+            placeholder="MSP SalesPro" readOnly={!isAdmin} />
         </FieldRow>
         <FieldRow label="App Subtitle">
           <TextInput value={subtitle} onChange={v => set('branding.subtitle', v)}
@@ -428,7 +428,7 @@ function BrandingTab({ settings, onChange, isAdmin }: {
           {/* Preview */}
           <div className="w-24 h-16 rounded-lg flex items-center justify-center flex-shrink-0 border border-gray-200 dark:border-slate-600 overflow-hidden"
             style={{ backgroundColor: color }}>
-            <img src={logoData ?? '/itrm-logo.svg'} alt="Logo preview"
+            <img src={logoData ?? '/msp-logo.svg'} alt="Logo preview"
               className="max-h-10 max-w-20 brightness-0 invert object-contain" />
           </div>
           <div className="flex-1 space-y-2">
@@ -839,7 +839,7 @@ function SsoTab({ settings, onChange, isAdmin }: {
           <ol className="list-decimal ml-4 space-y-0.5">
             <li>Open <strong>Microsoft Entra ID</strong> (portal.azure.com → Entra ID)</li>
             <li>Go to <strong>Enterprise Applications → New application → Create your own application</strong></li>
-            <li>Name it (e.g. <em>ITRM PreSales</em>), choose <strong>"Non-gallery"</strong> and click Create</li>
+            <li>Name it (e.g. <em>MSP SalesPro</em>), choose <strong>"Non-gallery"</strong> and click Create</li>
           </ol>
         </div>
         <div>
@@ -1365,7 +1365,7 @@ function PlannerTab({ settings, onChange, isAdmin }: {
         <div className="font-semibold">One-time Azure AD setup (~2 minutes, no secret or Tenant ID needed)</div>
         <ol className="list-decimal ml-4 space-y-0.5">
           <li>Go to <strong>Entra ID → App registrations → New registration</strong></li>
-          <li>Name it anything (e.g. <em>ITRM Planner</em>). Leave account type as default.</li>
+          <li>Name it anything (e.g. <em>MSP SalesPro Planner</em>). Leave account type as default.</li>
           <li>Under <strong>Redirect URI</strong> choose <strong>Single-page application (SPA)</strong> and enter:
             <code className="ml-1 bg-blue-100 dark:bg-blue-900 px-1 rounded break-all">{appOrigin}/auth-redirect.html</code>
           </li>
@@ -1675,7 +1675,7 @@ function AboutTab({ appSettings }: { appSettings: AppSettings }) {
     <div className="space-y-6">
       <SectionHeader icon={Info} title="About" />
       <div className="divide-y divide-gray-100 dark:divide-slate-700">
-        <Row label="Application" value="ITRM PreSales" />
+        <Row label="Application" value="MSP SalesPro" />
         <Row label="Version"     value="1.2.0" />
         <Row label="Auth"        value="Local + SAML" />
         <Row label="SoW AI"      value={
@@ -1727,7 +1727,7 @@ function BackupTab({ isAdmin }: { isAdmin: boolean }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `itrm-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `msp-salespro-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -1891,7 +1891,7 @@ function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onCh
           </div>
           <div className="col-span-2">
             <FieldRow label="From Address">
-              <TextInput value={settings['email.from'] ?? ''} onChange={v => set('email.from', v)} placeholder='ITRM PreSales <noreply@example.com>' readOnly={!isAdmin} />
+              <TextInput value={settings['email.from'] ?? ''} onChange={v => set('email.from', v)} placeholder='MSP SalesPro <noreply@example.com>' readOnly={!isAdmin} />
             </FieldRow>
           </div>
           <FieldRow label="Username">
@@ -2119,7 +2119,7 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
               value={layout.footer.text ?? ''}
               onChange={e => updateLayout({ ...layout, footer: { ...layout.footer, text: e.target.value || undefined } })}
               disabled={!isAdmin}
-              placeholder={`Leave blank for default (e.g. ${settings['branding.companyName'] ?? 'ITRM'} — Confidential)`}
+              placeholder={`Leave blank for default (e.g. ${settings['branding.companyName'] ?? 'MSP SalesPro'} — Confidential)`}
               className={clsx(
                 'w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none',
                 !isAdmin && 'bg-gray-50 dark:bg-slate-800 text-gray-400 cursor-default',

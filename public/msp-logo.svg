@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" fill="none">
+  <!-- Dot grid: 3 cols × 3 rows, 22px circles, 8px gap -->
+  <!-- Row 1 -->
+  <circle cx="15" cy="15" r="11" fill="#FDB913"/>
+  <circle cx="41" cy="15" r="11" fill="none" stroke="#BCBEC0" stroke-width="2.5"/>
+  <circle cx="67" cy="15" r="11" fill="none" stroke="#BCBEC0" stroke-width="2.5"/>
+  <!-- Row 2 -->
+  <circle cx="15" cy="41" r="11" fill="#E0007A"/>
+  <circle cx="41" cy="41" r="11" fill="#F47920"/>
+  <circle cx="67" cy="41" r="11" fill="none" stroke="#BCBEC0" stroke-width="2.5"/>
+  <!-- Row 3 -->
+  <circle cx="15" cy="67" r="11" fill="none" stroke="#BCBEC0" stroke-width="2.5"/>
+  <circle cx="41" cy="67" r="11" fill="#00AEEF"/>
+  <circle cx="67" cy="67" r="11" fill="#95C11F"/>
+  <!-- ITRM wordmark -->
+  <text x="88" y="57" font-family="'Segoe UI', system-ui, sans-serif" font-size="38" font-weight="800" fill="#2B3990" letter-spacing="-1">ITRM</text>
+</svg>

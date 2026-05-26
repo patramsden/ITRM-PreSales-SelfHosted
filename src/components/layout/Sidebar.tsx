@@ -52,7 +52,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         ) : (
           <>
-            <img src={logo ?? '/itrm-logo.svg'} alt={companyName} className="h-8 brightness-0 invert" />
+            <img src={logo ?? '/msp-logo.svg'} alt={companyName} className="h-8 brightness-0 invert" />
             <div className="text-white/60 dark:text-slate-400 text-xs mt-1 sr-only">{subtitle}</div>
           </>
         )}

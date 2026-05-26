@@ -3,8 +3,8 @@ import { useBranding } from '../contexts/BrandingContext';
 
 /**
  * Sets the browser tab title.
- * - No pageTitle  →  "ITRM PreSales"  (home / dashboard)
- * - With pageTitle →  "Proposals — ITRM PreSales"
+ * - No pageTitle  →  "MSP SalesPro"  (home / dashboard)
+ * - With pageTitle →  "Proposals — MSP SalesPro"
  *
  * The app name is pulled from branding settings so it reflects any
  * custom company name configured in Settings → Branding.

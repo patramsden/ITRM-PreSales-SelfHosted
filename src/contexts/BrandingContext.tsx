@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { settingsApi } from '../lib/api';
 
 interface BrandingCtx {
-  logo: string | null;        // data URL or null → falls back to /itrm-logo.svg
+  logo: string | null;        // data URL or null → falls back to /msp-logo.svg
   favicon: string | null;     // data URL or null → falls back to /favicon.svg
   primaryColor: string;       // hex e.g. #2B3990
   companyName: string;
@@ -14,8 +14,8 @@ const DEFAULT: BrandingCtx = {
   logo: null,
   favicon: null,
   primaryColor: '#2B3990',
-  companyName: 'ITRM',
-  subtitle: 'PreSales',
+  companyName: 'MSP SalesPro',
+  subtitle: 'Sales Platform',
   isLoaded: false,
 };
 
@@ -56,8 +56,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         const color   = ((s['branding.primaryColor'] as string) ?? '').trim() || '#2B3990';
         const logo    = (s['branding.logo']     as string | undefined) || null;
         const favicon = (s['branding.favicon']  as string | undefined) || null;
-        const company = ((s['branding.companyName'] as string) ?? '').trim() || 'ITRM';
-        const sub     = ((s['branding.subtitle']    as string) ?? '').trim() || 'PreSales';
+        const company = ((s['branding.companyName'] as string) ?? '').trim() || 'MSP SalesPro';
+        const sub     = ((s['branding.subtitle']    as string) ?? '').trim() || 'Sales Platform';
         applyColor(color);
         applyFavicon(favicon);
         setCtx({ logo, favicon, primaryColor: color, companyName: company, subtitle: sub, isLoaded: true });

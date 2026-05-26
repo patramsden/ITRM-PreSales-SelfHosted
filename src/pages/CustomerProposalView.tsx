@@ -80,7 +80,7 @@ export function CustomerProposalView() {
   const [link, setLink]           = useState<CustomerLink | null>(null);
   const [layoutRaw, setLayoutRaw] = useState<string | undefined>(undefined);
   const [branding, setBranding]   = useState<{ logoB64: string | null; primaryColor: string; companyName: string }>({
-    logoB64: null, primaryColor: '#2B3990', companyName: 'ITRM',
+    logoB64: null, primaryColor: '#2B3990', companyName: 'MSP SalesPro',
   });
 
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem(THEME_KEY) === 'dark');
