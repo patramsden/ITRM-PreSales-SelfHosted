@@ -194,7 +194,7 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
       crmCompanyId,
       accountManager,
       currency,
-      status:       'Draft',
+      status: 'New',
       dateCreated:  new Date().toISOString().split('T')[0],
       dateModified: new Date().toISOString().split('T')[0],
       markupPct:    0,

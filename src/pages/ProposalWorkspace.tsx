@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText, Check, Trophy, XCircle } from 'lucide-react';
 import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import { getProposalRole, canEdit, canDelete, canAccessAdmin } from '../utils/permissions';
@@ -34,11 +34,119 @@ import { ShareModal } from '../components/proposals/ShareModal';
 import { versionApi, settingsApi } from '../lib/api';
 import { parseLayout, DEFAULT_LAYOUT } from '../types/layout';
 import type { ProposalLayoutConfig } from '../types/layout';
+import type { ProposalStatus } from '../types';
 import clsx from 'clsx';
 
 const DownloadProposalPdfButton = lazy(() =>
   import('../components/proposals/ProposalPdf').then(m => ({ default: m.DownloadProposalPdfButton }))
 );
+
+// ─── Proposal status progress bar ─────────────────────────────────────────────
+
+const PIPELINE_STAGES: ProposalStatus[] = ['New', 'In Progress', 'Waiting Approval', 'Approved', 'Sent to Customer'];
+
+const STAGE_COLORS: Record<ProposalStatus, string> = {
+  'New':              'bg-gray-400',
+  'In Progress':      'bg-amber-500',
+  'Waiting Approval': 'bg-orange-500',
+  'Approved':         'bg-blue-500',
+  'Sent to Customer': 'bg-violet-500',
+  'Won':              'bg-green-500',
+  'Lost':             'bg-red-500',
+};
+
+function ProposalProgressBar({
+  status, editable, onChange,
+}: {
+  status: ProposalStatus;
+  editable: boolean;
+  onChange: (s: ProposalStatus) => void;
+}) {
+  const isTerminal = status === 'Won' || status === 'Lost';
+  const currentIdx = PIPELINE_STAGES.indexOf(status);
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-0">
+        {PIPELINE_STAGES.map((stage, i) => {
+          const isActive  = status === stage;
+          const isPast    = !isTerminal && currentIdx > i;
+          const isFuture  = isTerminal ? true : currentIdx < i;
+          const isLast    = i === PIPELINE_STAGES.length - 1;
+
+          return (
+            <div key={stage} className="flex items-center flex-1 min-w-0">
+              {/* Stage pill */}
+              <button
+                onClick={() => editable && !isTerminal && onChange(stage)}
+                disabled={!editable || isTerminal}
+                title={editable && !isTerminal ? `Set status to "${stage}"` : stage}
+                className={clsx(
+                  'relative flex flex-col items-center flex-1 py-2.5 px-1 rounded-lg text-xs font-medium transition-all select-none',
+                  editable && !isTerminal ? 'cursor-pointer hover:brightness-90' : 'cursor-default',
+                  isActive  && `${STAGE_COLORS[stage]} text-white shadow-md ring-2 ring-offset-1 ring-white dark:ring-slate-800`,
+                  isPast    && 'bg-brand-600 text-white opacity-80',
+                  isFuture  && 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500',
+                )}
+              >
+                <span className="flex items-center gap-1">
+                  {isPast && <Check size={10} className="flex-shrink-0" />}
+                  <span className="truncate leading-tight text-center">{stage}</span>
+                </span>
+              </button>
+
+              {/* Connector line */}
+              {!isLast && (
+                <div className={clsx(
+                  'h-0.5 w-2 flex-shrink-0 mx-0.5',
+                  isPast || isActive ? 'bg-brand-400' : 'bg-gray-200 dark:bg-slate-600'
+                )} />
+              )}
+            </div>
+          );
+        })}
+
+        {/* Won / Lost terminal outcomes */}
+        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+          {/* Separator arrow */}
+          <div className="h-0.5 w-3 bg-gray-200 dark:bg-slate-600 flex-shrink-0" />
+
+          <button
+            onClick={() => editable && onChange('Won')}
+            disabled={!editable}
+            title={editable ? 'Mark as Won' : 'Won'}
+            className={clsx(
+              'flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium transition-all',
+              editable ? 'cursor-pointer hover:brightness-90' : 'cursor-default',
+              status === 'Won'
+                ? 'bg-green-500 text-white shadow-md ring-2 ring-offset-1 ring-white dark:ring-slate-800'
+                : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400',
+            )}
+          >
+            <Trophy size={11} />
+            Won
+          </button>
+
+          <button
+            onClick={() => editable && onChange('Lost')}
+            disabled={!editable}
+            title={editable ? 'Mark as Lost' : 'Lost'}
+            className={clsx(
+              'flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium transition-all',
+              editable ? 'cursor-pointer hover:brightness-90' : 'cursor-default',
+              status === 'Lost'
+                ? 'bg-red-500 text-white shadow-md ring-2 ring-offset-1 ring-white dark:ring-slate-800'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400',
+            )}
+          >
+            <XCircle size={11} />
+            Lost
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PROJECT_TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
 const SUPPORT_TABS = ['Summary', 'Support Contract', 'Document', 'Billing', 'Approvals', 'Comments'] as const;
@@ -297,6 +405,13 @@ export function ProposalWorkspace() {
             )}
           </div>
         </div>
+
+        {/* ── Status progress bar ──────────────────────────────────────── */}
+        <ProposalProgressBar
+          status={proposal.status}
+          editable={editable}
+          onChange={status => updateProposal(proposal.id, { status }, currentUser?.name ?? currentUser?.email)}
+        />
 
         {/* Read-only banner */}
         {!editable && (

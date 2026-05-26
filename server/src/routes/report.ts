@@ -56,7 +56,7 @@ function calcTotals(proposal: {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-const STATUSES = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'] as const;
+const STATUSES = ['New', 'In Progress', 'Waiting Approval', 'Approved', 'Sent to Customer', 'Won', 'Lost'] as const;
 
 // ─── GET /api/report/proposals ────────────────────────────────────────────────
 

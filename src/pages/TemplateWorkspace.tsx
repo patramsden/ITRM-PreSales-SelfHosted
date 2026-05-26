@@ -46,7 +46,7 @@ export function TemplateWorkspace() {
     projectName:     template.name,
     client:          '',
     accountManager:  '',
-    status:          'Draft',
+    status: 'New',
     currency:        'GBP',
     dateCreated:     template.dateCreated,
     dateModified:    template.dateCreated,

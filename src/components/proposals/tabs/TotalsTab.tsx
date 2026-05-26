@@ -20,7 +20,7 @@ interface Props {
   onUpdate: (updates: Partial<Proposal>) => void;
 }
 
-const STATUS_FLOW: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
+const STATUS_FLOW: ProposalStatus[] = ['New', 'In Progress', 'Waiting Approval', 'Approved', 'Sent to Customer', 'Won', 'Lost'];
 
 const CATEGORY_COLORS: Record<string, string> = {
   Hardware: '#7c3aed',
@@ -139,7 +139,7 @@ export function TotalsTab({ proposal, editable, onUpdate }: Props) {
   const avgGpPct = tco.sell > 0 ? (tco.gp / tco.sell) * 100 : 0;
 
   const handleStatusChange = (status: ProposalStatus) => {
-    if (status === 'In Progress' && proposal.status === 'Draft') {
+    if (status === 'In Progress' && proposal.status === 'New') {
       setConfirmStatus(status);
       return;
     }

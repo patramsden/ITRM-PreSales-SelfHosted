@@ -56,12 +56,13 @@ interface ColumnConfig {
 }
 
 const COLUMNS: ColumnConfig[] = [
-  { status: 'Draft',                label: 'Draft',                accent: 'border-gray-300 dark:border-gray-600',     headerBg: 'bg-gray-50 dark:bg-slate-700/60',          badgeBg: 'bg-gray-400'    },
-  { status: 'In Progress',          label: 'In Progress',          accent: 'border-amber-300 dark:border-amber-700',   headerBg: 'bg-amber-50 dark:bg-amber-900/20',         badgeBg: 'bg-amber-500'   },
-  { status: 'Approved',             label: 'Approved',             accent: 'border-blue-300 dark:border-blue-700',     headerBg: 'bg-blue-50 dark:bg-blue-900/20',           badgeBg: 'bg-blue-500'    },
-  { status: 'With Account Manager', label: 'With Acct. Manager',   accent: 'border-violet-300 dark:border-violet-700', headerBg: 'bg-violet-50 dark:bg-violet-900/20',       badgeBg: 'bg-violet-500'  },
-  { status: 'Won',                  label: 'Won',                  accent: 'border-green-300 dark:border-green-700',   headerBg: 'bg-green-50 dark:bg-green-900/20',         badgeBg: 'bg-green-500'   },
-  { status: 'Lost',                 label: 'Lost',                 accent: 'border-red-300 dark:border-red-700',       headerBg: 'bg-red-50 dark:bg-red-900/20',             badgeBg: 'bg-red-500'     },
+  { status: 'New',              label: 'New',               accent: 'border-gray-300 dark:border-gray-600',     headerBg: 'bg-gray-50 dark:bg-slate-700/60',          badgeBg: 'bg-gray-400'    },
+  { status: 'In Progress',      label: 'In Progress',       accent: 'border-amber-300 dark:border-amber-700',   headerBg: 'bg-amber-50 dark:bg-amber-900/20',         badgeBg: 'bg-amber-500'   },
+  { status: 'Waiting Approval', label: 'Waiting Approval',  accent: 'border-orange-300 dark:border-orange-700', headerBg: 'bg-orange-50 dark:bg-orange-900/20',       badgeBg: 'bg-orange-500'  },
+  { status: 'Approved',         label: 'Approved',          accent: 'border-blue-300 dark:border-blue-700',     headerBg: 'bg-blue-50 dark:bg-blue-900/20',           badgeBg: 'bg-blue-500'    },
+  { status: 'Sent to Customer', label: 'Sent to Customer',  accent: 'border-violet-300 dark:border-violet-700', headerBg: 'bg-violet-50 dark:bg-violet-900/20',       badgeBg: 'bg-violet-500'  },
+  { status: 'Won',              label: 'Won',               accent: 'border-green-300 dark:border-green-700',   headerBg: 'bg-green-50 dark:bg-green-900/20',         badgeBg: 'bg-green-500'   },
+  { status: 'Lost',             label: 'Lost',              accent: 'border-red-300 dark:border-red-700',       headerBg: 'bg-red-50 dark:bg-red-900/20',             badgeBg: 'bg-red-500'     },
 ];
 
 // ─── Currency format ──────────────────────────────────────────────────────────

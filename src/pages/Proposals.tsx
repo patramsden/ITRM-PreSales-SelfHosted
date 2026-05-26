@@ -12,7 +12,7 @@ import { NewProposalModal } from '../components/proposals/NewProposalModal';
 import { SupportProposalWizard } from '../components/proposals/SupportProposalWizard';
 import type { Proposal, ProposalStatus } from '../types';
 
-const ALL_STATUSES: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
+const ALL_STATUSES: ProposalStatus[] = ['New', 'In Progress', 'Waiting Approval', 'Approved', 'Sent to Customer', 'Won', 'Lost'];
 
 export function Proposals() {
   useDocumentTitle('Proposals');

@@ -25,7 +25,7 @@ export interface User {
 // ─── Proposal roles ──────────────────────────────────────────────────────────
 
 export type ProposalRole = 'owner' | 'collaborator' | 'reader' | 'admin';
-export type ProposalStatus = 'Draft' | 'In Progress' | 'Approved' | 'With Account Manager' | 'Won' | 'Lost';
+export type ProposalStatus = 'New' | 'In Progress' | 'Waiting Approval' | 'Approved' | 'Sent to Customer' | 'Won' | 'Lost';
 export type Currency = 'GBP' | 'USD' | 'EUR';
 
 // ─── Vendor Quotes ───────────────────────────────────────────────────────────

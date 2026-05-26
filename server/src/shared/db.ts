@@ -369,6 +369,10 @@ export async function ensureSchema(): Promise<void> {
     // Support / managed-service proposal type
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS proposal_type   VARCHAR(20) NOT NULL DEFAULT 'project'`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS support_contract TEXT`,
+
+    // Status rename: 'Draft' → 'New', 'With Account Manager' → 'Sent to Customer'
+    `UPDATE proposals SET status = 'New'              WHERE status = 'Draft'`,
+    `UPDATE proposals SET status = 'Sent to Customer' WHERE status = 'With Account Manager'`,
   ];
 
   for (const stmt of migrations) {
