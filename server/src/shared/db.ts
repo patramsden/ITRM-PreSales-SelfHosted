@@ -365,6 +365,10 @@ export async function ensureSchema(): Promise<void> {
       created_by VARCHAR(255) NOT NULL,
       created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )`,
+
+    // Support / managed-service proposal type
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS proposal_type   VARCHAR(20) NOT NULL DEFAULT 'project'`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS support_contract TEXT`,
   ];
 
   for (const stmt of migrations) {

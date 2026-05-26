@@ -1,25 +1,29 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { Plus, Search, Filter, ArrowRight, Copy } from 'lucide-react';
+import { Plus, Search, Filter, ArrowRight, Copy, HeartHandshake, Repeat } from 'lucide-react';
 import { useStore } from '../store';
+import { useAuth } from '../contexts/AuthContext';
 import { calcTotals } from '../utils/totals';
 import { StatusBadge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/ui/PageHeader';
 import { NewProposalModal } from '../components/proposals/NewProposalModal';
-import type { ProposalStatus } from '../types';
+import { SupportProposalWizard } from '../components/proposals/SupportProposalWizard';
+import type { Proposal, ProposalStatus } from '../types';
 
 const ALL_STATUSES: ProposalStatus[] = ['Draft', 'In Progress', 'Approved', 'With Account Manager', 'Won', 'Lost'];
 
 export function Proposals() {
   useDocumentTitle('Proposals');
-  const { proposals, cloneProposal } = useStore();
+  const { proposals, addProposal, cloneProposal } = useStore();
+  const { currentUser } = useAuth();
   const users = useStore(s => s.users);
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProposalStatus | 'All'>('All');
   const [showNew, setShowNew] = useState(false);
+  const [showSupportWizard, setShowSupportWizard] = useState(false);
 
   const filtered = useMemo(() => {
     let list = [...proposals].sort((a, b) => b.dateModified.localeCompare(a.dateModified));
@@ -44,9 +48,14 @@ export function Proposals() {
         title="Proposals"
         subtitle={`${proposals.length} total`}
         actions={
-          <Button onClick={() => setShowNew(true)}>
-            <Plus size={16} /> New Proposal
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setShowSupportWizard(true)}>
+              <HeartHandshake size={16} /> New Support Proposal
+            </Button>
+            <Button onClick={() => setShowNew(true)}>
+              <Plus size={16} /> New Proposal
+            </Button>
+          </div>
         }
       />
 
@@ -105,7 +114,18 @@ export function Proposals() {
             )}
             {filtered.map(p => {
               const owner = users.find(u => u.id === p.ownerId);
+              const isSupport = p.proposalType === 'support';
               const totals = calcTotals(p);
+              // For support proposals show MRR; for projects show grand total
+              const displayValue = isSupport && p.supportContract
+                ? (() => {
+                    const sc = p.supportContract;
+                    const baseMRR = sc.pricePerSeat * sc.seats;
+                    const addonMRR = sc.addOns.reduce((s, a) => s + (a.priceType === 'per_seat' ? a.price * sc.seats : a.price), 0);
+                    return baseMRR + addonMRR;
+                  })()
+                : totals.grandTotal;
+              const valueLabel = isSupport ? '/mo' : '';
               return (
                 <tr
                   key={p.id}
@@ -113,7 +133,14 @@ export function Proposals() {
                   className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer group"
                 >
                   <td className="px-5 py-3.5">
-                    <div className="font-medium text-gray-900 dark:text-slate-100 group-hover:text-brand-600">{p.projectName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-gray-900 dark:text-slate-100 group-hover:text-brand-600">{p.projectName}</span>
+                      {isSupport && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                          <Repeat size={9} /> MRC
+                        </span>
+                      )}
+                    </div>
                     {p.ticketRef && <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{p.ticketRef}</div>}
                   </td>
                   <td className="px-4 py-3.5">
@@ -129,7 +156,9 @@ export function Proposals() {
                   <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                   <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400">{owner?.name ?? '—'}</td>
                   <td className="px-4 py-3.5 text-gray-600 dark:text-slate-400 hidden lg:table-cell">{p.accountManager || <span className="text-gray-300 dark:text-slate-600">—</span>}</td>
-                  <td className="px-4 py-3.5 text-right font-semibold text-gray-900 dark:text-slate-100">{fmt(totals.grandTotal)}</td>
+                  <td className="px-4 py-3.5 text-right font-semibold text-gray-900 dark:text-slate-100">
+                    {fmt(displayValue)}{valueLabel && <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{valueLabel}</span>}
+                  </td>
                   <td className="px-4 py-3.5 text-right text-gray-400 dark:text-slate-500">{p.dateModified}</td>
                   <td className="px-4 py-3.5 text-center" onClick={e => e.stopPropagation()}>
                     <button
@@ -154,6 +183,19 @@ export function Proposals() {
       </div>
 
       <NewProposalModal open={showNew} onClose={() => setShowNew(false)} />
+
+      {showSupportWizard && (
+        <SupportProposalWizard
+          onClose={() => setShowSupportWizard(false)}
+          currentUserId={currentUser?.id ?? ''}
+          currentUserName={currentUser?.name ?? currentUser?.email ?? ''}
+          onCreate={(p: Proposal) => {
+            addProposal(p);
+            setShowSupportWizard(false);
+            navigate(`/proposals/${p.id}`);
+          }}
+        />
+      )}
     </div>
   );
 }

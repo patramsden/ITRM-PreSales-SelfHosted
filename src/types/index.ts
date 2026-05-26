@@ -201,6 +201,42 @@ export interface Proposal {
   /** Discount value — £ amount or %, depending on type. 0 = no discount. */
   consultancyDiscountAmount?: number;
   consultancyDiscountNote?: string;
+
+  // ── Support / managed-service contract ───────────────────────────────────
+  /** Discriminator — 'project' is the default behaviour */
+  proposalType?: 'project' | 'support';
+  supportContract?: SupportContract;
+}
+
+// ─── Support / managed-service contract ──────────────────────────────────────
+
+export interface SupportAddOn {
+  id: string;
+  name: string;
+  /** 'per_seat' multiplies by seats; 'flat' is a fixed monthly amount */
+  priceType: 'per_seat' | 'flat';
+  price: number;
+}
+
+export interface SupportContract {
+  /** Service tier label displayed to the client (e.g. "Gold Managed Service") */
+  tier: string;
+  /** Per-seat monthly price for the base tier */
+  pricePerSeat: number;
+  /** Number of users covered */
+  seats: number;
+  /** Contract length in months */
+  term: 12 | 24 | 36;
+  /** How often the client is invoiced */
+  billingCycle: 'monthly' | 'quarterly' | 'annually';
+  /** Optional short description of what the tier covers */
+  tierDescription?: string;
+  /** Additional services layered on top of the base tier */
+  addOns: SupportAddOn[];
+  /** Bullet-point inclusions shown in the proposal */
+  inclusions: string[];
+  /** Bullet-point exclusions shown in the proposal */
+  exclusions: string[];
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────

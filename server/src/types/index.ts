@@ -145,6 +145,31 @@ export interface Proposal {
   consultancyDiscountType?:   'monetary' | 'percentage';
   consultancyDiscountAmount?: number;
   consultancyDiscountNote?:   string;
+
+  // ── Support / managed-service contract ───────────────────────────────────
+  proposalType?: 'project' | 'support';
+  supportContract?: SupportContract;
+}
+
+// ─── Support / managed-service contract ──────────────────────────────────────
+
+export interface SupportAddOn {
+  id: string;
+  name: string;
+  priceType: 'per_seat' | 'flat';
+  price: number;
+}
+
+export interface SupportContract {
+  tier: string;
+  pricePerSeat: number;
+  seats: number;
+  term: 12 | 24 | 36;
+  billingCycle: 'monthly' | 'quarterly' | 'annually';
+  tierDescription?: string;
+  addOns: SupportAddOn[];
+  inclusions: string[];
+  exclusions: string[];
 }
 
 export interface ProposalComment {

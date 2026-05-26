@@ -22,7 +22,8 @@ const BillingTab     = lazy(() => import('../components/proposals/tabs/BillingTa
 const ApprovalsTab   = lazy(() => import('../components/proposals/tabs/ApprovalsTab').then(m => ({ default: m.ApprovalsTab })));
 const DiscountTab    = lazy(() => import('../components/proposals/tabs/DiscountTab').then(m => ({ default: m.DiscountTab })));
 const SowTab         = lazy(() => import('../components/proposals/tabs/SowTab').then(m => ({ default: m.SowTab })));
-const TotalsTab      = lazy(() => import('../components/proposals/tabs/TotalsTab').then(m => ({ default: m.TotalsTab })));
+const TotalsTab         = lazy(() => import('../components/proposals/tabs/TotalsTab').then(m => ({ default: m.TotalsTab })));
+const SupportContractTab = lazy(() => import('../components/proposals/tabs/SupportContractTab').then(m => ({ default: m.SupportContractTab })));
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
 import { ProposalExpiryBanner } from '../components/proposals/ProposalExpiryBanner';
@@ -38,7 +39,9 @@ const DownloadProposalPdfButton = lazy(() =>
   import('../components/proposals/ProposalPdf').then(m => ({ default: m.DownloadProposalPdfButton }))
 );
 
-const TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
+const PROJECT_TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
+const SUPPORT_TABS = ['Summary', 'Support Contract', 'Billing', 'Approvals', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
+type Tab = (typeof PROJECT_TABS)[number] | (typeof SUPPORT_TABS)[number];
 type Tab = (typeof TABS)[number];
 
 export function ProposalWorkspace() {
@@ -49,6 +52,8 @@ export function ProposalWorkspace() {
 
   const proposal = proposals.find(p => p.id === id);
   useDocumentTitle(proposal?.projectName);
+  const isSupport = proposal?.proposalType === 'support';
+  const TABS = isSupport ? SUPPORT_TABS : PROJECT_TABS;
   const [activeTab, setActiveTab] = useState<Tab>('Summary');
   const [showDelete, setShowDelete] = useState(false);
   const [plannerLoading, setPlannerLoading] = useState(false);
@@ -341,6 +346,9 @@ export function ProposalWorkspace() {
           )}
           {activeTab === 'Billing' && (
             <BillingTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Support Contract' && (
+            <SupportContractTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
           )}
           {activeTab === 'Approvals' && (
             <ApprovalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name)} />
