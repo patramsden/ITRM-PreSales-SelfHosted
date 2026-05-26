@@ -22,20 +22,20 @@ interface Props {
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const TRB_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending:  { label: 'Required — not sent',       color: 'text-amber-700  bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
-  sent:     { label: 'Sent for review',            color: 'text-blue-700   bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
-  approved: { label: 'Approved',                   color: 'text-green-700  bg-green-50  border-green-200',  dot: 'bg-green-500'  },
-  rejected: { label: 'Rejected',                   color: 'text-red-700    bg-red-50    border-red-200',    dot: 'bg-red-500'    },
-  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
-  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300', dot: 'bg-orange-500' },
+  pending:  { label: 'Required — not sent',       color: 'text-amber-700  bg-amber-50  border-amber-200  dark:text-amber-300  dark:bg-amber-900/30  dark:border-amber-700',  dot: 'bg-amber-400'  },
+  sent:     { label: 'Sent for review',            color: 'text-blue-700   bg-blue-50   border-blue-200   dark:text-blue-300   dark:bg-blue-900/30   dark:border-blue-700',   dot: 'bg-blue-500'   },
+  approved: { label: 'Approved',                   color: 'text-green-700  bg-green-50  border-green-200  dark:text-green-300  dark:bg-green-900/30  dark:border-green-700',  dot: 'bg-green-500'  },
+  rejected: { label: 'Rejected',                   color: 'text-red-700    bg-red-50    border-red-200    dark:text-red-300    dark:bg-red-900/30    dark:border-red-700',    dot: 'bg-red-500'    },
+  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200   dark:text-slate-400  dark:bg-slate-700     dark:border-slate-600',  dot: 'bg-gray-400'   },
+  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', dot: 'bg-orange-500' },
 };
 
 const FIVEK_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  pending:  { label: 'Required — not booked',     color: 'text-amber-700  bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
-  booked:   { label: 'Meeting booked',             color: 'text-blue-700   bg-blue-50   border-blue-200',   dot: 'bg-blue-500'   },
-  complete: { label: 'Review complete',            color: 'text-green-700  bg-green-50  border-green-200',  dot: 'bg-green-500'  },
-  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
-  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300', dot: 'bg-orange-500' },
+  pending:  { label: 'Required — not booked',     color: 'text-amber-700  bg-amber-50  border-amber-200  dark:text-amber-300  dark:bg-amber-900/30  dark:border-amber-700',  dot: 'bg-amber-400'  },
+  booked:   { label: 'Meeting booked',             color: 'text-blue-700   bg-blue-50   border-blue-200   dark:text-blue-300   dark:bg-blue-900/30   dark:border-blue-700',   dot: 'bg-blue-500'   },
+  complete: { label: 'Review complete',            color: 'text-green-700  bg-green-50  border-green-200  dark:text-green-300  dark:bg-green-900/30  dark:border-green-700',  dot: 'bg-green-500'  },
+  waived:   { label: 'Waived',                     color: 'text-gray-500   bg-gray-50   border-gray-200   dark:text-slate-400  dark:bg-slate-700     dark:border-slate-600',  dot: 'bg-gray-400'   },
+  stale:    { label: 'Re-review required',         color: 'text-orange-700 bg-orange-50 border-orange-300 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', dot: 'bg-orange-500' },
 };
 
 // ─── Customer decision section ────────────────────────────────────────────────
@@ -102,10 +102,10 @@ function CustomerDecisionSection({ proposal }: { proposal: Proposal }) {
             <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
               {links.map(link => {
                 const statusBadge = link.approvalStatus === 'approved'
-                  ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"><CheckCircle size={11} /> Approved</span>
+                  ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700"><CheckCircle size={11} /> Approved</span>
                   : link.approvalStatus === 'rejected'
-                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"><XCircle size={11} /> Rejected</span>
-                    : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"><Clock size={11} /> Pending</span>;
+                    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700"><XCircle size={11} /> Rejected</span>
+                    : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700"><Clock size={11} /> Pending</span>;
 
                 return (
                   <tr key={link.token} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
@@ -210,11 +210,11 @@ function AttendeeInput({
 // ─── Discount Approval section ────────────────────────────────────────────────
 
 const DISCOUNT_STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  not_required: { label: 'Not required',     color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
-  pending:      { label: 'Approval required', color: 'text-amber-700 bg-amber-50  border-amber-200',  dot: 'bg-amber-400'  },
-  approved:     { label: 'Approved',          color: 'text-green-700 bg-green-50  border-green-200',  dot: 'bg-green-500'  },
-  waived:       { label: 'Waived',            color: 'text-gray-500  bg-gray-50   border-gray-200',   dot: 'bg-gray-400'   },
-  stale:        { label: 'Re-approval needed',color: 'text-orange-700 bg-orange-50 border-orange-300',dot: 'bg-orange-500' },
+  not_required: { label: 'Not required',      color: 'text-gray-500   bg-gray-50   border-gray-200   dark:text-slate-400  dark:bg-slate-700     dark:border-slate-600',  dot: 'bg-gray-400'   },
+  pending:      { label: 'Approval required', color: 'text-amber-700  bg-amber-50  border-amber-200  dark:text-amber-300  dark:bg-amber-900/30  dark:border-amber-700',  dot: 'bg-amber-400'  },
+  approved:     { label: 'Approved',          color: 'text-green-700  bg-green-50  border-green-200  dark:text-green-300  dark:bg-green-900/30  dark:border-green-700',  dot: 'bg-green-500'  },
+  waived:       { label: 'Waived',            color: 'text-gray-500   bg-gray-50   border-gray-200   dark:text-slate-400  dark:bg-slate-700     dark:border-slate-600',  dot: 'bg-gray-400'   },
+  stale:        { label: 'Re-approval needed',color: 'text-orange-700 bg-orange-50 border-orange-300 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', dot: 'bg-orange-500' },
 };
 
 function DiscountApprovalSection({ proposal, editable, onUpdate }: Props) {
@@ -296,7 +296,7 @@ function DiscountApprovalSection({ proposal, editable, onUpdate }: Props) {
               {/* Approved/waived display */}
               {(status === 'approved' || status === 'waived') && (
                 <div className={clsx('flex items-start gap-3 p-4 rounded-xl border',
-                  status === 'approved' ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200')}>
+                  status === 'approved' ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700' : 'bg-gray-50 border-gray-200 dark:bg-slate-700/50 dark:border-slate-600')}>
                   <CheckCircle size={16} className={clsx('mt-0.5 flex-shrink-0', status === 'approved' ? 'text-green-600' : 'text-gray-400')} />
                   <div className="text-sm space-y-1">
                     <div className="font-semibold text-gray-900 dark:text-slate-100 capitalize">{status}</div>
@@ -447,7 +447,7 @@ export function ApprovalsTab({ proposal, editable, onUpdate }: Props) {
                 {/* Reviewer info */}
                 {(trbStatus === 'approved' || trbStatus === 'rejected') && (
                   <div className={clsx('flex items-start gap-3 p-4 rounded-xl border',
-                    trbStatus === 'approved' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
+                    trbStatus === 'approved' ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-700')}>
                     {trbStatus === 'approved'
                       ? <CheckCircle size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
                       : <XCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />}
