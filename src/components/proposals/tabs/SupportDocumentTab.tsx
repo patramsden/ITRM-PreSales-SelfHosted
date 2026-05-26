@@ -21,6 +21,7 @@ import { canAccessAdmin } from '../../../utils/permissions';
 import { settingsApi } from '../../../lib/api';
 import type { AppSettings } from '../../../lib/api';
 import type { Proposal, SupportContract, SupportScopeItem } from '../../../types';
+import { DownloadSupportPdfButton } from '../SupportPdf';
 
 // ─── Default boilerplate text ─────────────────────────────────────────────────
 
@@ -567,12 +568,25 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
             ? 'Hover over any boilerplate section and click the pencil icon to edit it globally.'
             : 'Boilerplate sections are managed by your administrator in Settings → Support Document.'}
         </div>
-        <button
-          onClick={handlePrint}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          <Printer size={14} /> Print / Save PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            title="Browser print dialog"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+          >
+            <Printer size={14} /> Print
+          </button>
+          <DownloadSupportPdfButton
+            proposal={proposal}
+            branding={branding}
+            boilerplate={bp}
+            bpImages={bpImages}
+            companyAddress={companyAddress}
+            companyWebsite={companyWebsite}
+            companyPhone={companyPhone}
+            scope={scope}
+          />
+        </div>
       </div>
 
       {/* Document */}
@@ -783,23 +797,32 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               rows={[
                 ['P1 – Critical',         'Servers, Network, Routers, Firewalls, Internet Services',
                   editable
-                    ? <input type="number" value={sc.slaCriticalHours ?? 4} min={1} max={48}
-                        onChange={e => updateSc({ slaCriticalHours: Number(e.target.value) })}
-                        className="w-16 border-0 border-b border-gray-300 text-xs bg-transparent" />
+                    ? <span className="inline-flex items-center gap-1 text-xs">
+                        <input inputMode="numeric" pattern="[0-9]*" value={sc.slaCriticalHours ?? 4}
+                          onChange={e => updateSc({ slaCriticalHours: Number(e.target.value) || 1 })}
+                          className="w-10 text-center border-0 border-b border-gray-400 focus:border-brand-500 focus:outline-none bg-transparent text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        {' '}Working Hours
+                      </span>
                     : `${sc.slaCriticalHours ?? 4} Working Hours`
                 ],
                 ['P2 – Standard',         'Workstations, Printers, Scanners, Peripherals, Standard Software',
                   editable
-                    ? <input type="number" value={sc.slaStandardHours ?? 8} min={1} max={48}
-                        onChange={e => updateSc({ slaStandardHours: Number(e.target.value) })}
-                        className="w-16 border-0 border-b border-gray-300 text-xs bg-transparent" />
+                    ? <span className="inline-flex items-center gap-1 text-xs">
+                        <input inputMode="numeric" pattern="[0-9]*" value={sc.slaStandardHours ?? 8}
+                          onChange={e => updateSc({ slaStandardHours: Number(e.target.value) || 1 })}
+                          className="w-10 text-center border-0 border-b border-gray-400 focus:border-brand-500 focus:outline-none bg-transparent text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        {' '}Working Hours
+                      </span>
                     : `${sc.slaStandardHours ?? 8} Working Hours`
                 ],
                 ['P3 – Service Request',  'User Set-ups, Deletions, Permissions, Software Config',
                   editable
-                    ? <input type="number" value={sc.slaServiceRequestHours ?? 24} min={1} max={72}
-                        onChange={e => updateSc({ slaServiceRequestHours: Number(e.target.value) })}
-                        className="w-16 border-0 border-b border-gray-300 text-xs bg-transparent" />
+                    ? <span className="inline-flex items-center gap-1 text-xs">
+                        <input inputMode="numeric" pattern="[0-9]*" value={sc.slaServiceRequestHours ?? 24}
+                          onChange={e => updateSc({ slaServiceRequestHours: Number(e.target.value) || 1 })}
+                          className="w-10 text-center border-0 border-b border-gray-400 focus:border-brand-500 focus:outline-none bg-transparent text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        {' '}Working Hours
+                      </span>
                     : `${sc.slaServiceRequestHours ?? 24} Working Hours`
                 ],
               ]}
@@ -907,12 +930,12 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
               <div className="flex items-center gap-3 mt-2 text-xs print:hidden">
                 <label className="text-gray-600">Onboarding cost:</label>
                 <input
-                  type="number"
-                  min={0}
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={sc.onboardingCost ?? ''}
                   placeholder="0.00"
                   onChange={e => updateSc({ onboardingCost: e.target.value ? Number(e.target.value) : undefined })}
-                  className="w-28 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                  className="w-28 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
               </div>
             )}
@@ -924,9 +947,9 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
             <div className="text-xs text-gray-700 mb-6">
               {contractTerm} with{' '}
               {editable
-                ? <input type="number" value={noticePeriod} min={1}
+                ? <input inputMode="numeric" pattern="[0-9]*" value={noticePeriod}
                     onChange={e => updateSc({ noticePeriod: e.target.value })}
-                    className="w-12 border-b border-gray-400 focus:outline-none text-xs bg-transparent inline" />
+                    className="w-12 text-center border-b border-gray-400 focus:outline-none text-xs bg-transparent inline [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                 : noticePeriod
               }{' '}
               days written notice required prior to the end of the contract term.
