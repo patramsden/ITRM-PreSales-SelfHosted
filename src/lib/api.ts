@@ -236,6 +236,19 @@ export interface AppSettings {
   // Ticket panel (proposal summary tab) configuration
   'crm.tickets.queueIds'?:  string;  // comma-separated numeric queue IDs
   'crm.tickets.daysBack'?:  string;  // number of days to look back (default 90)
+
+  // Support proposal document — company boilerplate sections
+  'support.doc.intro'?:                string;
+  'support.doc.background'?:           string;
+  'support.doc.staff'?:                string;
+  'support.doc.certifications'?:       string;
+  'support.doc.serviceRequirements'?:  string;
+  'support.doc.businessRequirements'?: string;
+  'support.doc.contractualTerms'?:     string;
+  'support.doc.confidentialityNotice'?:string;
+  'support.doc.companyAddress'?:       string;  // footer address line
+  'support.doc.companyWebsite'?:       string;  // footer website
+  'support.doc.companyPhone'?:         string;  // footer phone
 }
 
 export const settingsApi = {

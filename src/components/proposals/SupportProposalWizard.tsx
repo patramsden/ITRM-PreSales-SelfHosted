@@ -8,8 +8,8 @@
  */
 import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { X, ChevronRight, ChevronLeft, Plus, Trash2, Check } from 'lucide-react';
-import type { Proposal, SupportContract, SupportAddOn, Currency } from '../../types';
+import { X, ChevronRight, ChevronLeft, Plus, Trash2, Check, ChevronDown } from 'lucide-react';
+import type { Proposal, SupportContract, SupportAddOn, SupportScopeItem, Currency } from '../../types';
 import { AutotaskCompanyPicker } from '../crm/AutotaskPicker';
 import { useStore } from '../../store';
 import clsx from 'clsx';
@@ -105,7 +105,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 export function SupportProposalWizard({ onClose, onCreate, currentUserId, currentUserName }: Props) {
   const [step, setStep] = useState(0);
 
-  // Step 1 state
+  // Step 1 state — core
   const [projectName,    setProjectName]    = useState('');
   const [client,         setClient]         = useState('');
   const [crmCompanyId,   setCrmCompanyId]   = useState<string | undefined>(undefined);
@@ -113,6 +113,18 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
   const [currency,       setCurrency]       = useState<Currency>('GBP');
   const [term,           setTerm]           = useState<12 | 24 | 36>(24);
   const [billingCycle,   setBillingCycle]   = useState<SupportContract['billingCycle']>('monthly');
+
+  // Step 1 state — contact & document details (optional/advanced)
+  const [showAdvanced,      setShowAdvanced]      = useState(false);
+  const [contactName,       setContactName]       = useState('');
+  const [contactTitle,      setContactTitle]      = useState('');
+  const [contactEmail,      setContactEmail]      = useState('');
+  const [contactPhone,      setContactPhone]      = useState('');
+  const [contactMobile,     setContactMobile]     = useState('');
+  const [contactAddress,    setContactAddress]    = useState('');
+  const [clientContactName, setClientContactName] = useState('');
+  const [commencementDate,  setCommencementDate]  = useState('');
+  const [site,              setSite]              = useState('');
 
   // Step 2 state
   const [tier,             setTier]            = useState('Gold Managed Service');
@@ -163,6 +175,17 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
       tier, tierDescription, pricePerSeat: priceNum,
       seats: seatsNum, term, billingCycle,
       addOns, inclusions, exclusions,
+      // contact / document fields
+      ...(contactName       && { contactName }),
+      ...(contactTitle      && { contactTitle }),
+      ...(contactEmail      && { contactEmail }),
+      ...(contactPhone      && { contactPhone }),
+      ...(contactMobile     && { contactMobile }),
+      ...(contactAddress    && { contactAddress }),
+      ...(clientContactName && { clientContactName }),
+      ...(commencementDate  && { commencementDate }),
+      ...(site              && { site }),
+      documentVersion: '1.0',
     };
     const proposal: Proposal = {
       id:           uuid(),
@@ -290,6 +313,52 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Advanced / Document details */}
+              <div className="border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <span>Document & Contact Details <span className="text-xs font-normal text-gray-400">(optional)</span></span>
+                  <ChevronDown size={14} className={clsx('transition-transform', showAdvanced && 'rotate-180')} />
+                </button>
+                {showAdvanced && (
+                  <div className="px-4 pb-4 pt-1 grid grid-cols-2 gap-3 border-t border-gray-100 dark:border-slate-700">
+                    {([
+                      ['Contact Name (MSP)', contactName, setContactName, 'text'],
+                      ['Contact Title',      contactTitle, setContactTitle, 'text'],
+                      ['Contact Email',      contactEmail, setContactEmail, 'email'],
+                      ['Contact Phone',      contactPhone, setContactPhone, 'text'],
+                      ['Contact Mobile',     contactMobile, setContactMobile, 'text'],
+                      ['Client Contact Name', clientContactName, setClientContactName, 'text'],
+                      ['Contract Start Date', commencementDate, setCommencementDate, 'date'],
+                      ['Site / Location',    site, setSite, 'text'],
+                    ] as const).map(([label, val, setter, type]) => (
+                      <div key={label}>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">{label}</label>
+                        <input
+                          type={type}
+                          value={val}
+                          onChange={e => (setter as (v: string) => void)(e.target.value)}
+                          className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+                    ))}
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Contact Address</label>
+                      <input
+                        type="text"
+                        value={contactAddress}
+                        onChange={e => setContactAddress(e.target.value)}
+                        placeholder="Office address"
+                        className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -15,10 +15,11 @@ export interface User {
   avatar?: string;
   appRole: AppRole;
   authProvider: AuthProvider;
+  totpEnabled?: boolean;
+  /** False when the account has been deprovisioned via SCIM. Defaults to true. */
+  isActive?: boolean;
   /** SAML NameID — used to look up the user on subsequent SAML logins. Server-only; never sent to the frontend. */
   samlNameId?: string;
-  /** False when deprovisioned via SCIM. Defaults to true. */
-  isActive?: boolean;
 }
 
 // ─── Proposal roles ──────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ export interface ConsultancyPhase {
   tasks: ConsultancyTask[];
 }
 
-// ─── Billing milestones ──────────────────────────────────────────────────────
+// ─── Billing milestones ───────────────────────────────────────────────────────
 
 export type MilestoneStatus = 'pending' | 'invoiced' | 'paid';
 
@@ -84,9 +85,8 @@ export interface BillingMilestone {
   name: string;
   percentage: number;
   dueDate?: string;
-  phaseId?: string;
-  notes?: string;
   status: MilestoneStatus;
+  notes?: string;
 }
 
 // ─── Proposal ────────────────────────────────────────────────────────────────
@@ -120,16 +120,29 @@ export interface Proposal {
   trbReviewedBy?: string;
   trbReviewedAt?: string;
   fiveKStatus?: 'pending' | 'booked' | 'complete' | 'waived' | 'stale';
-  fiveKAttendees?: string[];
-  fiveKNotes?: string;
-  fiveKMeetingDate?: string;
+
+  // 5K review enrichment
+  fiveKAttendees?: string[];   // list of attendee names
+  fiveKNotes?: string;         // meeting notes
+  fiveKMeetingDate?: string;   // ISO date string
+
+  // Billing milestones
   milestones?: BillingMilestone[];
+
+  // CRM
+  /** Name of the primary contact at the client company */
   clientContact?: string;
+  /** Autotask company ID — enables contact lookup within the proposal */
   crmCompanyId?: string;
+
+  /** When true, consultancy GP uses the actual rate card costRate instead of the default 70% of sell */
   useRateCardCost?: boolean;
+
   lastModifiedBy?: string;
   lastModifiedAt?: string;
+
   reference?: string;
+
   trbApprovedFingerprint?: string;
   fiveKApprovedFingerprint?: string;
   wonLostReason?: string;
@@ -142,9 +155,11 @@ export interface Proposal {
   discountApprovedAt?: string;
   discountApprovalNote?: string;
   atProjectId?: string;
-  consultancyDiscountType?:   'monetary' | 'percentage';
+
+  // ── Consultancy discount ──────────────────────────────────────────────────
+  consultancyDiscountType?: 'monetary' | 'percentage';
   consultancyDiscountAmount?: number;
-  consultancyDiscountNote?:   string;
+  consultancyDiscountNote?: string;
 
   // ── Support / managed-service contract ───────────────────────────────────
   proposalType?: 'project' | 'support';

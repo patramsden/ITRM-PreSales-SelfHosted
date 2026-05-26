@@ -15,7 +15,7 @@ import {
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
   Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
   Layout, GripVertical, ChevronUp, ChevronDown as ChevronDownIcon,
-  AlertTriangle, Database, Download, Tag,
+  AlertTriangle, Database, Download, Tag, FileText,
 } from 'lucide-react';
 import { parseLayout } from '../types/layout';
 import type { ProposalLayoutConfig, LayoutSection } from '../types/layout';
@@ -40,7 +40,8 @@ const TABS: Tab[] = [
   { id: 'api',          label: 'API Access',          icon: Plug,          adminOnly: true  },
   { id: 'email',        label: 'Email',               icon: Mail,          adminOnly: true  },
   { id: 'layout',       label: 'Proposal Layout',     icon: Layout,        adminOnly: true  },
-  { id: 'backup',       label: 'Backup & Restore',    icon: Database,      adminOnly: true  },
+  { id: 'backup',        label: 'Backup & Restore',    icon: Database,      adminOnly: true  },
+  { id: 'support-doc',  label: 'Support Document',    icon: FileText,      adminOnly: true  },
   { id: 'about',        label: 'About',               icon: Info,          adminOnly: false },
 ];
 
@@ -2290,6 +2291,86 @@ function LayoutTab({ settings, onChange, isAdmin }: { settings: AppSettings; onC
 
 // ─── Main Settings page ───────────────────────────────────────────────────────
 
+// ─── Support Document boilerplate tab ────────────────────────────────────────
+
+const SUPPORT_DOC_SECTIONS: Array<{ key: keyof AppSettings; label: string; description: string; rows: number }> = [
+  { key: 'support.doc.companyAddress',       label: 'Company Address (footer)',     description: 'Shown in document footer on every page.',                       rows: 2  },
+  { key: 'support.doc.companyWebsite',       label: 'Website (footer)',             description: 'e.g. www.yourcompany.co.uk',                                    rows: 1  },
+  { key: 'support.doc.companyPhone',         label: 'Phone (footer)',               description: 'e.g. +44 (0) 20 1234 5678',                                    rows: 1  },
+  { key: 'support.doc.confidentialityNotice',label: 'Confidentiality Notice (§1)',  description: 'Appears at the start of every proposal under Section 1.',       rows: 6  },
+  { key: 'support.doc.intro',                label: 'Company Introduction (§2)',    description: 'Your "About Us" narrative. Use plain text with bullet points.', rows: 10 },
+  { key: 'support.doc.background',           label: 'Company Background (§3)',      description: 'Services, sectors and global reach.',                           rows: 10 },
+  { key: 'support.doc.staff',                label: 'Staff & Qualifications (§4)',  description: 'Staffing numbers, certifications, vetting process.',            rows: 10 },
+  { key: 'support.doc.certifications',       label: 'Certifications (§5)',          description: 'Accreditations, awards, partner status.',                      rows: 8  },
+  { key: 'support.doc.serviceRequirements',  label: 'Service Requirements (§6)',    description: 'Help desk, hours, onsite, patch management, monitoring.',       rows: 14 },
+  { key: 'support.doc.businessRequirements', label: 'Business Requirements (§7)',   description: 'Account management, onboarding, compliance, reporting.',        rows: 12 },
+  { key: 'support.doc.contractualTerms',     label: 'Contractual Requirements (§8)',description: 'Contract length, SLA overview, software support, passwords.',   rows: 12 },
+];
+
+function SupportDocTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await settingsApi.update(settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isAdmin) {
+    return <p className="text-sm text-gray-500">Only administrators can edit the Support Document boilerplate.</p>;
+  }
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-1">Support Document Templates</h2>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+        These boilerplate sections appear in every support proposal document. Changes apply to all future proposals.
+        You can also edit individual sections inline inside the Document tab on any proposal.
+      </p>
+
+      <div className="space-y-6">
+        {SUPPORT_DOC_SECTIONS.map(({ key, label, description, rows }) => (
+          <div key={key}>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-0.5">{label}</label>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mb-1">{description}</p>
+            <textarea
+              value={(settings[key] as string) ?? ''}
+              onChange={e => onChange({ ...settings, [key]: e.target.value })}
+              rows={rows}
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder={`Enter ${label.toLowerCase()} text…`}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? 'Saving…' : 'Save All'}
+        </button>
+        {saved && (
+          <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+            <CheckCircle size={14} /> Saved
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Settings page ───────────────────────────────────────────────────────
+
 export function Settings() {
   useDocumentTitle('Settings');
   const { currentUser } = useAuth();
@@ -2360,6 +2441,7 @@ export function Settings() {
           {activeTab === 'email'         && settingsLoaded && <EmailTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'layout'        && settingsLoaded && <LayoutTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'backup'        && <BackupTab isAdmin={isAdmin} />}
+          {activeTab === 'support-doc'   && settingsLoaded && <SupportDocTab settings={appSettings} onChange={setAppSettings} isAdmin={isAdmin} />}
           {activeTab === 'about'         && <AboutTab appSettings={appSettings} />}
         </div>
       </div>

@@ -218,6 +218,14 @@ export interface SupportAddOn {
   price: number;
 }
 
+export interface SupportScopeItem {
+  id: string;
+  /** Description of the service */
+  service: string;
+  /** Whether this service is included (√) or excluded (✗) */
+  included: boolean;
+}
+
 export interface SupportContract {
   /** Service tier label displayed to the client (e.g. "Gold Managed Service") */
   tier: string;
@@ -237,6 +245,42 @@ export interface SupportContract {
   inclusions: string[];
   /** Bullet-point exclusions shown in the proposal */
   exclusions: string[];
+
+  // ── Document generation fields ─────────────────────────────────────────────
+  /** MSP contact name for the proposal cover/header */
+  contactName?: string;
+  /** MSP contact designation/title */
+  contactTitle?: string;
+  /** MSP contact email */
+  contactEmail?: string;
+  /** MSP contact phone */
+  contactPhone?: string;
+  /** MSP contact mobile */
+  contactMobile?: string;
+  /** MSP contact address (shown in contact section) */
+  contactAddress?: string;
+  /** Client contact name (Prepared For) */
+  clientContactName?: string;
+  /** Contract commencement date (ISO date string) */
+  commencementDate?: string;
+  /** Notice period (days, default "90") */
+  noticePeriod?: string;
+  /** Payment terms free-text (default "Monthly in advance") */
+  paymentTermsText?: string;
+  /** Client site / location */
+  site?: string;
+  /** Critical systems SLA – working hours to resolve (default 4) */
+  slaCriticalHours?: number;
+  /** Standard systems SLA – working hours to resolve (default 8) */
+  slaStandardHours?: number;
+  /** Service requests SLA – working hours to respond (default 24) */
+  slaServiceRequestHours?: number;
+  /** One-time onboarding / setup cost (added to Year 1 commercial overview) */
+  onboardingCost?: number;
+  /** Scope of services table entries for Schedule 1 */
+  scopeOfServices?: SupportScopeItem[];
+  /** Document version string (default "1.0") */
+  documentVersion?: string;
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────

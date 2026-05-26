@@ -23,7 +23,8 @@ const ApprovalsTab   = lazy(() => import('../components/proposals/tabs/Approvals
 const DiscountTab    = lazy(() => import('../components/proposals/tabs/DiscountTab').then(m => ({ default: m.DiscountTab })));
 const SowTab         = lazy(() => import('../components/proposals/tabs/SowTab').then(m => ({ default: m.SowTab })));
 const TotalsTab         = lazy(() => import('../components/proposals/tabs/TotalsTab').then(m => ({ default: m.TotalsTab })));
-const SupportContractTab = lazy(() => import('../components/proposals/tabs/SupportContractTab').then(m => ({ default: m.SupportContractTab })));
+const SupportContractTab  = lazy(() => import('../components/proposals/tabs/SupportContractTab').then(m => ({ default: m.SupportContractTab })));
+const SupportDocumentTab  = lazy(() => import('../components/proposals/tabs/SupportDocumentTab').then(m => ({ default: m.SupportDocumentTab })));
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
 import { ProposalExpiryBanner } from '../components/proposals/ProposalExpiryBanner';
@@ -40,9 +41,8 @@ const DownloadProposalPdfButton = lazy(() =>
 );
 
 const PROJECT_TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
-const SUPPORT_TABS = ['Summary', 'Support Contract', 'Billing', 'Approvals', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
+const SUPPORT_TABS = ['Summary', 'Support Contract', 'Document', 'Billing', 'Approvals', 'Comments'] as const;
 type Tab = (typeof PROJECT_TABS)[number] | (typeof SUPPORT_TABS)[number];
-type Tab = (typeof TABS)[number];
 
 export function ProposalWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -349,6 +349,9 @@ export function ProposalWorkspace() {
           )}
           {activeTab === 'Support Contract' && (
             <SupportContractTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Document' && (
+            <SupportDocumentTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
           )}
           {activeTab === 'Approvals' && (
             <ApprovalsTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name)} />
