@@ -144,6 +144,10 @@ export interface Proposal {
   // CRM
   /** Name of the primary contact at the client company */
   clientContact?: string;
+  /** Email address of the primary contact (populated from CRM) */
+  clientContactEmail?: string;
+  /** Postal address of the client (populated from CRM company record) */
+  clientAddress?: string;
   /** Autotask company ID — enables contact lookup within the proposal */
   crmCompanyId?: string;
 

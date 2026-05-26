@@ -168,6 +168,42 @@ router.get('/companies', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
+// ─── GET /crm/company-address?id= ────────────────────────────────────────────
+
+router.get('/company-address', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json({}); return; }
+    const id = parseInt((req.query.id as string) ?? '');
+    if (isNaN(id)) { res.status(400).json({ error: 'id required' }); return; }
+
+    const companies = await atQuery<Record<string, unknown>>(
+      creds, 'Companies',
+      [{ field: 'id', op: 'eq', value: id }],
+      undefined, 1
+    );
+    if (!companies[0]) { res.json({}); return; }
+
+    const raw = companies[0];
+    const getField = (...names: string[]): string | undefined => {
+      for (const name of names) {
+        const key = Object.keys(raw).find(k => k.toLowerCase() === name.toLowerCase());
+        if (key && raw[key]) return String(raw[key]);
+      }
+      return undefined;
+    };
+
+    res.json({
+      address1:   getField('address1'),
+      address2:   getField('address2'),
+      city:       getField('city'),
+      state:      getField('state'),
+      postalCode: getField('postalCode', 'zipCode', 'postalcode', 'zipcode'),
+      country:    getField('country', 'countryID'),
+    });
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
 router.get('/contacts', requireAuth, async (req, res) => {
   try {
     const creds = await getCreds();

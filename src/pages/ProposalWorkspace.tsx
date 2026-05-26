@@ -24,6 +24,7 @@ const DiscountTab    = lazy(() => import('../components/proposals/tabs/DiscountT
 const SowTab         = lazy(() => import('../components/proposals/tabs/SowTab').then(m => ({ default: m.SowTab })));
 const TotalsTab         = lazy(() => import('../components/proposals/tabs/TotalsTab').then(m => ({ default: m.TotalsTab })));
 const SupportContractTab  = lazy(() => import('../components/proposals/tabs/SupportContractTab').then(m => ({ default: m.SupportContractTab })));
+const SupportTotalsTab    = lazy(() => import('../components/proposals/tabs/SupportTotalsTab').then(m => ({ default: m.SupportTotalsTab })));
 const SupportDocumentTab  = lazy(() => import('../components/proposals/tabs/SupportDocumentTab').then(m => ({ default: m.SupportDocumentTab })));
 import { TrbReviewBanner } from '../components/proposals/TrbReviewBanner';
 import { VendorQuoteExpiryBanner } from '../components/proposals/VendorQuoteExpiryBanner';
@@ -149,7 +150,7 @@ function ProposalProgressBar({
 }
 
 const PROJECT_TABS = ['Summary', 'Parts', 'Consultancy', 'Billing', 'Approvals', 'Discount', 'Statement of Work', 'Totals & Approval', 'Comments'] as const;
-const SUPPORT_TABS = ['Summary', 'Support Contract', 'Document', 'Billing', 'Approvals', 'Comments'] as const;
+const SUPPORT_TABS = ['Summary', 'Support Contract', 'Totals', 'Document', 'Billing', 'Approvals', 'Comments'] as const;
 type Tab = (typeof PROJECT_TABS)[number] | (typeof SUPPORT_TABS)[number];
 
 export function ProposalWorkspace() {
@@ -464,6 +465,9 @@ export function ProposalWorkspace() {
           )}
           {activeTab === 'Support Contract' && (
             <SupportContractTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />
+          )}
+          {activeTab === 'Totals' && isSupport && (
+            <SupportTotalsTab proposal={proposal} />
           )}
           {activeTab === 'Document' && (
             <SupportDocumentTab proposal={proposal} editable={editable} onUpdate={u => updateProposal(proposal.id, u, currentUser?.name ?? currentUser?.email)} />

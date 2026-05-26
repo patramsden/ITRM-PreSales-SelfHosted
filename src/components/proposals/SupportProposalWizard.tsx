@@ -9,7 +9,9 @@ import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { X, ChevronDown, Check, Users, Clock, Plus, Trash2 } from 'lucide-react';
 import type { Proposal, SupportContract, SupportAddOn, SupportHours, Currency, CatalogItem } from '../../types';
-import { AutotaskCompanyPicker } from '../crm/AutotaskPicker';
+import { AutotaskCompanyPicker, AutotaskContactPicker } from '../crm/AutotaskPicker';
+import { crmApi } from '../../lib/api';
+import type { CrmCompanyAddress } from '../../lib/api';
 import { useStore } from '../../store';
 import clsx from 'clsx';
 
@@ -245,8 +247,32 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
   const [contactMobile,     setContactMobile]     = useState('');
   const [contactAddress,    setContactAddress]    = useState('');
   const [clientContactName, setClientContactName] = useState('');
+  const [clientContactEmail, setClientContactEmail] = useState('');
   const [commencementDate,  setCommencementDate]  = useState('');
   const [site,              setSite]              = useState('');
+
+  // ── CRM address fetch ──────────────────────────────────────────────
+  const fetchCompanyAddress = async (id: string) => {
+    const companyId = parseInt(id);
+    if (isNaN(companyId)) return;
+    try {
+      const addr = await crmApi.getCompanyAddress(companyId) as CrmCompanyAddress;
+      const parts = [addr.address1, addr.address2, addr.city, addr.state, addr.postalCode, addr.country]
+        .filter(Boolean);
+      if (parts.length > 0 && !contactAddress) {
+        setContactAddress(parts.join(', '));
+      }
+    } catch { /* best-effort */ }
+  };
+
+  const fetchAccountManager = async (id: string) => {
+    const companyId = parseInt(id);
+    if (isNaN(companyId)) return;
+    try {
+      const result = await crmApi.getAccountManager(companyId) as { name: string | null };
+      if (result.name) setAccountManager(result.name);
+    } catch { /* best-effort */ }
+  };
 
   // ── Step 2: Users & add-ons ───────────────────────────────────────────
   const [seats,         setSeats]         = useState<number | ''>(10);
@@ -305,6 +331,9 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
       client,
       crmCompanyId,
       accountManager,
+      clientContact:      clientContactName || undefined,
+      clientContactEmail: clientContactEmail || undefined,
+      clientAddress:      contactAddress || undefined,
       currency,
       status:         'New',
       dateCreated:    new Date().toISOString().split('T')[0],
@@ -357,6 +386,10 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
                     setClient(name);
                     setCrmCompanyId(id);
                     if (!projectName) setProjectName(`Managed Service — ${name}`);
+                    if (id) {
+                      fetchAccountManager(id);
+                      fetchCompanyAddress(id);
+                    }
                   }}
                   placeholder="Search Autotask or type client name…"
                 />
@@ -515,7 +548,6 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
                       ['Contact Email',      contactEmail,      setContactEmail,      'email'],
                       ['Contact Phone',      contactPhone,      setContactPhone,      'text'],
                       ['Contact Mobile',     contactMobile,     setContactMobile,     'text'],
-                      ['Client Contact',     clientContactName, setClientContactName, 'text'],
                       ['Contract Start',     commencementDate,  setCommencementDate,  'date'],
                       ['Site / Location',    site,              setSite,              'text'],
                     ] as const).map(([label, val, setter, type]) => (
@@ -529,11 +561,37 @@ export function SupportProposalWizard({ onClose, onCreate, currentUserId, curren
                         />
                       </div>
                     ))}
+                    {/* Client contact — CRM picker when company linked */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Client Contact Name</label>
+                      <AutotaskContactPicker
+                        value={clientContactName}
+                        crmCompanyId={crmCompanyId}
+                        onChange={(name, email) => {
+                          setClientContactName(name);
+                          if (email) setClientContactEmail(email);
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Client Contact Email</label>
+                      <input
+                        type="email"
+                        value={clientContactEmail}
+                        onChange={e => setClientContactEmail(e.target.value)}
+                        placeholder="auto-filled from CRM"
+                        className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Contact Address</label>
-                      <input type="text" value={contactAddress} onChange={e => setContactAddress(e.target.value)}
-                        placeholder="Office address"
-                        className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                      <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Client Address</label>
+                      <textarea
+                        value={contactAddress}
+                        onChange={e => setContactAddress(e.target.value)}
+                        rows={3}
+                        placeholder="Auto-filled from CRM, or type manually…"
+                        className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                      />
                     </div>
                   </div>
                 )}

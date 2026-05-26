@@ -156,7 +156,8 @@ export function AutotaskCompanyPicker({ value, crmId, onChange, disabled, placeh
 interface ContactPickerProps {
   value:         string;
   crmCompanyId?: string;
-  onChange:      (name: string) => void;
+  /** Called with (name, email?) whenever the selected contact changes */
+  onChange:      (name: string, email?: string) => void;
   disabled?:     boolean;
 }
 
@@ -174,6 +175,14 @@ export function AutotaskContactPicker({ value, crmCompanyId, onChange, disabled 
       .catch(() => { setContacts([]); setManual(true); })
       .finally(() => setLoading(false));
   }, [crmCompanyId]);
+
+  const handleSelect = (contactId: string) => {
+    if (!contactId) { onChange('', undefined); return; }
+    const contact = contacts.find(c => String(c.id) === contactId);
+    if (!contact) { onChange('', undefined); return; }
+    const name = `${contact.firstName} ${contact.lastName}`.trim();
+    onChange(name, contact.emailAddress ?? undefined);
+  };
 
   // No CRM company linked — plain text
   if (!crmCompanyId || manual) {
@@ -202,24 +211,34 @@ export function AutotaskContactPicker({ value, crmCompanyId, onChange, disabled 
     );
   }
 
+  // Find the currently-selected contact ID from the name value
+  const selectedContact = contacts.find(c => `${c.firstName} ${c.lastName}`.trim() === value);
+  const selectedId = selectedContact ? String(selectedContact.id) : '';
+
   return (
     <div>
       <div className="relative">
         <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <select
           className={clsx(INPUT_CLS, 'pl-8 dark:bg-slate-700')}
-          value={value}
-          onChange={e => onChange(e.target.value)}
+          value={selectedId}
+          onChange={e => handleSelect(e.target.value)}
           disabled={disabled}
         >
           <option value="">— Select contact —</option>
           {contacts.map(c => {
             const name = `${c.firstName} ${c.lastName}`.trim();
             const label = c.title ? `${name} (${c.title})` : name;
-            return <option key={c.id} value={name}>{label}</option>;
+            return <option key={c.id} value={String(c.id)}>{label}</option>;
           })}
         </select>
       </div>
+      {/* Show email of selected contact as a hint */}
+      {selectedContact?.emailAddress && (
+        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+          <span className="opacity-60">✉</span> {selectedContact.emailAddress}
+        </p>
+      )}
       <button
         type="button"
         onClick={() => setManual(true)}

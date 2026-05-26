@@ -108,6 +108,15 @@ export interface CrmCompany {
   city?: string;
 }
 
+export interface CrmCompanyAddress {
+  address1?: string;
+  address2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+}
+
 export interface CrmContact {
   id: number;
   firstName: string;
@@ -146,6 +155,8 @@ export const crmApi = {
     api.get<AtPicklistValue[]>(`crm/picklist?entity=${encodeURIComponent(entity)}&field=${encodeURIComponent(field)}`),
   getTickets:         (companyId: number) =>
     api.get<CrmTicket[]>(`crm/tickets?companyId=${companyId}`),
+  getCompanyAddress:  (companyId: number) =>
+    api.get<CrmCompanyAddress>(`crm/company-address?id=${companyId}`),
 };
 
 export const lookupsApi = {

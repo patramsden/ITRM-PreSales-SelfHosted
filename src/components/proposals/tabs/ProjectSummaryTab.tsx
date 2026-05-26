@@ -6,7 +6,7 @@ import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
 import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
 import { crmApi } from '../../../lib/api';
-import type { CrmTicket } from '../../../lib/api';
+import type { CrmTicket, CrmCompanyAddress } from '../../../lib/api';
 import type { ProposalStatus, Currency } from '../../../types';
 
 type AmLookupState = 'idle' | 'loading' | 'found' | 'not_found' | 'error';
@@ -83,6 +83,19 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
       const msg = err instanceof Error ? err.message : 'CRM lookup failed';
       setAmStatus({ state: 'error', message: msg });
     }
+  }, [onUpdate]);
+
+  const lookupCompanyAddress = useCallback(async (crmId: string) => {
+    const companyId = parseInt(crmId);
+    if (isNaN(companyId)) return;
+    try {
+      const addr = await crmApi.getCompanyAddress(companyId) as CrmCompanyAddress;
+      const parts = [addr.address1, addr.address2, addr.city, addr.state, addr.postalCode, addr.country]
+        .filter(Boolean);
+      if (parts.length > 0) {
+        onUpdate({ clientAddress: parts.join('\n') });
+      }
+    } catch { /* address fetch is best-effort */ }
   }, [onUpdate]);
 
   const owner = users.find(u => u.id === proposal.ownerId);
@@ -166,7 +179,10 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
                 onChange={(name, id) => {
                   onUpdate({ client: name, crmCompanyId: id });
                   setAmStatus({ state: 'idle' });
-                  if (id) lookupAccountManager(id, name);
+                  if (id) {
+                    lookupAccountManager(id, name);
+                    lookupCompanyAddress(id);
+                  }
                 }}
                 placeholder="Search Autotask or type client name…"
               />
@@ -179,11 +195,19 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               <AutotaskContactPicker
                 value={proposal.clientContact ?? ''}
                 crmCompanyId={proposal.crmCompanyId}
-                onChange={v => onUpdate({ clientContact: v })}
+                onChange={(name, email) => onUpdate({ clientContact: name, clientContactEmail: email ?? proposal.clientContactEmail })}
               />
             ) : (
               <TextInput value={proposal.clientContact ?? ''} onChange={() => {}} disabled placeholder="—" />
             )}
+          </Field>
+          <Field label="Contact Email">
+            <TextInput
+              value={proposal.clientContactEmail ?? ''}
+              onChange={v => onUpdate({ clientContactEmail: v })}
+              disabled={!editable}
+              placeholder="contact@client.com"
+            />
           </Field>
           <Field label="Account Manager">
             <div className="space-y-1">
@@ -274,6 +298,18 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               disabled={!editable}
             />
           </Field>
+          <div className="col-span-2">
+            <Field label="Client Address">
+              <textarea
+                className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 resize-none"
+                value={proposal.clientAddress ?? ''}
+                onChange={e => onUpdate({ clientAddress: e.target.value })}
+                disabled={!editable}
+                rows={3}
+                placeholder={editable ? 'Auto-filled from CRM when a company is linked, or type manually…' : '—'}
+              />
+            </Field>
+          </div>
         </div>
       </div>
 
