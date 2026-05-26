@@ -11,7 +11,7 @@ import {
   pdf, Document, Page, Text, View, Image, StyleSheet,
 } from '@react-pdf/renderer';
 import { FileDown, Loader2, AlertCircle } from 'lucide-react';
-import type { Proposal, SupportContract, SupportScopeItem } from '../../types';
+import type { Proposal, SupportContract, SupportScopeItem, ExtraDocSection } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,8 @@ interface SupportPdfProps {
   companyPhone:   string;
   /** Pre-populated scope from the document tab (with defaults merged in) */
   scope:          SupportScopeItem[];
+  /** Custom extra sections inserted between §8 and Schedule 1 */
+  extraSections?: ExtraDocSection[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -182,6 +184,7 @@ function SubH({ num, title, styles }: { num: string; title: string; styles: Retu
 function SupportPdfDocument({
   proposal, branding, boilerplate, bpImages,
   companyAddress, companyWebsite, companyPhone, scope,
+  extraSections = [],
 }: SupportPdfProps) {
   const sc     = proposal.supportContract!;
   const S      = sym(proposal.currency);
@@ -362,6 +365,19 @@ function SupportPdfDocument({
 
         <PageFooter companyName={branding.companyName} />
       </Page>
+
+      {/* ── Extra sections (between §8 and Schedule 1) ───────────── */}
+      {extraSections.map(es => (
+        <Page key={es.id} size="A4" style={styles.page}>
+          <Text style={styles.h1}>{es.title || 'Additional Section'}</Text>
+          <View style={styles.rule} />
+          {renderText(es.content || '', styles)}
+          {es.image && (
+            <Image src={es.image} style={{ maxHeight: 120, objectFit: 'contain', marginTop: 10 }} />
+          )}
+          <PageFooter companyName={branding.companyName} />
+        </Page>
+      ))}
 
       {/* ── 10. Schedule 1 ───────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -576,6 +592,7 @@ export interface SupportPdfDownloadProps extends SupportPdfProps {
 export function DownloadSupportPdfButton({
   proposal, branding, boilerplate, bpImages,
   companyAddress, companyWebsite, companyPhone, scope,
+  extraSections,
   filename,
 }: SupportPdfDownloadProps) {
   const [loading, setLoading] = useState(false);
@@ -589,7 +606,7 @@ export function DownloadSupportPdfButton({
         proposal={proposal} branding={branding} boilerplate={boilerplate}
         bpImages={bpImages} companyAddress={companyAddress}
         companyWebsite={companyWebsite} companyPhone={companyPhone}
-        scope={scope}
+        scope={scope} extraSections={extraSections}
       />;
       const blob = await pdf(doc).toBlob();
       const url  = URL.createObjectURL(blob);

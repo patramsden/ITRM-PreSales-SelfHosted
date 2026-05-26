@@ -20,7 +20,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { canAccessAdmin } from '../../../utils/permissions';
 import { settingsApi } from '../../../lib/api';
 import type { AppSettings } from '../../../lib/api';
-import type { Proposal, SupportContract, SupportScopeItem } from '../../../types';
+import type { Proposal, SupportContract, SupportScopeItem, ExtraDocSection } from '../../../types';
 import { DownloadSupportPdfButton } from '../SupportPdf';
 
 // ─── Default boilerplate text ─────────────────────────────────────────────────
@@ -369,6 +369,141 @@ function InlineField({ label, value, placeholder, editable, onChange, type = 'te
   );
 }
 
+// ─── Extra section editor ─────────────────────────────────────────────────────
+
+function ExtraSectionEditor({
+  section, editable, onUpdate, onDelete, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
+}: {
+  section:     ExtraDocSection;
+  editable:    boolean;
+  onUpdate:    (patch: Partial<ExtraDocSection>) => void;
+  onDelete:    () => void;
+  onMoveUp:    () => void;
+  onMoveDown:  () => void;
+  canMoveUp:   boolean;
+  canMoveDown: boolean;
+}) {
+  const [editing, setEditing]     = useState(false);
+  const [draftTitle, setDraftTitle]   = useState(section.title);
+  const [draftContent, setDraftContent] = useState(section.content);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleSave = () => {
+    onUpdate({ title: draftTitle, content: draftContent });
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraftTitle(section.title);
+    setDraftContent(section.content);
+    setEditing(false);
+  };
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => onUpdate({ image: ev.target?.result as string });
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div>
+      {/* Editing controls toolbar — not printed */}
+      {editable && (
+        <div className="flex items-center gap-1 mb-1 print:hidden">
+          <span className="text-[10px] text-gray-400 mr-1">Custom section</span>
+          {!editing && (
+            <button onClick={() => { setDraftTitle(section.title); setDraftContent(section.content); setEditing(true); }}
+              className="p-1 rounded text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-slate-700 transition-colors" title="Edit section">
+              <Pencil size={12} />
+            </button>
+          )}
+          <button onClick={onMoveUp} disabled={!canMoveUp}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors" title="Move up">
+            ▲
+          </button>
+          <button onClick={onMoveDown} disabled={!canMoveDown}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors" title="Move down">
+            ▼
+          </button>
+          <button onClick={onDelete}
+            className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ml-auto" title="Delete section">
+            <Trash2 size={12} />
+          </button>
+        </div>
+      )}
+
+      {editing ? (
+        /* ── Edit mode ── */
+        <div className="border border-brand-300 dark:border-brand-600 rounded-lg p-4 space-y-3 bg-brand-50/30 dark:bg-brand-900/10 print:hidden">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Section title</label>
+            <input
+              value={draftTitle}
+              onChange={e => setDraftTitle(e.target.value)}
+              placeholder="e.g. Data Protection Policy"
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Content</label>
+            <textarea
+              value={draftContent}
+              onChange={e => setDraftContent(e.target.value)}
+              rows={10}
+              placeholder="Section body text. Use • at the start of a line for bullet points."
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-sans resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          {/* Image */}
+          <div className="flex items-start gap-3 flex-wrap">
+            {section.image && (
+              <div className="relative inline-block">
+                <img src={section.image} alt="Section image" className="max-h-20 max-w-xs rounded border border-gray-200 object-contain" />
+                <button type="button" onClick={() => onUpdate({ image: undefined })}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+            <label className="inline-flex items-center gap-1 px-3 py-1.5 text-xs border border-dashed border-gray-400 dark:border-slate-500 rounded cursor-pointer hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 text-gray-500 dark:text-slate-400 transition-colors">
+              <ImagePlus size={12} /> {section.image ? 'Replace image' : 'Add image'}
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleImageFile} className="sr-only" />
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSave}
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-brand-600 text-white rounded hover:bg-brand-700">
+              <Check size={11} /> Save
+            </button>
+            <button onClick={handleCancel}
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-200 rounded hover:bg-gray-300">
+              <X size={11} /> Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── View mode (rendered inside the DocPage) ── */
+        <>
+          <h2 className="text-lg font-bold text-gray-800 mt-8 mb-3 border-b-2 pb-1" style={{ borderColor: 'currentColor' }}>
+            {section.title || <span className="text-gray-400 italic">Untitled section</span>}
+          </h2>
+          <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">
+            {section.content || <em className="text-gray-400">(empty — click the pencil to add content)</em>}
+          </div>
+          {section.image && (
+            <div className="mt-3">
+              <img src={section.image} alt="Section image" className="max-h-40 object-contain" />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
 function fmtCurrency(n: number, symbol = '£'): string {
@@ -481,6 +616,34 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
     updateSc({ scopeOfServices: scope.filter(s => s.id !== id) });
   };
 
+  // ── Extra sections ───────────────────────────────────────────────────────
+  const extraSections = sc.extraSections ?? [];
+
+  const addExtraSection = () => {
+    updateSc({
+      extraSections: [...extraSections, { id: uuid(), title: '', content: '' }],
+    });
+  };
+
+  const updateExtraSection = (id: string, patch: Partial<ExtraDocSection>) => {
+    updateSc({
+      extraSections: extraSections.map(s => s.id === id ? { ...s, ...patch } : s),
+    });
+  };
+
+  const deleteExtraSection = (id: string) => {
+    updateSc({ extraSections: extraSections.filter(s => s.id !== id) });
+  };
+
+  const moveExtraSection = (id: string, dir: -1 | 1) => {
+    const idx  = extraSections.findIndex(s => s.id === id);
+    const next = idx + dir;
+    if (next < 0 || next >= extraSections.length) return;
+    const arr = [...extraSections];
+    [arr[idx], arr[next]] = [arr[next], arr[idx]];
+    updateSc({ extraSections: arr });
+  };
+
   // ── Financial calculations ───────────────────────────────────────────────
   const baseMRR   = sc.pricePerSeat * sc.seats;
   const addonMRR  = sc.addOns.reduce((s, a) =>
@@ -569,6 +732,14 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
             : 'Boilerplate sections are managed by your administrator in Settings → Support Document.'}
         </div>
         <div className="flex items-center gap-2">
+          {editable && (
+            <button
+              onClick={addExtraSection}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-dashed border-brand-400 dark:border-brand-600 text-brand-600 dark:text-brand-400 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
+            >
+              <Plus size={14} /> Add Section
+            </button>
+          )}
           <button
             onClick={handlePrint}
             title="Browser print dialog"
@@ -585,6 +756,7 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
             companyWebsite={companyWebsite}
             companyPhone={companyPhone}
             scope={scope}
+            extraSections={extraSections}
           />
         </div>
       </div>
@@ -832,8 +1004,24 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
             </p>
           </DocPage>
 
+          {/* ── Extra sections (between §8 and Schedule 1) ───────── */}
+          {extraSections.map((es, idx) => (
+            <DocPage key={es.id} {...sharedPageProps} pageNum={10 + idx}>
+              <ExtraSectionEditor
+                section={es}
+                editable={editable}
+                onUpdate={patch => updateExtraSection(es.id, patch)}
+                onDelete={() => deleteExtraSection(es.id)}
+                onMoveUp={() => moveExtraSection(es.id, -1)}
+                onMoveDown={() => moveExtraSection(es.id, 1)}
+                canMoveUp={idx > 0}
+                canMoveDown={idx < extraSections.length - 1}
+              />
+            </DocPage>
+          ))}
+
           {/* ── §9 Schedule 1 ────────────────────────────────────────── */}
-          <DocPage {...sharedPageProps} pageNum={10}>
+          <DocPage {...sharedPageProps} pageNum={10 + extraSections.length}>
             <SectionHeading num={9} title="Schedule 1" />
 
             {/* 9.1 Scope of services */}
@@ -942,7 +1130,7 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
           </DocPage>
 
           {/* ── §10 Contractual Terms ─────────────────────────────────── */}
-          <DocPage {...sharedPageProps} pageNum={11}>
+          <DocPage {...sharedPageProps} pageNum={11 + extraSections.length}>
             <SectionHeading num={10} title="Contractual Terms" />
             <div className="text-xs text-gray-700 mb-6">
               {contractTerm} with{' '}
@@ -982,7 +1170,7 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
           </DocPage>
 
           {/* ── §11 Service Contract ──────────────────────────────────── */}
-          <DocPage {...sharedPageProps} pageNum={12}>
+          <DocPage {...sharedPageProps} pageNum={12 + extraSections.length}>
             <SectionHeading num={11} title="Service Contract" />
 
             <p className="text-xs text-gray-700 italic mb-4">
@@ -1046,7 +1234,7 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
           </DocPage>
 
           {/* ── §12 Authorised Signatures ─────────────────────────────── */}
-          <DocPage {...sharedPageProps} pageNum={13}>
+          <DocPage {...sharedPageProps} pageNum={13 + extraSections.length}>
             <SectionHeading num={12} title="Authorised Signatures" />
 
             <p className="text-xs text-gray-700 mb-8">

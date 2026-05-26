@@ -230,6 +230,16 @@ export interface SupportScopeItem {
   included: boolean;
 }
 
+export interface ExtraDocSection {
+  id: string;
+  /** Section heading shown on the page */
+  title: string;
+  /** Body text — supports • bullet lines and \n newlines */
+  content: string;
+  /** Optional base64 data URL image shown below the text */
+  image?: string;
+}
+
 export type SupportHours = 'standard' | 'extended' | 'premium';
 
 export interface SupportContract {
@@ -297,6 +307,8 @@ export interface SupportContract {
   scopeOfServices?: SupportScopeItem[];
   /** Document version string (default "1.0") */
   documentVersion?: string;
+  /** Custom additional sections inserted between §8 and Schedule 1 */
+  extraSections?: ExtraDocSection[];
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────

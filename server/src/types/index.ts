@@ -183,6 +183,13 @@ export interface SupportScopeItem {
   included: boolean;
 }
 
+export interface ExtraDocSection {
+  id: string;
+  title: string;
+  content: string;
+  image?: string;
+}
+
 export interface SupportContract {
   supportHours?: SupportHours;
   pricePerSeat: number;
@@ -213,6 +220,7 @@ export interface SupportContract {
   onboardingCost?: number;
   scopeOfServices?: SupportScopeItem[];
   documentVersion?: string;
+  extraSections?: ExtraDocSection[];
 }
 
 export interface ProposalComment {
