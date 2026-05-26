@@ -3,12 +3,13 @@ import { encrypt, decrypt, hashToken } from '../shared/crypto';
 
 const SERVER_ONLY_KEYS = new Set([
   'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key', 'system.serviceApiKey',
-  'crm.autotask.secret', 'scim.token', 'email.password',
+  'crm.autotask.secret', 'scim.token', 'email.password', 'email.graph.clientSecret',
 ]);
 
 // AES-256-GCM encrypted at rest (value must be recoverable to use)
 const ENCRYPT_KEYS = new Set([
   'ai.azure.key', 'ai.anthropic.key', 'crm.autotask.secret', 'email.password', 'sso.idpCert',
+  'email.graph.clientSecret',
 ]);
 
 // bcrypt-hashed (only verified, never reconstructed)

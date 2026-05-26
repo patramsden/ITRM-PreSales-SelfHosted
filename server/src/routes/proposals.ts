@@ -39,7 +39,7 @@ router.put('/:id',  requireAuth, async (req, res) => {
         const recipients = [amUser?.email, ownerUser?.email].filter(Boolean) as string[];
         if (recipients.length > 0) {
           const { subject, html } = statusChangeEmail(body.projectName, body.client, existing.status, body.status, req.user?.name ?? 'System', appUrl, body.id);
-          await sendEmail({ to: recipients, subject, html });
+          await sendEmail({ to: recipients, subject, html, senderEmail: req.user?.email ?? undefined });
         }
       } catch { /* never let email break the response */ }
     })();

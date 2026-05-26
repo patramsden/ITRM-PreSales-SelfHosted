@@ -203,15 +203,25 @@ export interface AppSettings {
   'scim.token'?:               string;  // write-only bearer token
   'scim.token.configured'?:    string;  // 'true'|'false' read-only indicator
 
-  // Email (SMTP)
-  'email.enabled'?:              string;  // 'true'|'false'
-  'email.host'?:                 string;
-  'email.port'?:                 string;
-  'email.secure'?:               string;  // 'true'|'false'
-  'email.user'?:                 string;
-  'email.password'?:             string;  // write-only
-  'email.password.configured'?:  string;  // 'true'|'false' read-only indicator
-  'email.from'?:                 string;  // "ITRM PreSales <noreply@example.com>"
+  // Email — shared
+  'email.enabled'?:   string;  // 'true'|'false'
+  'email.provider'?:  string;  // 'smtp' | 'graph'
+  'email.from'?:      string;  // fallback display name + address
+
+  // Email — SMTP provider
+  'email.host'?:                string;
+  'email.port'?:                string;
+  'email.secure'?:              string;  // 'true'|'false'
+  'email.user'?:                string;
+  'email.password'?:            string;  // write-only
+  'email.password.configured'?: string;  // 'true'|'false' read-only indicator
+
+  // Email — Microsoft 365 / Graph provider
+  'email.graph.tenantId'?:                  string;  // Azure AD tenant ID
+  'email.graph.clientId'?:                  string;  // App registration client ID
+  'email.graph.clientSecret'?:              string;  // write-only (encrypted at rest)
+  'email.graph.clientSecret.configured'?:   string;  // 'true'|'false' read-only indicator
+  'email.graph.defaultSender'?:             string;  // fallback mailbox (e.g. noreply@company.com)
 
   // Proposal layout
   'proposal.layout'?: string;  // JSON-serialised ProposalLayoutConfig

@@ -29,4 +29,21 @@ router.get('/service-key/status', requireAuth, requireAdmin, async (_req, res) =
   res.json({ configured: (cfg['system.serviceApiKey'] ?? '').trim().length > 0 });
 });
 
+// Test email — sends to the logged-in admin's own address
+router.post('/test-email', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { sendEmail, emailWrapper } = await import('../shared/email');
+    const toAddr = req.user?.email ?? 'test@example.com';
+    await sendEmail({
+      to:          toAddr,
+      subject:     'MSP SalesPro — Email test',
+      html:        emailWrapper('Email Test', '<p>Your email configuration is working correctly. This message was sent using the configured provider.</p>'),
+      senderEmail: toAddr,
+    });
+    res.json({ success: true, message: `Test email sent to ${toAddr}` });
+  } catch (e) {
+    res.json({ success: false, message: e instanceof Error ? e.message : String(e) });
+  }
+});
+
 export default router;

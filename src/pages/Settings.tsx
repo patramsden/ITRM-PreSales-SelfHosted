@@ -1950,6 +1950,7 @@ function BackupTab({ isAdmin }: { isAdmin: boolean }) {
 
 function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onChange: (s: AppSettings) => void; isAdmin: boolean }) {
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
+  const provider = (settings['email.provider'] ?? 'smtp') as 'smtp' | 'graph';
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -1976,9 +1977,9 @@ function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onCh
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Mail} title="Email (SMTP)" subtitle="Send password reset links and customer approval notifications" adminOnly={!isAdmin} />
+      <SectionHeader icon={Mail} title="Email" subtitle="Send password resets and proposal notifications via SMTP or Microsoft 365" adminOnly={!isAdmin} />
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* Enable toggle */}
         <div className="flex items-center justify-between">
           <div>
@@ -2002,44 +2003,158 @@ function EmailTab({ settings, onChange, isAdmin }: { settings: AppSettings; onCh
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <FieldRow label="SMTP Host">
-              <TextInput value={settings['email.host'] ?? ''} onChange={v => set('email.host', v)} placeholder="smtp.example.com" readOnly={!isAdmin} />
-            </FieldRow>
+        {/* Provider selector */}
+        <div>
+          <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Email Provider</div>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              {
+                id: 'smtp' as const,
+                label: 'SMTP',
+                sublabel: 'Classic email server (any provider)',
+                icon: '📧',
+              },
+              {
+                id: 'graph' as const,
+                label: 'Microsoft 365',
+                sublabel: 'Modern auth via Azure app registration — sends as the logged-in user',
+                icon: '☁️',
+              },
+            ]).map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => isAdmin && set('email.provider', opt.id)}
+                disabled={!isAdmin}
+                className={clsx(
+                  'flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-colors',
+                  provider === opt.id
+                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-brand-300',
+                  !isAdmin && 'cursor-not-allowed opacity-60',
+                )}
+              >
+                <span className="text-xl mt-0.5 select-none">{opt.icon}</span>
+                <div>
+                  <div className={clsx('text-sm font-semibold', provider === opt.id ? 'text-brand-700 dark:text-brand-300' : 'text-gray-800 dark:text-slate-200')}>
+                    {opt.label}
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 leading-snug">{opt.sublabel}</div>
+                </div>
+                {provider === opt.id && (
+                  <Check size={14} className="ml-auto mt-0.5 text-brand-600 dark:text-brand-400 flex-shrink-0" />
+                )}
+              </button>
+            ))}
           </div>
-          <FieldRow label="Port">
-            <TextInput value={settings['email.port'] ?? '587'} onChange={v => set('email.port', v)} placeholder="587" readOnly={!isAdmin} />
-          </FieldRow>
-          <div className="flex items-center gap-3 pt-5">
-            <input
-              type="checkbox"
-              id="email-secure"
-              checked={settings['email.secure'] === 'true'}
-              onChange={e => set('email.secure', e.target.checked ? 'true' : 'false')}
-              disabled={!isAdmin}
-              className="rounded border-gray-300 text-brand-600"
-            />
-            <label htmlFor="email-secure" className="text-sm text-gray-700 dark:text-slate-300">Use TLS (port 465)</label>
-          </div>
-          <div className="col-span-2">
-            <FieldRow label="From Address">
-              <TextInput value={settings['email.from'] ?? ''} onChange={v => set('email.from', v)} placeholder='MSP SalesPro <noreply@example.com>' readOnly={!isAdmin} />
-            </FieldRow>
-          </div>
-          <FieldRow label="Username">
-            <TextInput value={settings['email.user'] ?? ''} onChange={v => set('email.user', v)} placeholder="smtp-user@example.com" readOnly={!isAdmin} />
-          </FieldRow>
-          <FieldRow label="Password">
-            <SecretInput
-              value={settings['email.password'] ?? ''}
-              onChange={v => set('email.password', v)}
-              placeholder={settings['email.password.configured'] === 'true' ? '••••••••' : 'Enter SMTP password'}
-              readOnly={!isAdmin}
-            />
-          </FieldRow>
         </div>
 
+        {/* ── SMTP fields ─────────────────────────────────────────────────── */}
+        {provider === 'smtp' && (
+          <div className="grid grid-cols-2 gap-4 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
+            <div className="col-span-2">
+              <FieldRow label="SMTP Host">
+                <TextInput value={settings['email.host'] ?? ''} onChange={v => set('email.host', v)} placeholder="smtp.office365.com" readOnly={!isAdmin} />
+              </FieldRow>
+            </div>
+            <FieldRow label="Port">
+              <TextInput value={settings['email.port'] ?? '587'} onChange={v => set('email.port', v)} placeholder="587" readOnly={!isAdmin} />
+            </FieldRow>
+            <div className="flex items-center gap-3 pt-5">
+              <input
+                type="checkbox"
+                id="email-secure"
+                checked={settings['email.secure'] === 'true'}
+                onChange={e => set('email.secure', e.target.checked ? 'true' : 'false')}
+                disabled={!isAdmin}
+                className="rounded border-gray-300 text-brand-600"
+              />
+              <label htmlFor="email-secure" className="text-sm text-gray-700 dark:text-slate-300">Use TLS (port 465)</label>
+            </div>
+            <div className="col-span-2">
+              <FieldRow label="From Address">
+                <TextInput value={settings['email.from'] ?? ''} onChange={v => set('email.from', v)} placeholder='MSP SalesPro <noreply@example.com>' readOnly={!isAdmin} />
+              </FieldRow>
+            </div>
+            <FieldRow label="Username">
+              <TextInput value={settings['email.user'] ?? ''} onChange={v => set('email.user', v)} placeholder="smtp-user@example.com" readOnly={!isAdmin} />
+            </FieldRow>
+            <FieldRow label="Password">
+              <SecretInput
+                value={settings['email.password'] ?? ''}
+                onChange={v => set('email.password', v)}
+                placeholder={settings['email.password.configured'] === 'true' ? '••••••••' : 'Enter SMTP password'}
+                readOnly={!isAdmin}
+              />
+            </FieldRow>
+          </div>
+        )}
+
+        {/* ── Microsoft 365 / Graph fields ────────────────────────────────── */}
+        {provider === 'graph' && (
+          <div className="space-y-4 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
+            {/* Setup guidance */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-300 space-y-1.5">
+              <div className="font-semibold">Azure AD App Registration setup</div>
+              <ol className="list-decimal ml-4 space-y-1">
+                <li>Go to <strong>Azure Portal → Azure Active Directory → App registrations → New registration</strong></li>
+                <li>Create the app, then go to <strong>API permissions → Add → Microsoft Graph → Application permissions</strong></li>
+                <li>Add <code className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">Mail.Send</code> (Application) and <strong>Grant admin consent</strong></li>
+                <li>Go to <strong>Certificates &amp; secrets → New client secret</strong>, copy the value below</li>
+                <li>Copy the <strong>Tenant ID</strong> and <strong>Client (Application) ID</strong> from the Overview page</li>
+              </ol>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <FieldRow label="Tenant ID">
+                  <TextInput
+                    value={settings['email.graph.tenantId'] ?? ''}
+                    onChange={v => set('email.graph.tenantId', v)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    readOnly={!isAdmin}
+                  />
+                </FieldRow>
+              </div>
+              <div className="col-span-2">
+                <FieldRow label="Client (Application) ID">
+                  <TextInput
+                    value={settings['email.graph.clientId'] ?? ''}
+                    onChange={v => set('email.graph.clientId', v)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    readOnly={!isAdmin}
+                  />
+                </FieldRow>
+              </div>
+              <div className="col-span-2">
+                <FieldRow label="Client Secret">
+                  <SecretInput
+                    value={settings['email.graph.clientSecret'] ?? ''}
+                    onChange={v => set('email.graph.clientSecret', v)}
+                    placeholder={settings['email.graph.clientSecret.configured'] === 'true' ? '••••••••' : 'Paste client secret value…'}
+                    readOnly={!isAdmin}
+                  />
+                </FieldRow>
+              </div>
+              <div className="col-span-2">
+                <FieldRow label="Default Sender">
+                  <TextInput
+                    value={settings['email.graph.defaultSender'] ?? ''}
+                    onChange={v => set('email.graph.defaultSender', v)}
+                    placeholder="noreply@yourcompany.com"
+                    readOnly={!isAdmin}
+                  />
+                </FieldRow>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                  Used for system emails (password resets etc). User-triggered emails send from the logged-in user's mailbox.
+                  This mailbox must exist in your M365 tenant and the app must have Mail.Send permission.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Test + Save */}
         {isAdmin && (
           <div className="flex items-center gap-3 pt-2">
             <Button variant="secondary" onClick={handleTest} disabled={testing}>
