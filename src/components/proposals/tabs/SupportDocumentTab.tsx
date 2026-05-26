@@ -143,7 +143,7 @@ function DocPage({ children, brandColor, pageNum, totalPages, companyName, logo,
   return (
     /* Force light-mode text so the white paper page is always readable,
        regardless of whether the surrounding app is in dark mode.          */
-    <div className="relative bg-white shadow-sm mb-6 print:mb-0 print:shadow-none"
+    <div className="doc-print-page relative bg-white shadow-sm mb-6 print:mb-0 print:shadow-none"
          style={{ minHeight: '297mm', color: '#111' }}>
       {/* Right accent bar */}
       <div className="absolute right-0 top-0 bottom-0 w-1.5 print:w-2"
@@ -518,14 +518,44 @@ export function SupportDocumentTab({ proposal, editable, onUpdate }: Props) {
 
   return (
     <>
-      {/* Print styles */}
+      {/* Print styles
+          The visibility approach is required because #support-doc-root is
+          nested inside React's #root div — not a direct child of <body> —
+          so the naive "body > *:not(...)" selector hides everything.        */}
       <style>{`
         @media print {
-          body > *:not(#support-doc-root) { display: none !important; }
-          #support-doc-root { display: block !important; }
-          .print\\:hidden { display: none !important; }
-          @page { margin: 0; size: A4; }
-          .bg-white { background: white !important; }
+          /* 1. Hide the whole page */
+          body * { visibility: hidden !important; }
+
+          /* 2. Reveal only the document and its descendants */
+          #support-doc-root,
+          #support-doc-root * { visibility: visible !important; }
+
+          /* 3. Anchor document at top-left of the printed canvas */
+          #support-doc-root {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important;
+            padding: 0 !important; margin: 0 !important;
+            background: white !important;
+          }
+
+          /* 4. Each DocPage fills one A4 sheet */
+          .doc-print-page {
+            page-break-after: always;
+            break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          /* 5. Page setup */
+          @page { margin: 10mm; size: A4; }
+
+          /* 6. Preserve background colours (accent bar, table headers, etc.) */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
 
