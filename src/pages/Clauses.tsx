@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Button } from '../components/ui/Button';
+import { RichTextEditor, RichContent, htmlToPlainText } from '../components/ui/RichTextEditor';
 import type { Clause } from '../types';
 import clsx from 'clsx';
 
@@ -113,12 +114,11 @@ export function Clauses() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Content *</label>
-            <textarea
-              rows={8}
+            <RichTextEditor
               value={editing.content}
-              onChange={e => setEditing({ ...editing, content: e.target.value })}
+              onChange={v => setEditing({ ...editing, content: v })}
               placeholder="Enter the clause text that will be inserted into the Statement of Work…"
-              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y font-mono"
+              minHeight="12rem"
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -147,11 +147,10 @@ export function Clauses() {
                   <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">{c.title}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">{c.category}</span>
                 </div>
-                <pre className={clsx(
-                  'text-xs text-gray-500 dark:text-slate-400 whitespace-pre-wrap font-sans leading-relaxed',
-                  'max-h-20 overflow-hidden',
-                )}>{c.content}</pre>
-                {c.content.split('\n').length > 4 && (
+                <div className="max-h-20 overflow-hidden">
+                  <RichContent html={c.content} className="text-xs text-gray-500 dark:text-slate-400 line-clamp-3" />
+                </div>
+                {htmlToPlainText(c.content).length > 200 && (
                   <span className="text-xs text-gray-400 dark:text-slate-500 italic">…truncated</span>
                 )}
               </div>

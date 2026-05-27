@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Printer, Pencil, Check, X, Plus, Trash2, GripVertical, Info, ImagePlus } from 'lucide-react';
+import { RichTextEditor, RichContent, htmlToPlainText } from '../../ui/RichTextEditor';
 import { v4 as uuid } from 'uuid';
 import { useBranding } from '../../../contexts/BrandingContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -266,11 +267,11 @@ function BoilerplateSection({
   if (editing) {
     return (
       <div className="my-2">
-        <textarea
+        <RichTextEditor
           value={draft}
-          onChange={e => setDraft(e.target.value)}
-          rows={12}
-          className="w-full text-xs font-sans border border-brand-400 rounded p-2 resize-y focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white dark:bg-slate-700 dark:text-slate-100"
+          onChange={setDraft}
+          minHeight="16rem"
+          placeholder="Section content…"
         />
         {/* Image area */}
         <div className="mt-2 flex items-start gap-3 flex-wrap">
@@ -315,9 +316,7 @@ function BoilerplateSection({
   return (
     <div className="relative group my-2">
       {/* Rendered text */}
-      <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">
-        {text || <em className="text-gray-400">(no content — click Edit to add)</em>}
-      </div>
+      <RichContent html={text} className="text-xs" fallback="(no content — click Edit to add)" />
       {/* Inline image */}
       {imageDataUrl && (
         <div className="mt-3">
@@ -449,12 +448,11 @@ function ExtraSectionEditor({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Content</label>
-            <textarea
+            <RichTextEditor
               value={draftContent}
-              onChange={e => setDraftContent(e.target.value)}
-              rows={10}
-              placeholder="Section body text. Use • at the start of a line for bullet points."
-              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-xs font-sans resize-y focus:outline-none focus:ring-2 focus:ring-brand-500"
+              onChange={setDraftContent}
+              minHeight="14rem"
+              placeholder="Section content…"
             />
           </div>
           {/* Image */}
@@ -490,9 +488,7 @@ function ExtraSectionEditor({
           <h2 className="text-lg font-bold text-gray-800 mt-8 mb-3 border-b-2 pb-1" style={{ borderColor: 'currentColor' }}>
             {section.title || <span className="text-gray-400 italic">Untitled section</span>}
           </h2>
-          <div className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">
-            {section.content || <em className="text-gray-400">(empty — click the pencil to add content)</em>}
-          </div>
+          <RichContent html={section.content} className="text-xs" fallback="(empty — click the pencil to add content)" />
           {section.image && (
             <div className="mt-3">
               <img src={section.image} alt="Section image" className="max-h-40 object-contain" />

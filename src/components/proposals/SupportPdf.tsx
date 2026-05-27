@@ -12,6 +12,7 @@ import {
 } from '@react-pdf/renderer';
 import { FileDown, Loader2, AlertCircle } from 'lucide-react';
 import type { Proposal, SupportContract, SupportScopeItem, ExtraDocSection } from '../../types';
+import { htmlToPlainText } from '../ui/RichTextEditor';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,7 +250,7 @@ function SupportPdfDocument({
       {/* ── 2. Confidential Information & Contact ─────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={1} title="Confidential Information" styles={styles} />
-        {renderText(boilerplate.confidentialityNotice || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.confidentialityNotice || ''), styles)}
         {bpImages.confidentialityNotice && (
           <Image src={bpImages.confidentialityNotice} style={{ maxHeight: 80, objectFit: 'contain', marginTop: 8 }} />
         )}
@@ -277,7 +278,7 @@ function SupportPdfDocument({
       {/* ── 3. Company Introduction ───────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={2} title={`${branding.companyName} – An Introduction`} styles={styles} />
-        {renderText(boilerplate.intro || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.intro || ''), styles)}
         {bpImages.intro && (
           <Image src={bpImages.intro} style={{ maxHeight: 100, objectFit: 'contain', marginTop: 10 }} />
         )}
@@ -287,7 +288,7 @@ function SupportPdfDocument({
       {/* ── 4. Background ────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={3} title={`${branding.companyName}'s Background`} styles={styles} />
-        {renderText(boilerplate.background || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.background || ''), styles)}
         {bpImages.background && (
           <Image src={bpImages.background} style={{ maxHeight: 100, objectFit: 'contain', marginTop: 10 }} />
         )}
@@ -297,7 +298,7 @@ function SupportPdfDocument({
       {/* ── 5. Staff ─────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={4} title="Staff, Qualifications and Experience" styles={styles} />
-        {renderText(boilerplate.staff || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.staff || ''), styles)}
         {bpImages.staff && (
           <Image src={bpImages.staff} style={{ maxHeight: 100, objectFit: 'contain', marginTop: 10 }} />
         )}
@@ -307,7 +308,7 @@ function SupportPdfDocument({
       {/* ── 6. Certifications ────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={5} title="Certificates and Accreditations" styles={styles} />
-        {renderText(boilerplate.certifications || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.certifications || ''), styles)}
         {bpImages.certifications && (
           <Image src={bpImages.certifications} style={{ maxHeight: 120, objectFit: 'contain', marginTop: 10 }} />
         )}
@@ -317,7 +318,7 @@ function SupportPdfDocument({
       {/* ── 7. Service Requirements ──────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={6} title="Service Requirements" styles={styles} />
-        {renderText(boilerplate.serviceRequirements || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.serviceRequirements || ''), styles)}
         {bpImages.serviceRequirements && (
           <Image src={bpImages.serviceRequirements} style={{ maxHeight: 80, objectFit: 'contain', marginTop: 8 }} />
         )}
@@ -327,7 +328,7 @@ function SupportPdfDocument({
       {/* ── 8. Business Requirements ─────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={7} title="Business Requirements" styles={styles} />
-        {renderText(boilerplate.businessRequirements || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.businessRequirements || ''), styles)}
         {bpImages.businessRequirements && (
           <Image src={bpImages.businessRequirements} style={{ maxHeight: 80, objectFit: 'contain', marginTop: 8 }} />
         )}
@@ -337,7 +338,7 @@ function SupportPdfDocument({
       {/* ── 9. Contractual Requirements + SLA table ──────────────── */}
       <Page size="A4" style={styles.page}>
         <SectionH num={8} title="Contractual Requirements" styles={styles} />
-        {renderText(boilerplate.contractualTerms || '', styles)}
+        {renderText(htmlToPlainText(boilerplate.contractualTerms || ''), styles)}
         {bpImages.contractualTerms && (
           <Image src={bpImages.contractualTerms} style={{ maxHeight: 80, objectFit: 'contain', marginTop: 8 }} />
         )}
@@ -371,7 +372,7 @@ function SupportPdfDocument({
         <Page key={es.id} size="A4" style={styles.page}>
           <Text style={styles.h1}>{es.title || 'Additional Section'}</Text>
           <View style={styles.rule} />
-          {renderText(es.content || '', styles)}
+          {renderText(htmlToPlainText(es.content || ''), styles)}
           {es.image && (
             <Image src={es.image} style={{ maxHeight: 120, objectFit: 'contain', marginTop: 10 }} />
           )}

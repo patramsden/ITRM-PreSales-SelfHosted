@@ -5,6 +5,7 @@ import { useAuth, isPresalesAdmin } from '../../../contexts/AuthContext';
 import { useStore } from '../../../store';
 import { Button } from '../../ui/Button';
 import { AutotaskCompanyPicker, AutotaskContactPicker } from '../../crm/AutotaskPicker';
+import { RichTextEditor } from '../../ui/RichTextEditor';
 import { crmApi } from '../../../lib/api';
 import type { CrmTicket, CrmCompanyAddress } from '../../../lib/api';
 import type { ProposalStatus, Currency } from '../../../types';
@@ -332,11 +333,12 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               `Internal presales notes — not included in client-facing outputs. Consider:\n• Key stakeholders, their priorities and any political considerations\n• Incumbent vendors or competitor landscape\n• Pricing sensitivity or budget pressure indicators\n• Special commercial terms, discounting or approval requirements\n• Outstanding actions, open questions or next steps`],
           ] as [keyof Proposal, string, string][]).map(([field, label, placeholder]) => (
             <Field key={field} label={label}>
-              <TextArea
+              <RichTextEditor
                 value={(proposal[field] as string) ?? ''}
                 onChange={v => onUpdate({ [field]: v })}
                 disabled={!editable}
-                rows={5}
+                minimal
+                minHeight="7rem"
                 placeholder={editable ? placeholder : undefined}
               />
             </Field>

@@ -5,6 +5,7 @@ import { Button } from '../../ui/Button';
 import { generateSoW } from '../../../services/sowGenerator';
 import { getAiConfig, PROVIDER_LABELS, PROVIDER_COLORS } from '../../../config/aiConfig';
 import { ClausePickerModal } from '../../proposals/ClausePickerModal';
+import { RichTextEditor } from '../../ui/RichTextEditor';
 import clsx from 'clsx';
 
 interface Props {
@@ -20,7 +21,11 @@ export function SowTab({ proposal, editable, onUpdate }: Props) {
   const [showClausePicker, setShowClausePicker] = useState(false);
 
   const handleInsertClause = (clauseContent: string) => {
-    const newContent = content ? `${content}\n\n${clauseContent}` : clauseContent;
+    // Append clause as a new paragraph (works for both HTML and plain text)
+    const sep = content ? (content.trimEnd().endsWith('>') ? '' : '<p></p>') : '';
+    const newContent = content
+      ? `${content}${sep}<p>${clauseContent.replace(/\n/g, '<br>')}</p>`
+      : `<p>${clauseContent.replace(/\n/g, '<br>')}</p>`;
     setContent(newContent);
     onUpdate({ sowContent: newContent });
   };
@@ -114,11 +119,12 @@ export function SowTab({ proposal, editable, onUpdate }: Props) {
         <div className="p-5">
           {content ? (
             <>
-              <textarea
-                className="w-full min-h-[500px] border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-4 py-3 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 dark:disabled:bg-slate-800 disabled:text-gray-600 dark:disabled:text-slate-400 resize-y"
+              <RichTextEditor
                 value={content}
-                onChange={e => setContent(e.target.value)}
+                onChange={v => setContent(v)}
                 disabled={!editable}
+                placeholder="Statement of Work…"
+                minHeight="500px"
               />
               {editable && (
                 <div className="flex justify-end mt-3">
