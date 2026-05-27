@@ -26,6 +26,7 @@ export function DiscountTab({ proposal, editable, onUpdate }: Props) {
   const discountAmount = proposal.consultancyDiscountAmount ?? 0;
   const discountNote   = proposal.consultancyDiscountNote   ?? '';
   const hasDiscount    = discountAmount > 0;
+  const missingJustification = hasDiscount && discountNote.trim().length === 0;
 
   const trbInfo = proposal.trbStatus ? TRB_LABEL[proposal.trbStatus] : TRB_LABEL['pending'];
 
@@ -137,10 +138,14 @@ export function DiscountTab({ proposal, editable, onUpdate }: Props) {
           )}
         </div>
 
-        {/* Note */}
+        {/* Note / Justification */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1.5">
-            Discount Reason / Note <span className="text-gray-400">(optional)</span>
+            Discount Justification
+            {hasDiscount
+              ? <span className="text-red-500 ml-1">*</span>
+              : <span className="text-gray-400 ml-1">(optional)</span>
+            }
           </label>
           <textarea
             rows={2}
@@ -148,8 +153,19 @@ export function DiscountTab({ proposal, editable, onUpdate }: Props) {
             onChange={e => onUpdate({ consultancyDiscountNote: e.target.value })}
             disabled={!editable}
             placeholder="e.g. Agreed at negotiation — competitive situation"
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 resize-none"
+            className={clsx(
+              'w-full px-3 py-2 rounded-lg border bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 disabled:opacity-60 resize-none',
+              missingJustification
+                ? 'border-red-400 dark:border-red-600 focus:ring-red-400'
+                : 'border-gray-300 dark:border-slate-600 focus:ring-brand-500',
+            )}
           />
+          {missingJustification && (
+            <p className="flex items-center gap-1 mt-1 text-xs text-red-500 dark:text-red-400">
+              <AlertTriangle size={11} />
+              A justification is required when a discount is applied — the proposal cannot be exported until this is filled in.
+            </p>
+          )}
         </div>
       </div>
 

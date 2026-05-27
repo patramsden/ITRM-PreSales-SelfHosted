@@ -172,15 +172,45 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
                     ? parseFloat((task.days * HOURS_PER_DAY).toFixed(2))
                     : task.days;
 
+                  const snapToUnit = (raw: number): number => {
+                    if (unit === 'hours') {
+                      // Hours → whole numbers only (min 1)
+                      return Math.max(1, Math.round(raw));
+                    } else {
+                      // Days → 0.5 increments (min 0.5)
+                      return Math.max(0.5, Math.round(raw * 2) / 2);
+                    }
+                  };
+
                   const handleQtyChange = (val: string) => {
-                    const num = parseFloat(val) || 0;
+                    // Allow free typing — store raw parsed value while editing
+                    const num = parseFloat(val);
+                    if (isNaN(num)) return;
                     const days = unit === 'hours' ? num / HOURS_PER_DAY : num;
+                    updateTask(phase.id, task.id, { days: Math.max(0, days) });
+                  };
+
+                  const handleQtyBlur = () => {
+                    // On blur snap to valid increment
+                    const raw = unit === 'hours' ? task.days * HOURS_PER_DAY : task.days;
+                    const snapped = snapToUnit(raw);
+                    const days = unit === 'hours' ? snapped / HOURS_PER_DAY : snapped;
                     updateTask(phase.id, task.id, { days });
                   };
 
                   const toggleUnit = () => {
                     const newUnit = unit === 'days' ? 'hours' : 'days';
-                    updateTask(phase.id, task.id, { unit: newUnit });
+                    // Snap to the new unit's valid increment on switch
+                    let snappedDays = task.days;
+                    if (newUnit === 'hours') {
+                      // Convert to hours and snap to whole number, then back to days
+                      const snappedHrs = Math.max(1, Math.round(task.days * HOURS_PER_DAY));
+                      snappedDays = snappedHrs / HOURS_PER_DAY;
+                    } else {
+                      // Snap to nearest 0.5 day
+                      snappedDays = Math.max(0.5, Math.round(task.days * 2) / 2);
+                    }
+                    updateTask(phase.id, task.id, { unit: newUnit, days: snappedDays });
                   };
 
                   const cycleMultiplier = () => {
@@ -229,11 +259,13 @@ export function ConsultancyTab({ proposal, editable, onUpdate }: Props) {
                       <div className="col-span-2 flex items-center gap-1">
                         <input
                           type="number"
-                          min={unit === 'hours' ? 0.5 : 0.5}
-                          step={unit === 'hours' ? 0.5 : 0.5}
+                          min={unit === 'hours' ? 1 : 0.5}
+                          step={unit === 'hours' ? 1 : 0.5}
+                          title={unit === 'hours' ? 'Whole hours only' : 'Half-day increments (0.5)'}
                           className="flex-1 min-w-0 border-0 border-b border-transparent hover:border-gray-300 dark:hover:border-slate-500 focus:border-brand-500 outline-none text-sm py-0.5 text-center bg-transparent text-gray-900 dark:text-slate-100 disabled:opacity-70"
                           value={displayQty}
                           onChange={e => handleQtyChange(e.target.value)}
+                          onBlur={handleQtyBlur}
                           disabled={!editable}
                         />
                         <button

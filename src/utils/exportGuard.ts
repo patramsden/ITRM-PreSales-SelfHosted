@@ -33,13 +33,17 @@ export function getExportBlockers(proposal: Proposal, rateCards?: RateCard[], di
     }
   }
 
-  // Consultancy discount — any discount (regardless of size) requires TRB
+  // Consultancy discount — any discount (regardless of size) requires TRB + justification
   if ((proposal.consultancyDiscountAmount ?? 0) > 0) {
     const trb = proposal.trbStatus ?? 'pending';
     if (trb === 'stale') {
       blockers.push({ review: 'TRB Review', reason: 'Consultancy discount was modified after TRB approval — re-review required before export' });
     } else if (trb !== 'approved' && trb !== 'waived') {
       blockers.push({ review: 'TRB Review', reason: 'A consultancy discount is applied — TRB review must be approved or waived before export' });
+    }
+    // Justification is always required when a discount is set
+    if (!(proposal.consultancyDiscountNote ?? '').trim()) {
+      blockers.push({ review: 'Discount Justification', reason: 'A discount is applied — a written justification is required before export (Discount tab)' });
     }
   }
 
