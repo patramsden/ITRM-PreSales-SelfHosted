@@ -377,6 +377,10 @@ export async function ensureSchema(): Promise<void> {
     // Catalog support add-on flags
     `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS is_support_addon        BOOLEAN NOT NULL DEFAULT false`,
     `ALTER TABLE catalog_items ADD COLUMN IF NOT EXISTS support_addon_price_type VARCHAR(20) NOT NULL DEFAULT 'per_seat'`,
+
+    // CRM enrichment — contact email and company address
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_contact_email VARCHAR(255)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_address       TEXT`,
   ];
 
   for (const stmt of migrations) {
