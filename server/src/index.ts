@@ -31,6 +31,7 @@ import publicCustomerRouter from './routes/publicCustomer';
 import backupRouter         from './routes/backup';
 import commentsRouter       from './routes/comments';
 import clausesRouter        from './routes/clauses';
+import { createMcpRouter }  from './mcp';
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -74,6 +75,11 @@ app.use('/api/backup',        backupRouter);
 app.use('/api/proposals',    commentsRouter);    // GET/POST /:id/comments
 app.use('/api/comments',     commentsRouter);    // DELETE /delete/:id
 app.use('/api/clauses',      clausesRouter);
+
+// ─── MCP endpoint ─────────────────────────────────────────────────────────────
+// Health probe is unauthenticated; all other MCP routes require service API key.
+// Copilot Studio connector URL: https://<host>/mcp
+app.use('/mcp', createMcpRouter());
 
 // Version endpoint — used by the frontend update banner
 app.get('/api/version', (_req, res) => {
