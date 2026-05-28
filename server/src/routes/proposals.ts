@@ -19,9 +19,7 @@ router.post('/',    requireAuth, async (req,  res) => {
   const body = req.body as Proposal;
   if (!body?.id || !body?.projectName) { res.status(400).json({ error: 'id and projectName are required' }); return; }
   let created = await createProposal(body);
-  const opp = await maybeCreateOpportunity(
-    created.id, created.projectName, created.client, created.accountManager, created.crmCompanyId,
-  );
+  const opp = await maybeCreateOpportunity(created);
   if (opp) {
     await updateProposal(created.id, { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
     created = { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url };
@@ -51,10 +49,7 @@ router.put('/:id',  requireAuth, async (req, res) => {
     // CRM company just linked (or was set at creation but opp wasn't created yet) — create now.
     (async () => {
       try {
-        const opp = await maybeCreateOpportunity(
-          req.params.id, body.projectName ?? '', body.client ?? '',
-          body.accountManager ?? '', body.crmCompanyId,
-        );
+        const opp = await maybeCreateOpportunity(body);
         if (opp) {
           await updateProposal(req.params.id, { ...body, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
           log('info', 'crm', `Opportunity created for proposal "${body.projectName}"`, { details: { proposalId: req.params.id, opportunityId: opp.opportunityId } });

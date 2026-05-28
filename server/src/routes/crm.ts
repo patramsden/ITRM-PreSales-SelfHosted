@@ -525,16 +525,68 @@ function atOpportunityWebUrl(apiHost: string, oppId: number): string {
   return `${webHost}/Autotask/views/opportunity/viewopportunity.aspx?opportunityID=${oppId}`;
 }
 
+function calcOpportunityFinancials(proposal: import('../types/index').Proposal) {
+  let oneTimeRevenue = 0, oneTimeCost = 0;
+  let monthlyRevenue = 0, monthlyCost = 0;
+  let yearlyRevenue  = 0, yearlyCost  = 0;
+
+  for (const part of proposal.parts ?? []) {
+    const qty  = part.quantity ?? 1;
+    const sell = (part.unitPrice ?? 0) * qty;
+    const selectedQuote = part.quotes?.find((q: { selected: boolean }) => q.selected);
+    const cost = ((selectedQuote as { cost?: number } | undefined)?.cost ?? part.unitCost ?? 0) * qty;
+    if (part.partType === 'Monthly') {
+      monthlyRevenue += sell; monthlyCost += cost;
+    } else if (part.partType === 'Annual') {
+      yearlyRevenue += sell; yearlyCost += cost;
+    } else {
+      oneTimeRevenue += sell; oneTimeCost += cost;
+    }
+  }
+
+  const markupPct = proposal.markupPct ?? 0;
+  oneTimeRevenue = oneTimeRevenue * (1 + markupPct / 100);
+
+  let consultancySell = 0, consultancyCost = 0;
+  for (const phase of proposal.phases ?? []) {
+    for (const task of (phase as { tasks?: Array<{ days: number; dayRate: number; rateMultiplier?: number }> }).tasks ?? []) {
+      const sell = task.days * task.dayRate * (task.rateMultiplier ?? 1);
+      consultancySell += sell;
+      consultancyCost += sell * 0.70;
+    }
+  }
+  consultancySell *= 1.20;
+  consultancyCost *= 1.20;
+
+  if (proposal.consultancyDiscountAmount && proposal.consultancyDiscountAmount > 0) {
+    consultancySell = proposal.consultancyDiscountType === 'monetary'
+      ? Math.max(0, consultancySell - proposal.consultancyDiscountAmount)
+      : consultancySell * (1 - proposal.consultancyDiscountAmount / 100);
+  }
+
+  oneTimeRevenue += consultancySell;
+  oneTimeCost    += consultancyCost;
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return {
+    oneTimeRevenue: round2(oneTimeRevenue),
+    oneTimeCost:    round2(oneTimeCost),
+    monthlyRevenue: round2(monthlyRevenue),
+    monthlyCost:    round2(monthlyCost),
+    yearlyRevenue:  round2(yearlyRevenue),
+    yearlyCost:     round2(yearlyCost),
+    amount:         round2(oneTimeRevenue + monthlyRevenue * 12 + yearlyRevenue),
+  };
+}
+
 /** Called by proposals.ts after a new proposal is saved.
  *  Returns null when feature is disabled or no company linked (silent skip).
  *  Throws a descriptive Error for any condition the user should fix. */
 export async function maybeCreateOpportunity(
-  proposalId: string,
-  projectName: string,
-  client: string,
-  accountManager: string,
-  crmCompanyId: string | undefined,
+  proposal: import('../types/index').Proposal,
 ): Promise<{ opportunityId: string; url: string } | null> {
+  const { id: proposalId, projectName = '', client = '', accountManager = '', crmCompanyId } = proposal;
+
   const s = await getAppSettingsDirect();
   if (s['crm.autotask.opportunity.enabled'] !== 'true') return null;
   if (!crmCompanyId) return null;
@@ -554,22 +606,29 @@ export async function maybeCreateOpportunity(
   const title = titleTemplate
     .replace('{projectName}', projectName)
     .replace('{client}', client)
-    .replace('{accountManager}', accountManager || '');
+    .replace('{accountManager}', accountManager);
 
   const ownerResourceID = accountManager
     ? await getResourceIdForAccountManager(creds, accountManager)
     : null;
   if (!ownerResourceID) {
-    const who = accountManager || 'account manager';
-    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": could not resolve resource ID for "${who}"`, { details: { proposalId, accountManager } });
-    throw new Error(`Could not find an Autotask Resource record for "${who}" — ensure they are an active resource in Autotask`);
+    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": could not resolve resource ID for "${accountManager}"`, { details: { proposalId, accountManager } });
+    throw new Error(`Could not find an Autotask Resource record for "${accountManager}" — ensure they are an active resource in Autotask`);
   }
 
+  const fin       = calcOpportunityFinancials(proposal);
   const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
-  const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+  const host      = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
   const body = {
     companyID: parseInt(crmCompanyId), title, ownerResourceID,
     stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
+    amount:         fin.amount,
+    oneTimeRevenue: fin.oneTimeRevenue,
+    oneTimeCost:    fin.oneTimeCost,
+    monthlyRevenue: fin.monthlyRevenue,
+    monthlyCost:    fin.monthlyCost,
+    yearlyRevenue:  fin.yearlyRevenue,
+    yearlyCost:     fin.yearlyCost,
   };
 
   crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (proposal ${proposalId})`);
@@ -644,11 +703,13 @@ export async function maybeUpdateOpportunity(
 
 router.post('/create-opportunity', requireAuth, async (req, res) => {
   try {
-    const { proposalId, projectName, client, accountManager, crmCompanyId } = req.body as {
-      proposalId?: string; projectName?: string; client?: string; accountManager?: string; crmCompanyId?: string;
-    };
-    if (!projectName?.trim() || !crmCompanyId) { res.status(400).json({ error: 'projectName and crmCompanyId are required' }); return; }
-    const result = await maybeCreateOpportunity(proposalId ?? '', projectName, client ?? '', accountManager ?? '', crmCompanyId);
+    const { proposalId } = req.body as { proposalId?: string };
+    if (!proposalId) { res.status(400).json({ error: 'proposalId is required' }); return; }
+    const proposal = await getProposalById(proposalId);
+    if (!proposal) { res.sendStatus(404); return; }
+    let result: { opportunityId: string; url: string } | null;
+    try { result = await maybeCreateOpportunity(proposal); }
+    catch (e) { res.status(400).json({ error: e instanceof Error ? e.message : String(e) }); return; }
     if (!result) { res.status(400).json({ error: 'Opportunity creation failed — check CRM configuration (Settings → CRM)' }); return; }
     res.json(result);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
@@ -674,28 +735,32 @@ router.post('/sync-opportunity', requireAuth, async (req, res) => {
     const dbProposal = await getProposalById(body.proposalId);
     if (!dbProposal) { res.sendStatus(404); return; }
 
-    const projectName     = body.projectName     ?? dbProposal.projectName     ?? '';
-    const client          = body.client          ?? dbProposal.client          ?? '';
-    const accountManager  = body.accountManager  ?? dbProposal.accountManager  ?? '';
-    const crmCompanyId    = body.crmCompanyId    ?? dbProposal.crmCompanyId;
-    const atOpportunityId = body.atOpportunityId ?? dbProposal.atOpportunityId;
+    const mergedProposal = {
+      ...dbProposal,
+      ...(body.projectName    && { projectName:    body.projectName }),
+      ...(body.client         && { client:         body.client }),
+      ...(body.accountManager && { accountManager: body.accountManager }),
+      ...(body.crmCompanyId   && { crmCompanyId:   body.crmCompanyId }),
+      ...(body.atOpportunityId && { atOpportunityId: body.atOpportunityId }),
+    };
+    const atOpportunityId = mergedProposal.atOpportunityId;
 
     if (atOpportunityId) {
-      await maybeUpdateOpportunity(atOpportunityId, projectName, client, accountManager);
-      log('info', 'crm', `Opportunity ${atOpportunityId} synced for proposal "${projectName}"`);
+      await maybeUpdateOpportunity(atOpportunityId, mergedProposal.projectName ?? '', mergedProposal.client ?? '', mergedProposal.accountManager ?? '');
+      log('info', 'crm', `Opportunity ${atOpportunityId} synced for proposal "${mergedProposal.projectName}"`);
       res.json({ opportunityId: atOpportunityId, url: dbProposal.atOpportunityUrl ?? '' });
       return;
     }
 
-    if (!crmCompanyId) {
-      log('warn', 'crm', `Sync skipped for proposal "${projectName}" — no CRM company linked`, { details: { proposalId: body.proposalId } });
+    if (!mergedProposal.crmCompanyId) {
+      log('warn', 'crm', `Sync skipped for proposal "${mergedProposal.projectName}" — no CRM company linked`, { details: { proposalId: body.proposalId } });
       res.status(400).json({ error: 'Proposal has no CRM company linked — set one on the Summary tab first' });
       return;
     }
 
     let opp: { opportunityId: string; url: string } | null;
     try {
-      opp = await maybeCreateOpportunity(body.proposalId, projectName, client, accountManager, crmCompanyId);
+      opp = await maybeCreateOpportunity(mergedProposal);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       res.status(400).json({ error: msg }); return;
@@ -705,7 +770,7 @@ router.post('/sync-opportunity', requireAuth, async (req, res) => {
     }
 
     await updateProposalRepo(body.proposalId, { ...dbProposal, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
-    log('info', 'crm', `Opportunity created for proposal "${projectName}"`, { details: { proposalId: body.proposalId, opportunityId: opp.opportunityId } });
+    log('info', 'crm', `Opportunity created for proposal "${mergedProposal.projectName}"`, { details: { proposalId: body.proposalId, opportunityId: opp.opportunityId } });
     res.json(opp);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
