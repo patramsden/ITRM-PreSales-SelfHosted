@@ -302,15 +302,13 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
                   #{proposal.atOpportunityId}
                 </span>
                 {proposal.atOpportunityUrl && (
-                  <a
-                    href={proposal.atOpportunityUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => window.open(proposal.atOpportunityUrl, 'autotask_opportunity', 'width=1400,height=900,noopener,noreferrer')}
                     title="Open in Autotask"
                     className="p-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-400 dark:text-slate-500 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
                   >
                     <ExternalLink size={14} />
-                  </a>
+                  </button>
                 )}
               </div>
             ) : (

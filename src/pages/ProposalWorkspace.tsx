@@ -463,14 +463,13 @@ export function ProposalWorkspace() {
 
             {/* Autotask opportunity link */}
             {proposal.atOpportunityUrl && (
-              <a
-                href={proposal.atOpportunityUrl}
-                target="_blank" rel="noreferrer"
+              <button
+                onClick={() => window.open(proposal.atOpportunityUrl, 'autotask_opportunity', 'width=1400,height=900,noopener,noreferrer')}
                 title="View Autotask opportunity"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg transition-colors"
               >
                 <ExternalLink size={13} /> Opportunity
-              </a>
+              </button>
             )}
 
             {/* Share */}
