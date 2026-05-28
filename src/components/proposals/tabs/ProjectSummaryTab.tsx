@@ -124,11 +124,40 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
     onUpdate({ collaboratorIds: proposal.collaboratorIds.filter(id => id !== userId) });
   };
 
+  // ── Auto-refresh AM + address from CRM on load ────────────────────────────
+  const crmId = proposal.crmCompanyId;
+
+  useEffect(() => {
+    if (!crmId || !editable) return;
+    const id = parseInt(crmId);
+    if (isNaN(id)) return;
+
+    // Refresh account manager silently — only update if CRM returns something different
+    crmApi.getAccountManager(id)
+      .then((result: { name: string | null }) => {
+        if (result.name && result.name !== proposal.accountManager) {
+          onUpdate({ accountManager: result.name });
+        }
+      })
+      .catch(() => {});
+
+    // Refresh address silently — only update if CRM returns something different
+    crmApi.getCompanyAddress(id)
+      .then((addr: CrmCompanyAddress) => {
+        const newAddr = [addr.address1, addr.address2, addr.city, addr.state, addr.postalCode, addr.country]
+          .filter(Boolean).join('\n');
+        if (newAddr && newAddr !== proposal.clientAddress) {
+          onUpdate({ clientAddress: newAddr });
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crmId, editable]);
+
   // ── Customer intelligence (open tickets) ──────────────────────────────────
   const [tickets, setTickets]           = useState<CrmTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketsError, setTicketsError]   = useState<string | null>(null);
-  const crmId = proposal.crmCompanyId;
 
   const loadTickets = useCallback(async (companyId: string) => {
     const id = parseInt(companyId);
