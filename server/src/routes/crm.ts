@@ -562,7 +562,8 @@ async function getResourceIdForAccountManager(creds: AtCreds, fullName: string):
   }
 }
 
-function atOpportunityWebUrl(apiHost: string, oppId: number): string {
+function atOpportunityWebUrl(apiHost: string, oppId: number, urlTemplate?: string): string {
+  if (urlTemplate?.trim()) return urlTemplate.trim().replace('{id}', String(oppId));
   const webHost = apiHost.replace(/webservices(\d+)/i, 'ww$1');
   return `${webHost}/Autotask/views/crm/CRMOpportunityCore.aspx?id=${oppId}`;
 }
@@ -736,15 +737,15 @@ function oppSyncHash(title: string, fin: ReturnType<typeof calcOpportunityFinanc
 
 export async function maybeUpdateOpportunity(
   proposal: import('../types/index').Proposal,
-): Promise<void> {
+): Promise<string | null> {
   const opportunityId = proposal.atOpportunityId;
-  if (!opportunityId) return;
-  if (proposal.status === 'Won' || proposal.status === 'Lost') return;
+  if (!opportunityId) return null;
+  if (proposal.status === 'Won' || proposal.status === 'Lost') return null;
   try {
     const s = await getAppSettingsDirect();
-    if (s['crm.autotask.opportunity.enabled'] !== 'true') return;
+    if (s['crm.autotask.opportunity.enabled'] !== 'true') return null;
     const creds = await getCreds();
-    if (!creds) return;
+    if (!creds) return null;
 
     const projectName    = proposal.projectName    ?? '';
     const client         = proposal.client         ?? '';
@@ -763,11 +764,17 @@ export async function maybeUpdateOpportunity(
       ? await lookupContactId(creds, proposal.crmCompanyId, proposal.clientContact, proposal.clientContactEmail)
       : null;
 
+    const freshUrl = atOpportunityWebUrl(
+      creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, ''),
+      parseInt(opportunityId, 10),
+      s['crm.autotask.opportunity.urlTemplate'],
+    );
+
     const hash = oppSyncHash(title, fin, contactID);
     if (_lastSyncHash.get(opportunityId) === hash) {
       crmLog(`  Opportunity ${opportunityId} unchanged — skipping PATCH`);
       log('info', 'crm', `Opportunity ${opportunityId} unchanged — no update sent`, { details: { monthlyRevenue: fin.monthlyRevenue, amount: fin.amount } });
-      return;
+      return freshUrl;
     }
 
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
@@ -801,13 +808,16 @@ export async function maybeUpdateOpportunity(
       const t = await r.text().catch(() => r.statusText);
       crmLog(`Opportunity update failed (${r.status}): ${t.slice(0, 300)}`);
       log('warn', 'crm', `Opportunity update failed for "${projectName}" (${r.status})`, { details: { opportunityId, response: t.slice(0, 300) } });
+      return null;
     } else {
       crmLog(`  Opportunity ${opportunityId} updated`);
       log('info', 'crm', `Opportunity ${opportunityId} updated successfully for "${projectName}"`);
       _lastSyncHash.set(opportunityId, hash);
+      return freshUrl;
     }
   } catch (e) {
     crmLog(`Opportunity update error: ${String(e)}`);
+    return null;
   }
 }
 
@@ -856,9 +866,13 @@ router.post('/sync-opportunity', requireAuth, async (req, res) => {
     const atOpportunityId = mergedProposal.atOpportunityId;
 
     if (atOpportunityId) {
-      await maybeUpdateOpportunity(mergedProposal);
+      const freshUrl = await maybeUpdateOpportunity(mergedProposal);
       log('info', 'crm', `Opportunity ${atOpportunityId} synced for proposal "${mergedProposal.projectName}"`);
-      res.json({ opportunityId: atOpportunityId, url: dbProposal.atOpportunityUrl ?? '' });
+      const returnUrl = freshUrl ?? dbProposal.atOpportunityUrl ?? '';
+      if (freshUrl && freshUrl !== dbProposal.atOpportunityUrl) {
+        await updateProposalRepo(body.proposalId, { ...dbProposal, atOpportunityUrl: freshUrl });
+      }
+      res.json({ opportunityId: atOpportunityId, url: returnUrl });
       return;
     }
 
