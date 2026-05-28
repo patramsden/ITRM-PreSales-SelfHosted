@@ -255,6 +255,30 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
           <Field label="Ticket Reference">
             <TextInput value={proposal.ticketRef ?? ''} onChange={v => onUpdate({ ticketRef: v })} disabled={!editable} placeholder="e.g. CRM-1042" />
           </Field>
+          <Field label="Autotask Opportunity">
+            {proposal.atOpportunityId ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-mono">
+                  #{proposal.atOpportunityId}
+                </span>
+                {proposal.atOpportunityUrl && (
+                  <a
+                    href={proposal.atOpportunityUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open in Autotask"
+                    className="p-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-400 dark:text-slate-500 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <span className="block border border-dashed border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-400 dark:text-slate-500">
+                Not yet created — link a CRM company and click Save
+              </span>
+            )}
+          </Field>
           <Field label="Status">
             <select
               value={proposal.status}
