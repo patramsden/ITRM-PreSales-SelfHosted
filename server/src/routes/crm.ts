@@ -538,6 +538,51 @@ export async function maybeCreateOpportunity(
   } catch (e) { crmLog(`Opportunity auto-create error: ${String(e)}`); return null; }
 }
 
+/** Called by proposals.ts on every PUT.
+ *  PATCHes the linked Autotask opportunity's title (and amount if provided).
+ *  Silent on failure — never throws. */
+export async function maybeUpdateOpportunity(
+  opportunityId: string,
+  projectName: string,
+  client: string,
+  accountManager: string,
+  amount?: number,
+): Promise<void> {
+  try {
+    const s = await getAppSettingsDirect();
+    if (s['crm.autotask.opportunity.enabled'] !== 'true') return;
+    const creds = await getCreds();
+    if (!creds) return;
+    const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
+    const title = titleTemplate
+      .replace('{projectName}', projectName)
+      .replace('{client}', client)
+      .replace('{accountManager}', accountManager || '');
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    const body: Record<string, unknown> = { id: parseInt(opportunityId, 10), title };
+    if (amount !== undefined && amount > 0) body.amount = amount;
+    crmLog(`→ PATCH ${host}/atservicesrest/v1.0/Opportunities (update ID ${opportunityId})`);
+    const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type':       'application/json',
+        'UserName':           creds.username,
+        'Secret':             creds.secret,
+        'ApiIntegrationCode': creds.integrationCode,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => r.statusText);
+      crmLog(`Opportunity update failed (${r.status}): ${t.slice(0, 300)}`);
+    } else {
+      crmLog(`  Opportunity ${opportunityId} updated`);
+    }
+  } catch (e) {
+    crmLog(`Opportunity update error: ${String(e)}`);
+  }
+}
+
 router.post('/create-opportunity', requireAuth, async (req, res) => {
   try {
     const { proposalId, projectName, client, accountManager, crmCompanyId } = req.body as {

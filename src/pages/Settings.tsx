@@ -1187,7 +1187,7 @@ function CrmTab({ settings, onChange, isAdmin }: {
     if (
       settings['crm.autotask.opportunity.enabled'] === 'true' &&
       !oppStages && !oppStagesLoading &&
-      (settings['crm.autotask.zoneUrl'] || settings['crm.autotask.zoneUrl.configured'] === 'true')
+      (settings['crm.autotask.zoneUrl'] || settings['crm.autotask.secret.configured'] === 'true')
     ) {
       loadOppStages();
     }

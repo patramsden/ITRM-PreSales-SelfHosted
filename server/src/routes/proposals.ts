@@ -8,7 +8,7 @@ import { createShare, listShares, deleteShare, getProposalByShareToken } from '.
 import { sendEmail, statusChangeEmail } from '../shared/email';
 import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
 import { getAllUsers } from '../repositories/userRepo';
-import { maybeCreateOpportunity } from './crm';
+import { maybeCreateOpportunity, maybeUpdateOpportunity } from './crm';
 import { log } from '../shared/logger';
 import type { Proposal } from '../types/index';
 
@@ -38,6 +38,14 @@ router.put('/:id',  requireAuth, async (req, res) => {
   const body = req.body as Proposal;
   const existing = await getProposalById(req.params.id);
   await updateProposal(req.params.id, body);
+  if (body.atOpportunityId) {
+    maybeUpdateOpportunity(
+      body.atOpportunityId,
+      body.projectName ?? '',
+      body.client ?? '',
+      body.accountManager ?? '',
+    ).catch(() => {});
+  }
   saveVersion(req.params.id, JSON.stringify(body), req.user?.name ?? 'system').catch(() => {});
   // Fire-and-forget status change email
   if (existing && existing.status !== body.status) {
