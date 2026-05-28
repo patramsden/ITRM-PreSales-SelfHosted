@@ -37,22 +37,11 @@ router.put('/:id',  requireAuth, async (req, res) => {
   const existing = await getProposalById(req.params.id);
   await updateProposal(req.params.id, body);
 
+  // Only update an existing opportunity — never create from a PUT.
+  // Creation is handled exclusively by sync-opportunity (Save button / exit)
+  // to prevent duplicate opportunities from concurrent requests.
   if (body.atOpportunityId) {
-    // Opportunity already exists — keep it in sync.
     maybeUpdateOpportunity(body).catch(() => {});
-  } else if (body.crmCompanyId && !existing?.atOpportunityId) {
-    // CRM company just linked (or was set at creation but opp wasn't created yet) — create now.
-    (async () => {
-      try {
-        const opp = await maybeCreateOpportunity(body);
-        if (opp) {
-          await updateProposal(req.params.id, { ...body, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
-          log('info', 'crm', `Opportunity created for proposal "${body.projectName}"`, { details: { proposalId: req.params.id, opportunityId: opp.opportunityId } });
-        }
-      } catch (e) {
-        log('warn', 'crm', `Auto-create opportunity failed for "${body.projectName}": ${e instanceof Error ? e.message : String(e)}`, { details: { proposalId: req.params.id } });
-      }
-    })();
   }
 
   saveVersion(req.params.id, JSON.stringify(body), req.user?.name ?? 'system').catch(() => {});
