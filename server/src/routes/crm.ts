@@ -481,13 +481,53 @@ let _resourceIdCache: { id: number; expiresAt: number } | null = null;
 
 async function getApiUserResourceId(creds: AtCreds): Promise<number | null> {
   if (_resourceIdCache && Date.now() < _resourceIdCache.expiresAt) return _resourceIdCache.id;
+
+  // Check for a manually configured resource ID first
+  const s = await getAppSettingsDirect();
+  const manual = s['crm.autotask.opportunity.ownerResourceId']?.trim();
+  if (manual) {
+    const id = parseInt(manual);
+    if (!isNaN(id)) {
+      _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
+      return id;
+    }
+  }
+
+  // Fall back to looking up the API user's resource record by username
   try {
-    const items = await atQuery<{ id: number }>(creds, 'Resources',
-      [{ field: 'userName', op: 'eq', value: creds.username }], ['id'], 1);
-    const id = items[0]?.id ?? null;
-    if (id) _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    const url  = `${host}/atservicesrest/v1.0/Resources/query`;
+    crmLog(`→ POST ${url} (resource lookup for "${creds.username}")`);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type':       'application/json',
+        'UserName':           creds.username,
+        'Secret':             creds.secret,
+        'ApiIntegrationCode': creds.integrationCode,
+      },
+      body: JSON.stringify({ filter: [{ field: 'userName', op: 'eq', value: creds.username }] }),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => r.statusText);
+      crmLog(`Resource lookup HTTP ${r.status}: ${t.slice(0, 200)}`);
+      log('warn', 'crm', `Resource ID lookup failed (HTTP ${r.status}) — set Owner Resource ID manually in Settings → CRM`, { details: { status: r.status, body: t.slice(0, 200) } });
+      return null;
+    }
+    const data = await r.json() as { items?: Array<{ id: number }> };
+    const id = data.items?.[0]?.id ?? null;
+    if (id) {
+      crmLog(`  Resolved resource ID: ${id}`);
+      _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
+    } else {
+      crmLog(`Resource lookup returned no results for "${creds.username}"`);
+      log('warn', 'crm', `No Autotask Resource found for username "${creds.username}" — set Owner Resource ID manually in Settings → CRM`);
+    }
     return id;
-  } catch { return null; }
+  } catch (e) {
+    crmLog(`Resource lookup error: ${String(e)}`);
+    return null;
+  }
 }
 
 function atOpportunityWebUrl(apiHost: string, oppId: number): string {

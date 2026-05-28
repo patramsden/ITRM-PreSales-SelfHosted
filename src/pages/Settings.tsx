@@ -1611,6 +1611,21 @@ function CrmTab({ settings, onChange, isAdmin }: {
                   <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>accountManager{'}'}.
                 </p>
               </FieldRow>
+
+              {/* Owner Resource ID */}
+              <FieldRow label="Owner Resource ID">
+                <input
+                  type="text"
+                  value={settings['crm.autotask.opportunity.ownerResourceId'] ?? ''}
+                  onChange={e => set('crm.autotask.opportunity.ownerResourceId', e.target.value)}
+                  disabled={!isAdmin}
+                  placeholder="e.g. 29683084 — leave blank to auto-detect"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  The Autotask Resource ID to set as opportunity owner. Find it in Autotask → Admin → Resources, or leave blank to auto-detect from the API user account.
+                </p>
+              </FieldRow>
             </div>
 
             {/* Readiness checklist */}
@@ -1622,6 +1637,12 @@ function CrmTab({ settings, onChange, isAdmin }: {
                   label: settings['crm.autotask.opportunity.stageId']
                     ? `Stage configured (ID: ${settings['crm.autotask.opportunity.stageId']})`
                     : 'Select and save an Opportunity Stage above',
+                },
+                {
+                  ok: !!settings['crm.autotask.opportunity.ownerResourceId'],
+                  label: settings['crm.autotask.opportunity.ownerResourceId']
+                    ? `Owner Resource ID set (${settings['crm.autotask.opportunity.ownerResourceId']})`
+                    : 'Set Owner Resource ID above (or leave blank to auto-detect — may fail for API-only users)',
                 },
                 {
                   ok: true,

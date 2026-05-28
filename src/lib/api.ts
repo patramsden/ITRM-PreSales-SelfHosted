@@ -267,11 +267,12 @@ export interface AppSettings {
   'crm.tickets.daysBack'?:  string;  // number of days to look back (default 90)
 
   // Opportunity auto-create configuration
-  'crm.autotask.opportunity.enabled'?:       string;  // 'true' | 'false'
-  'crm.autotask.opportunity.stageId'?:       string;  // numeric picklist value
-  'crm.autotask.opportunity.probability'?:   string;  // 0–100
-  'crm.autotask.opportunity.closeDateDays'?: string;  // days from today
-  'crm.autotask.opportunity.titleTemplate'?: string;  // e.g. '{projectName} — {client}'
+  'crm.autotask.opportunity.enabled'?:         string;  // 'true' | 'false'
+  'crm.autotask.opportunity.stageId'?:         string;  // numeric picklist value
+  'crm.autotask.opportunity.probability'?:     string;  // 0–100
+  'crm.autotask.opportunity.closeDateDays'?:   string;  // days from today
+  'crm.autotask.opportunity.titleTemplate'?:   string;  // e.g. '{projectName} — {client}'
+  'crm.autotask.opportunity.ownerResourceId'?: string;  // numeric Autotask resource ID for opportunity owner
 
   // Support proposal document — company boilerplate sections
   'support.doc.intro'?:                string;
