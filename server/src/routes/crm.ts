@@ -617,20 +617,20 @@ export async function maybeCreateOpportunity(
     throw new Error(`Could not find an Autotask Resource record for "${accountManager}" — ensure they are an active resource in Autotask`);
   }
 
-  const fin       = calcOpportunityFinancials(proposal);
-  const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
-  const host      = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+  const fin                = calcOpportunityFinancials(proposal);
+  const startDate          = proposal.dateCreated
+    ? new Date(proposal.dateCreated).toISOString()
+    : new Date().toISOString();
+  const projectedCloseDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
+  const host               = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
   const body = {
     companyID: parseInt(crmCompanyId), title, ownerResourceID,
-    stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
-    amount:         fin.amount,
-    cost:           fin.cost,
-    oneTimeRevenue: fin.oneTimeRevenue,
-    oneTimeCost:    fin.oneTimeCost,
-    monthlyRevenue: fin.monthlyRevenue,
-    monthlyCost:    fin.monthlyCost,
-    yearlyRevenue:  fin.yearlyRevenue,
-    yearlyCost:     fin.yearlyCost,
+    stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability,
+    startDate, projectedCloseDate, useQuoteTotals: false,
+    amount:         fin.amount,  cost:           fin.cost,
+    oneTimeRevenue: fin.oneTimeRevenue, oneTimeCost:    fin.oneTimeCost,
+    monthlyRevenue: fin.monthlyRevenue, monthlyCost:    fin.monthlyCost,
+    yearlyRevenue:  fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
   };
 
   crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (proposal ${proposalId})`);

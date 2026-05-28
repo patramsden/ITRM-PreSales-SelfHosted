@@ -778,7 +778,7 @@ function SsoTab({ settings, onChange, isAdmin }: {
     try { await settingsApi.update(currentSettings); } catch { /* best effort */ }
     const r = await ssoApi.refreshMetadata();
     const epochMs = String(new Date(r.refreshedAt).getTime());
-    setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${new Date(r.refreshedAt).toLocaleString()}` });
+    setRefreshMsg({ ok: true, text: `Refreshed ${r.certsFound} cert${r.certsFound !== 1 ? 's' : ''} at ${new Date(r.refreshedAt).toLocaleString('en-GB')}` });
     // Store epoch ms so ensureFreshCert can parse it correctly
     onChange({ ...currentSettings, 'sso.certLastRefreshed': epochMs });
     ssoApi.certInfo().then(setCertInfo).catch(() => {});
@@ -947,7 +947,7 @@ function SsoTab({ settings, onChange, isAdmin }: {
               <span className="text-gray-600 dark:text-slate-300">
                 {certConfigured
                   ? lastRefreshed
-                    ? `Certificate cached — last refreshed ${new Date(lastRefreshed).toLocaleString()}`
+                    ? `Certificate cached — last refreshed ${new Date(lastRefreshed).toLocaleString('en-GB')}`
                     : 'Certificate configured'
                   : 'No certificate cached yet — click Refresh to fetch'}
               </span>

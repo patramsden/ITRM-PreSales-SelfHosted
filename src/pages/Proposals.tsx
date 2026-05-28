@@ -315,7 +315,9 @@ export function Proposals() {
                     {fmt(displayValue, p.currency)}
                     {valueLabel && <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{valueLabel}</span>}
                   </td>
-                  <td className="px-4 py-3.5 text-right text-gray-400 dark:text-slate-500">{p.dateModified}</td>
+                  <td className="px-4 py-3.5 text-right text-gray-400 dark:text-slate-500">
+                    {new Date(p.dateModified).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
                   <td className="px-4 py-3.5 text-center" onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => {
