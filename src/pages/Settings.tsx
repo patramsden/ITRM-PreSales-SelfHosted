@@ -1101,6 +1101,11 @@ function CrmTab({ settings, onChange, isAdmin }: {
   const [panelQueuesLoading, setPanelQueuesLoading] = useState(false);
   const [panelQueuesError,   setPanelQueuesError]   = useState<string | null>(null);
 
+  // Opportunity auto-create — stage picklist
+  const [oppStages,        setOppStages]        = useState<AtPicklistValue[] | null>(null);
+  const [oppStagesLoading, setOppStagesLoading] = useState(false);
+  const [oppStagesError,   setOppStagesError]   = useState<string | null>(null);
+
   const set = (k: keyof AppSettings, v: string) => onChange({ ...settings, [k]: v });
 
   const handleSave = async () => {
@@ -1161,6 +1166,18 @@ function CrmTab({ settings, onChange, isAdmin }: {
       setPanelQueuesError(e instanceof Error ? e.message : 'Failed to load queues from Autotask');
     } finally {
       setPanelQueuesLoading(false);
+    }
+  };
+
+  const loadOppStages = async () => {
+    setOppStagesLoading(true); setOppStagesError(null);
+    try {
+      const stages = await crmApi.getOpportunityStages();
+      setOppStages(stages);
+    } catch (e) {
+      setOppStagesError(e instanceof Error ? e.message : 'Failed to load stages from Autotask');
+    } finally {
+      setOppStagesLoading(false);
     }
   };
 
@@ -1463,6 +1480,122 @@ function CrmTab({ settings, onChange, isAdmin }: {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Opportunity Auto-Create ───────────────────────────────────── */}
+      <div className="border-t border-gray-200 dark:border-slate-700 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Tag size={16} className="text-brand-600 dark:text-brand-400" />
+            <div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">Opportunity Auto-Create</div>
+              <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Automatically create an Autotask opportunity when a new proposal is saved with a linked CRM company
+              </div>
+            </div>
+          </div>
+          {/* Enable toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div
+              onClick={() => isAdmin && set('crm.autotask.opportunity.enabled',
+                settings['crm.autotask.opportunity.enabled'] === 'true' ? 'false' : 'true')}
+              className={clsx(
+                'w-10 h-5 rounded-full transition-colors relative cursor-pointer',
+                settings['crm.autotask.opportunity.enabled'] === 'true'
+                  ? 'bg-brand-600' : 'bg-gray-300 dark:bg-slate-600',
+                !isAdmin && 'cursor-not-allowed opacity-60',
+              )}
+            >
+              <div className={clsx(
+                'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                settings['crm.autotask.opportunity.enabled'] === 'true' ? 'translate-x-5' : 'translate-x-0.5',
+              )} />
+            </div>
+            <span className="text-sm text-gray-700 dark:text-slate-300">
+              {settings['crm.autotask.opportunity.enabled'] === 'true' ? 'Enabled' : 'Disabled'}
+            </span>
+          </label>
+        </div>
+
+        {settings['crm.autotask.opportunity.enabled'] === 'true' && (
+          <div className="space-y-5">
+            {/* Stage loader */}
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={loadOppStages} disabled={oppStagesLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-300 dark:border-brand-700 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 disabled:opacity-50 transition-colors">
+                {oppStagesLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {oppStages ? 'Refresh stages' : 'Load stages from Autotask'}
+              </button>
+              {oppStagesError && <span className="text-xs text-red-500">{oppStagesError}</span>}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Stage */}
+              <FieldRow label="Opportunity Stage *">
+                <select
+                  value={settings['crm.autotask.opportunity.stageId'] ?? ''}
+                  onChange={e => set('crm.autotask.opportunity.stageId', e.target.value)}
+                  disabled={!isAdmin}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                >
+                  <option value="">— Select a stage (required) —</option>
+                  {(oppStages ?? []).map(v => (
+                    <option key={v.value} value={String(v.value)}>{v.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Load stages from Autotask to see options.</p>
+              </FieldRow>
+
+              {/* Probability */}
+              <FieldRow label="Default Probability (%)">
+                <input
+                  type="number" min={0} max={100}
+                  value={settings['crm.autotask.opportunity.probability'] ?? '50'}
+                  onChange={e => set('crm.autotask.opportunity.probability', e.target.value)}
+                  disabled={!isAdmin}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-400 mt-1">Win probability 0–100. Default: 50.</p>
+              </FieldRow>
+
+              {/* Close date offset */}
+              <FieldRow label="Expected Close (days from today)">
+                <input
+                  type="number" min={1} max={730}
+                  value={settings['crm.autotask.opportunity.closeDateDays'] ?? '30'}
+                  onChange={e => set('crm.autotask.opportunity.closeDateDays', e.target.value)}
+                  disabled={!isAdmin}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-400 mt-1">Sets the close date relative to today. Default: 30.</p>
+              </FieldRow>
+
+              {/* Title template */}
+              <FieldRow label="Opportunity Title Template">
+                <input
+                  type="text"
+                  value={settings['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}'}
+                  onChange={e => set('crm.autotask.opportunity.titleTemplate', e.target.value)}
+                  disabled={!isAdmin}
+                  placeholder="{projectName}"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Supports <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>projectName{'}'},{' '}
+                  <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>client{'}'},{' '}
+                  <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>accountManager{'}'}.
+                </p>
+              </FieldRow>
+            </div>
+
+            {!settings['crm.autotask.opportunity.stageId'] && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertCircle size={12} />
+                A stage must be selected before opportunities will be created automatically.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {isAdmin && <SaveBar saving={saving} saved={saved} error={error} onSave={handleSave} />}

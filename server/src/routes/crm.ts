@@ -473,6 +473,92 @@ router.get('/picklists-batch', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
+// ─── Opportunity creation ─────────────────────────────────────────────────────
+
+let _resourceIdCache: { id: number; expiresAt: number } | null = null;
+
+async function getApiUserResourceId(creds: AtCreds): Promise<number | null> {
+  if (_resourceIdCache && Date.now() < _resourceIdCache.expiresAt) return _resourceIdCache.id;
+  try {
+    const items = await atQuery<{ id: number }>(creds, 'Resources',
+      [{ field: 'userName', op: 'eq', value: creds.username }], ['id'], 1);
+    const id = items[0]?.id ?? null;
+    if (id) _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
+    return id;
+  } catch { return null; }
+}
+
+function atOpportunityWebUrl(apiHost: string, oppId: number): string {
+  const webHost = apiHost.replace(/webservices(\d+)/i, 'ww$1');
+  return `${webHost}/Autotask/views/opportunity/viewopportunity.aspx?opportunityID=${oppId}`;
+}
+
+export async function maybeCreateOpportunity(
+  proposalId: string,
+  projectName: string,
+  client: string,
+  accountManager: string,
+  crmCompanyId: string | undefined,
+): Promise<{ opportunityId: string; url: string } | null> {
+  try {
+    const s = await getAppSettingsDirect();
+    if (s['crm.autotask.opportunity.enabled'] !== 'true') return null;
+    if (!crmCompanyId) return null;
+    const creds = await getCreds();
+    if (!creds) return null;
+    const stageId  = s['crm.autotask.opportunity.stageId'] ? parseInt(s['crm.autotask.opportunity.stageId']) : null;
+    if (!stageId) { crmLog(`Opportunity auto-create skipped: no stageId configured`); return null; }
+    const probability   = parseInt(s['crm.autotask.opportunity.probability']   ?? '50');
+    const closeDateDays = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
+    const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
+    const title = titleTemplate
+      .replace('{projectName}', projectName)
+      .replace('{client}', client)
+      .replace('{accountManager}', accountManager || '');
+    const ownerResourceID = await getApiUserResourceId(creds);
+    if (!ownerResourceID) { crmLog(`Opportunity auto-create skipped: could not resolve ownerResourceID`); return null; }
+    const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
+    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+    const body = {
+      accountID: parseInt(crmCompanyId), title, ownerResourceID,
+      stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
+    };
+    crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (auto-create for proposal ${proposalId})`);
+    const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'UserName': creds.username, 'Secret': creds.secret, 'ApiIntegrationCode': creds.integrationCode },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) { const t = await r.text().catch(() => r.statusText); crmLog(`Opportunity create failed (${r.status}): ${t.slice(0, 300)}`); return null; }
+    const data = await r.json() as { itemId?: number };
+    const opportunityId = data.itemId;
+    if (!opportunityId) return null;
+    crmLog(`  Opportunity created: ID ${opportunityId}`);
+    return { opportunityId: String(opportunityId), url: atOpportunityWebUrl(host, opportunityId) };
+  } catch (e) { crmLog(`Opportunity auto-create error: ${String(e)}`); return null; }
+}
+
+router.post('/create-opportunity', requireAuth, async (req, res) => {
+  try {
+    const { proposalId, projectName, client, accountManager, crmCompanyId } = req.body as {
+      proposalId?: string; projectName?: string; client?: string; accountManager?: string; crmCompanyId?: string;
+    };
+    if (!projectName?.trim() || !crmCompanyId) { res.status(400).json({ error: 'projectName and crmCompanyId are required' }); return; }
+    const result = await maybeCreateOpportunity(proposalId ?? '', projectName, client ?? '', accountManager ?? '', crmCompanyId);
+    if (!result) { res.status(400).json({ error: 'Opportunity creation failed — check CRM configuration (Settings → CRM)' }); return; }
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
+router.get('/opportunity-stages', requireAuth, async (_req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json([]); return; }
+    const values = await fetchPicklist(creds, 'Opportunities', 'stage');
+    res.json(values.filter((v: AtPicklistValue) => v.isActive));
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
 // ─── POST /api/crm/create-ticket ─────────────────────────────────────────────
 // Creates an incident ticket in the CON:Post Sale queue when a proposal is Won.
 

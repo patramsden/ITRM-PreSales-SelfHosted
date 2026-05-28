@@ -83,7 +83,9 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     discountApprovedBy:   (r.discount_approved_by   as string) ?? undefined,
     discountApprovedAt:   r.discount_approved_at ? (r.discount_approved_at as Date).toISOString() : undefined,
     discountApprovalNote: (r.discount_approval_note as string) ?? undefined,
-    atProjectId:                  (r.at_project_id as string) ?? undefined,
+    atProjectId:                  (r.at_project_id      as string) ?? undefined,
+    atOpportunityId:              (r.at_opportunity_id  as string) ?? undefined,
+    atOpportunityUrl:             (r.at_opportunity_url as string) ?? undefined,
     consultancyDiscountType:      (r.consultancy_discount_type   as Proposal['consultancyDiscountType']) ?? undefined,
     consultancyDiscountAmount:    r.consultancy_discount_amount != null ? Number(r.consultancy_discount_amount) : undefined,
     consultancyDiscountNote:      (r.consultancy_discount_note   as string) ?? undefined,
@@ -208,9 +210,10 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
        trb_approved_fingerprint,five_k_approved_fingerprint,
        won_lost_reason,competitor_name,won_lost_note,won_lost_at,
        expires_at,discount_status,discount_approved_by,discount_approved_at,discount_approval_note,
-       at_project_id,consultancy_discount_type,consultancy_discount_amount,consultancy_discount_note,
+       at_project_id,at_opportunity_id,at_opportunity_url,
+       consultancy_discount_type,consultancy_discount_amount,consultancy_discount_note,
        proposal_type,support_contract)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -231,6 +234,7 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
      p.discountStatus ?? null, p.discountApprovedBy ?? null,
      p.discountApprovedAt ? new Date(p.discountApprovedAt) : null,
      p.discountApprovalNote ?? null, p.atProjectId ?? null,
+     p.atOpportunityId ?? null, p.atOpportunityUrl ?? null,
      p.consultancyDiscountType ?? null, p.consultancyDiscountAmount ?? null, p.consultancyDiscountNote ?? null,
      p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null],
   );
@@ -251,8 +255,9 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        won_lost_reason=$37,competitor_name=$38,won_lost_note=$39,won_lost_at=$40,
        expires_at=$41,discount_status=$42,discount_approved_by=$43,
        discount_approved_at=$44,discount_approval_note=$45,at_project_id=$46,
-       consultancy_discount_type=$47,consultancy_discount_amount=$48,consultancy_discount_note=$49,
-       proposal_type=$50,support_contract=$51
+       at_opportunity_id=$47,at_opportunity_url=$48,
+       consultancy_discount_type=$49,consultancy_discount_amount=$50,consultancy_discount_note=$51,
+       proposal_type=$52,support_contract=$53
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -273,6 +278,7 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      p.discountStatus ?? null, p.discountApprovedBy ?? null,
      p.discountApprovedAt ? new Date(p.discountApprovedAt) : null,
      p.discountApprovalNote ?? null, p.atProjectId ?? null,
+     p.atOpportunityId ?? null, p.atOpportunityUrl ?? null,
      p.consultancyDiscountType ?? null, p.consultancyDiscountAmount ?? null, p.consultancyDiscountNote ?? null,
      p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null],
   );

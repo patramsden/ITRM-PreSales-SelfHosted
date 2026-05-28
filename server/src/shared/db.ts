@@ -338,6 +338,10 @@ export async function ensureSchema(): Promise<void> {
     // Autotask project link
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS at_project_id VARCHAR(100)`,
 
+    // Autotask opportunity link (auto-created when a new proposal is saved)
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS at_opportunity_id  VARCHAR(100)`,
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS at_opportunity_url VARCHAR(500)`,
+
     // Consultancy discount
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS consultancy_discount_type   VARCHAR(20)`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS consultancy_discount_amount DECIMAL(12,2)`,

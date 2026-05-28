@@ -159,6 +159,10 @@ export const crmApi = {
     api.get<CrmTicket[]>(`crm/tickets?companyId=${companyId}`),
   getCompanyAddress:  (companyId: number) =>
     api.get<CrmCompanyAddress>(`crm/company-address?id=${companyId}`),
+  getOpportunityStages: () =>
+    api.get<AtPicklistValue[]>('crm/opportunity-stages'),
+  createOpportunity: (data: { proposalId: string; projectName: string; client: string; accountManager: string; crmCompanyId: string }) =>
+    api.post<{ opportunityId: string; url: string }>('crm/create-opportunity', data),
 };
 
 export const lookupsApi = {

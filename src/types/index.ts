@@ -196,8 +196,10 @@ export interface Proposal {
   discountApprovedAt?: string;
   discountApprovalNote?: string;
 
-  // ── Autotask project link ─────────────────────────────────────────────────
+  // ── Autotask links ────────────────────────────────────────────────────────
   atProjectId?: string;
+  atOpportunityId?: string;
+  atOpportunityUrl?: string;
 
   // ── Consultancy discount (customer-facing) ────────────────────────────────
   /** 'monetary' = fixed £ amount off consultancy; 'percentage' = % off consultancy */

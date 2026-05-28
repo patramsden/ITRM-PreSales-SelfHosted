@@ -159,6 +159,8 @@ export interface Proposal {
   discountApprovedAt?: string;
   discountApprovalNote?: string;
   atProjectId?: string;
+  atOpportunityId?: string;
+  atOpportunityUrl?: string;
 
   // ── Consultancy discount ──────────────────────────────────────────────────
   consultancyDiscountType?: 'monetary' | 'percentage';

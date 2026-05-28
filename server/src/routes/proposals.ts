@@ -8,6 +8,7 @@ import { createShare, listShares, deleteShare, getProposalByShareToken } from '.
 import { sendEmail, statusChangeEmail } from '../shared/email';
 import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
 import { getAllUsers } from '../repositories/userRepo';
+import { maybeCreateOpportunity } from './crm';
 import type { Proposal } from '../types/index';
 
 const router = Router();
@@ -16,7 +17,15 @@ router.get('/',     requireAuth, async (_req, res) => { res.json(await getAllPro
 router.post('/',    requireAuth, async (req,  res) => {
   const body = req.body as Proposal;
   if (!body?.id || !body?.projectName) { res.status(400).json({ error: 'id and projectName are required' }); return; }
-  await createProposal(body); res.status(201).json(body);
+  let created = await createProposal(body);
+  const opp = await maybeCreateOpportunity(
+    created.id, created.projectName, created.client, created.accountManager, created.crmCompanyId,
+  );
+  if (opp) {
+    await updateProposal(created.id, { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
+    created = { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url };
+  }
+  res.status(201).json(created);
 });
 router.get('/:id',  requireAuth, async (req, res) => {
   const p = await getProposalById(req.params.id);
