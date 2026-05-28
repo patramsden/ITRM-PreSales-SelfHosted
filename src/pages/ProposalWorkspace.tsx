@@ -2,7 +2,7 @@ import { useState, lazy, Suspense, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText, Check, Trophy, XCircle, Save } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore, hasPendingSave } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import { getProposalRole, canEdit, canDelete, canAccessAdmin } from '../utils/permissions';
 import { getExportBlockers } from '../utils/exportGuard';
@@ -157,7 +157,7 @@ type Tab = (typeof PROJECT_TABS)[number] | (typeof SUPPORT_TABS)[number];
 export function ProposalWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { proposals, updateProposal, deleteProposal } = useStore();
+  const { proposals, updateProposal, flushProposal, deleteProposal } = useStore();
   const { currentUser } = useAuth();
 
   const proposal = proposals.find(p => p.id === id);
@@ -177,6 +177,9 @@ export function ProposalWorkspace() {
   const [crmSyncing, setCrmSyncing] = useState(false);
   const [crmSyncResult, setCrmSyncResult] = useState<'ok' | 'error' | null>(null);
   const [crmSyncError, setCrmSyncError] = useState<string | null>(null);
+  // Re-render when pending-save state changes so the indicator stays accurate
+  const [, forceUpdate] = useState(0);
+  const isDirty = id ? hasPendingSave(id) : false;
 
   // Fetch layout config for PDF generation
   useEffect(() => {
@@ -188,6 +191,13 @@ export function ProposalWorkspace() {
   // Keep a ref to the latest proposal so the unmount cleanup can access it
   const proposalRef = useRef(proposal);
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
+
+  // Flush pending proposal save to API, then CRM sync
+  const handleSaveAndSync = useCallback(async (p: typeof proposal) => {
+    if (!p) return;
+    await flushProposal(p.id).catch(() => {});
+    forceUpdate(n => n + 1);
+  }, [flushProposal]);
 
   // CRM sync — create or update the linked Autotask opportunity
   const handleCrmSync = useCallback(async (p: typeof proposal) => {
@@ -219,12 +229,14 @@ export function ProposalWorkspace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save version snapshot + sync CRM when navigating away
+  // Flush pending save + version snapshot + CRM sync when navigating away
   useEffect(() => {
     return () => {
       const p = proposalRef.current;
       if (p && canEdit(p, currentUser)) {
-        versionApi.save(p.id).catch(() => {/* fire and forget */});
+        // Flush any unsaved changes to the DB first
+        flushProposal(p.id).catch(() => {});
+        versionApi.save(p.id).catch(() => {});
         // Fire-and-forget CRM sync on exit if company is linked
         if (p.crmCompanyId) {
           crmApi.syncOpportunity({
@@ -409,13 +421,23 @@ export function ProposalWorkspace() {
               )}
             </div>
 
-            {/* Save / CRM sync button — only shown when a CRM company is linked */}
-            {proposal.crmCompanyId && editable && (
+            {/* Unsaved changes indicator */}
+            {isDirty && !crmSyncing && (
+              <span className="text-xs text-amber-500 dark:text-amber-400 font-medium">Unsaved changes</span>
+            )}
+
+            {/* Save button — always shown when editable; also syncs CRM if company linked */}
+            {editable && (
               <div className="relative">
                 <button
-                  onClick={() => handleCrmSync(proposal)}
+                  onClick={async () => {
+                    await handleSaveAndSync(proposal);
+                    if (proposal.crmCompanyId) handleCrmSync(proposal);
+                  }}
                   disabled={crmSyncing}
-                  title={proposal.atOpportunityId ? 'Save & sync Autotask opportunity' : 'Save & create Autotask opportunity'}
+                  title={proposal.crmCompanyId
+                    ? (proposal.atOpportunityId ? 'Save & sync Autotask opportunity' : 'Save & create Autotask opportunity')
+                    : 'Save proposal'}
                   className={clsx(
                     'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors',
                     crmSyncResult === 'ok'    && 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400',
@@ -511,7 +533,12 @@ export function ProposalWorkspace() {
           {TABS.map(tab => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => {
+                if (tab === activeTab) return;
+                // Flush any pending save when switching tabs
+                flushProposal(proposal.id).then(() => forceUpdate(n => n + 1)).catch(() => {});
+                setActiveTab(tab);
+              }}
               className={clsx(
                 'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                 activeTab === tab

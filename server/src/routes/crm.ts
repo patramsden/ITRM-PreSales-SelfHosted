@@ -703,11 +703,17 @@ export async function maybeCreateOpportunity(
 /** Called by proposals.ts on every PUT.
  *  PATCHes the linked Autotask opportunity's title (and amount if provided).
  *  Silent on failure — never throws. */
+const _lastSyncHash = new Map<string, string>();
+function oppSyncHash(title: string, fin: ReturnType<typeof calcOpportunityFinancials>, contactID: number | null): string {
+  return JSON.stringify({ title, ...fin, contactID });
+}
+
 export async function maybeUpdateOpportunity(
   proposal: import('../types/index').Proposal,
 ): Promise<void> {
   const opportunityId = proposal.atOpportunityId;
   if (!opportunityId) return;
+  if (proposal.status === 'Won' || proposal.status === 'Lost') return;
   try {
     const s = await getAppSettingsDirect();
     if (s['crm.autotask.opportunity.enabled'] !== 'true') return;
@@ -729,6 +735,12 @@ export async function maybeUpdateOpportunity(
     const contactID = proposal.crmCompanyId
       ? await lookupContactId(creds, proposal.crmCompanyId, proposal.clientContact, proposal.clientContactEmail)
       : null;
+
+    const hash = oppSyncHash(title, fin, contactID);
+    if (_lastSyncHash.get(opportunityId) === hash) {
+      crmLog(`  Opportunity ${opportunityId} unchanged — skipping PATCH`);
+      return;
+    }
 
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
     const body: Record<string, unknown> = {
@@ -754,6 +766,7 @@ export async function maybeUpdateOpportunity(
       log('warn', 'crm', `Opportunity update failed for "${projectName}" (${r.status})`, { details: { opportunityId, body: t.slice(0, 200) } });
     } else {
       crmLog(`  Opportunity ${opportunityId} updated`);
+      _lastSyncHash.set(opportunityId, hash);
     }
   } catch (e) {
     crmLog(`Opportunity update error: ${String(e)}`);
