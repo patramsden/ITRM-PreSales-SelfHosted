@@ -28,20 +28,78 @@
  *   className   Extra classes applied to the outer wrapper.
  */
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Extension } from '@tiptap/react';
 import StarterKit                   from '@tiptap/starter-kit';
 import Underline                    from '@tiptap/extension-underline';
 import Link                         from '@tiptap/extension-link';
 import Placeholder                  from '@tiptap/extension-placeholder';
 import TextAlign                    from '@tiptap/extension-text-align';
-import { useEffect, useCallback }   from 'react';
+import Image                        from '@tiptap/extension-image';
+import { Plugin, PluginKey }        from '@tiptap/pm/state';
+import { useEffect, useCallback, useRef } from 'react';
 import clsx                         from 'clsx';
 import {
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
   Heading1, Heading2, Heading3, Link2, Link2Off,
   AlignLeft, AlignCenter, AlignRight,
-  Undo2, Redo2, RemoveFormatting,
+  Undo2, Redo2, RemoveFormatting, ImageIcon,
 } from 'lucide-react';
+
+// ─── Image paste extension ────────────────────────────────────────────────────
+// Intercepts paste and drag-drop events, converts image files to base64 data
+// URLs and inserts them inline via the Image node.
+
+const ImagePaste = Extension.create({
+  name: 'imagePaste',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('imagePaste'),
+        props: {
+          handlePaste: (view, event) => {
+            const items = Array.from(event.clipboardData?.items ?? []);
+            const imageItem = items.find(i => i.type.startsWith('image/'));
+            if (!imageItem) return false;
+            event.preventDefault();
+            const file = imageItem.getAsFile();
+            if (!file) return false;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const src = e.target?.result as string;
+              if (!src) return;
+              const { schema } = view.state;
+              const node = schema.nodes.image.create({ src });
+              const tr = view.state.tr.replaceSelectionWith(node);
+              view.dispatch(tr);
+            };
+            reader.readAsDataURL(file);
+            return true;
+          },
+          handleDrop: (view, event) => {
+            const files = Array.from(event.dataTransfer?.files ?? [])
+              .filter(f => f.type.startsWith('image/'));
+            if (!files.length) return false;
+            event.preventDefault();
+            files.forEach(file => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const src = e.target?.result as string;
+                if (!src) return;
+                const { schema } = view.state;
+                const node = schema.nodes.image.create({ src });
+                const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                const tr = view.state.tr.insert(pos?.pos ?? view.state.selection.from, node);
+                view.dispatch(tr);
+              };
+              reader.readAsDataURL(file);
+            });
+            return true;
+          },
+        },
+      }),
+    ];
+  },
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,7 +152,7 @@ function Divider() {
 
 // ─── Toolbar ──────────────────────────────────────────────────────────────────
 
-function Toolbar({ editor, minimal }: { editor: ReturnType<typeof useEditor>; minimal?: boolean }) {
+function Toolbar({ editor, minimal, fileInputRef }: { editor: ReturnType<typeof useEditor>; minimal?: boolean; fileInputRef: React.RefObject<HTMLInputElement | null> }) {
   if (!editor) return null;
 
   const addLink = () => {
@@ -188,6 +246,13 @@ function Toolbar({ editor, minimal }: { editor: ReturnType<typeof useEditor>; mi
       <ToolBtn onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="Clear formatting">
         <RemoveFormatting size={13} />
       </ToolBtn>
+
+      <Divider />
+
+      {/* Image — click to browse, or paste/drag directly */}
+      <ToolBtn onClick={() => fileInputRef.current?.click()} title="Insert image (or paste / drag-drop)">
+        <ImageIcon size={13} />
+      </ToolBtn>
     </div>
   );
 }
@@ -209,6 +274,21 @@ export function RichTextEditor({
   value, onChange, disabled, placeholder, minHeight = '10rem', minimal, className,
 }: RichTextEditorProps) {
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editorRef.current) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+      if (src) editorRef.current?.chain().focus().setImage({ src }).run();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -222,6 +302,8 @@ export function RichTextEditor({
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: placeholder ?? 'Start typing…' }),
+      Image.configure({ inline: false, allowBase64: true }),
+      ImagePaste,
       ...(!minimal ? [TextAlign.configure({ types: ['heading', 'paragraph'] })] : []),
     ],
     content: normalise(value),
@@ -232,6 +314,9 @@ export function RichTextEditor({
       onChange(html === '<p></p>' ? '' : html);
     },
   });
+
+  // Keep editorRef in sync so the file input callback always has the latest editor
+  useEffect(() => { editorRef.current = editor; }, [editor]);
 
   // Sync external value changes (e.g. AI generation overwrites content)
   const prevValue = value;
@@ -269,7 +354,15 @@ export function RichTextEditor({
       'focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-400',
       className,
     )}>
-      <Toolbar editor={editor} minimal={minimal} />
+      <Toolbar editor={editor} minimal={minimal} fileInputRef={fileInputRef} />
+      {/* Hidden file input for toolbar image button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileInput}
+      />
       <EditorContent
         editor={editor}
         className={clsx(
@@ -292,6 +385,9 @@ export function RichTextEditor({
           '[&_.ProseMirror_li]:my-0.5',
           // Links
           '[&_.ProseMirror_a]:text-brand-600 [&_.ProseMirror_a]:underline',
+          // Images
+          '[&_.ProseMirror_img]:max-w-full [&_.ProseMirror_img]:h-auto [&_.ProseMirror_img]:rounded [&_.ProseMirror_img]:my-2',
+          '[&_.ProseMirror_img.ProseMirror-selectednode]:outline [&_.ProseMirror_img.ProseMirror-selectednode]:outline-2 [&_.ProseMirror_img.ProseMirror-selectednode]:outline-brand-500',
           // Placeholder
           '[&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]',
           '[&_.ProseMirror_.is-editor-empty:first-child::before]:text-gray-400',
