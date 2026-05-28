@@ -38,14 +38,31 @@ router.put('/:id',  requireAuth, async (req, res) => {
   const body = req.body as Proposal;
   const existing = await getProposalById(req.params.id);
   await updateProposal(req.params.id, body);
+
   if (body.atOpportunityId) {
+    // Opportunity already exists — keep it in sync.
     maybeUpdateOpportunity(
       body.atOpportunityId,
       body.projectName ?? '',
       body.client ?? '',
       body.accountManager ?? '',
     ).catch(() => {});
+  } else if (body.crmCompanyId && !existing?.atOpportunityId) {
+    // CRM company just linked (or was set at creation but opp wasn't created yet) — create now.
+    (async () => {
+      try {
+        const opp = await maybeCreateOpportunity(
+          req.params.id, body.projectName ?? '', body.client ?? '',
+          body.accountManager ?? '', body.crmCompanyId,
+        );
+        if (opp) {
+          await updateProposal(req.params.id, { ...body, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
+          log('info', 'crm', `Opportunity created for proposal "${body.projectName}"`, { details: { proposalId: req.params.id, opportunityId: opp.opportunityId } });
+        }
+      } catch { /* never let CRM failure affect the response */ }
+    })();
   }
+
   saveVersion(req.params.id, JSON.stringify(body), req.user?.name ?? 'system').catch(() => {});
   // Fire-and-forget status change email
   if (existing && existing.status !== body.status) {
