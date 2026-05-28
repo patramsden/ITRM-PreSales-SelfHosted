@@ -14,7 +14,9 @@ import {
 import type { AppLookups } from '../store';
 import type { Proposal, User, Template, CatalogItem, RateCard, Clause } from '../types';
 
-const REFRESH_COOLDOWN_MS = 30_000; // don't re-fetch more than once every 30 s
+// Minimum gap between two back-to-back tab-visibility refreshes (e.g. rapid
+// alt-tab). Route changes always refresh immediately with no cooldown.
+const VISIBILITY_COOLDOWN_MS = 5_000;
 
 interface Props { children: React.ReactNode }
 
@@ -23,7 +25,7 @@ export function StoreInitializer({ children }: Props) {
   const { authLoading } = useAuth();
   const [error, setError]       = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const lastRefreshed = useRef<number>(0);
+  const lastVisibilityRefresh = useRef<number>(0);
 
   // Listen for background mutation failures and surface a dismissible banner
   useEffect(() => {
@@ -36,11 +38,8 @@ export function StoreInitializer({ children }: Props) {
   }, []);
   const location = useLocation();
 
-  // Re-fetch all data, throttled to at most once per REFRESH_COOLDOWN_MS
+  // Re-fetch all data from the API and update the store
   const refreshAll = async () => {
-    const now = Date.now();
-    if (now - lastRefreshed.current < REFRESH_COOLDOWN_MS) return;
-    lastRefreshed.current = now;
     try {
       const [proposals, users, templates, catalog, rateCards, lookups, clauses] = await Promise.all([
         proposalApi.list(),
@@ -55,17 +54,22 @@ export function StoreInitializer({ children }: Props) {
     } catch { /* silent background refresh — never break the UI */ }
   };
 
-  // Re-fetch when the tab becomes visible again (user switches back from another tab/app)
+  // Re-fetch when the tab becomes visible again (user switches back from another tab/app).
+  // A short cooldown prevents hammering the API on rapid alt-tab.
   useEffect(() => {
     if (!initialized) return;
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') refreshAll();
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastVisibilityRefresh.current < VISIBILITY_COOLDOWN_MS) return;
+      lastVisibilityRefresh.current = now;
+      refreshAll();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch on route change so navigating to Catalog/Users/etc shows fresh data
+  // Re-fetch on every route change — no cooldown so data is always fresh on navigation
   useEffect(() => {
     if (!initialized) return;
     refreshAll();
