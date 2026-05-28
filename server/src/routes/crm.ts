@@ -480,6 +480,48 @@ router.get('/picklists-batch', requireAuth, async (req, res) => {
 // Per-name cache for account manager resource ID lookups (10 min TTL).
 const _amResourceIdCache = new Map<string, { id: number; expiresAt: number }>();
 
+// Per-key cache for contact ID lookups (10 min TTL).
+const _contactIdCache = new Map<string, { id: number | null; expiresAt: number }>();
+
+async function lookupContactId(
+  creds: AtCreds,
+  crmCompanyId: string,
+  clientContact?: string,
+  clientContactEmail?: string,
+): Promise<number | null> {
+  if (!clientContact && !clientContactEmail) return null;
+  const cacheKey = `${crmCompanyId}:${clientContactEmail ?? ''}:${clientContact ?? ''}`;
+  const cached = _contactIdCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) return cached.id;
+
+  const companyId = parseInt(crmCompanyId);
+  let id: number | null = null;
+  try {
+    if (clientContactEmail) {
+      const byEmail = await atQuery<{ id: number }>(creds, 'Contacts',
+        [{ field: 'companyID', op: 'eq', value: companyId }, { field: 'emailAddress', op: 'eq', value: clientContactEmail }, { field: 'isActive', op: 'eq', value: true }],
+        ['id'], 1);
+      id = byEmail[0]?.id ?? null;
+      if (id) crmLog(`  Contact resolved by email "${clientContactEmail}": ID ${id}`);
+    }
+    if (!id && clientContact) {
+      const parts = clientContact.trim().split(/\s+/);
+      const firstName = parts[0]; const lastName = parts.slice(1).join(' ');
+      if (firstName && lastName) {
+        const byName = await atQuery<{ id: number }>(creds, 'Contacts',
+          [{ field: 'companyID', op: 'eq', value: companyId }, { field: 'firstName', op: 'eq', value: firstName }, { field: 'lastName', op: 'eq', value: lastName }, { field: 'isActive', op: 'eq', value: true }],
+          ['id'], 1);
+        id = byName[0]?.id ?? null;
+        if (id) crmLog(`  Contact resolved by name "${clientContact}": ID ${id}`);
+      }
+    }
+    if (!id) crmLog(`  No contact found for "${clientContact ?? clientContactEmail}"`);
+  } catch (e) { crmLog(`Contact lookup error: ${String(e)}`); }
+
+  _contactIdCache.set(cacheKey, { id, expiresAt: Date.now() + 10 * 60 * 1000 });
+  return id;
+}
+
 /** Looks up the Autotask Resource ID for a given full name (e.g. "Jane Smith").
  *  Splits into firstName / lastName and queries the Resources entity. */
 async function getResourceIdForAccountManager(creds: AtCreds, fullName: string): Promise<number | null> {
@@ -618,12 +660,11 @@ export async function maybeCreateOpportunity(
   }
 
   const fin                = calcOpportunityFinancials(proposal);
-  const startDate          = proposal.dateCreated
-    ? new Date(proposal.dateCreated).toISOString()
-    : new Date().toISOString();
+  const startDate          = proposal.dateCreated ? new Date(proposal.dateCreated).toISOString() : new Date().toISOString();
   const projectedCloseDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
+  const contactID          = await lookupContactId(creds, crmCompanyId, proposal.clientContact, proposal.clientContactEmail);
   const host               = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-  const body = {
+  const body: Record<string, unknown> = {
     companyID: parseInt(crmCompanyId), title, ownerResourceID,
     stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability,
     startDate, projectedCloseDate, useQuoteTotals: false,
@@ -632,6 +673,7 @@ export async function maybeCreateOpportunity(
     monthlyRevenue: fin.monthlyRevenue, monthlyCost:    fin.monthlyCost,
     yearlyRevenue:  fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
   };
+  if (contactID) body.contactID = contactID;
 
   crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (proposal ${proposalId})`);
   const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
@@ -683,10 +725,13 @@ export async function maybeUpdateOpportunity(
 
     const closeDateDays      = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
     const projectedCloseDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
-    const fin = calcOpportunityFinancials(proposal);
+    const fin      = calcOpportunityFinancials(proposal);
+    const contactID = proposal.crmCompanyId
+      ? await lookupContactId(creds, proposal.crmCompanyId, proposal.clientContact, proposal.clientContactEmail)
+      : null;
 
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const body = {
+    const body: Record<string, unknown> = {
       id:               parseInt(opportunityId, 10),
       title,
       projectedCloseDate,
@@ -695,6 +740,7 @@ export async function maybeUpdateOpportunity(
       monthlyRevenue:   fin.monthlyRevenue, monthlyCost:    fin.monthlyCost,
       yearlyRevenue:    fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
     };
+    if (contactID) body.contactID = contactID;
 
     crmLog(`→ PATCH ${host}/atservicesrest/v1.0/Opportunities (update ID ${opportunityId})`);
     const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
