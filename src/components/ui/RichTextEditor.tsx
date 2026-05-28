@@ -240,7 +240,7 @@ export function RichTextEditor({
     const current = editor.getHTML();
     const incoming = normalise(value);
     if (incoming !== current && value !== prevValue) {
-      editor.commands.setContent(incoming, false);
+      editor.commands.setContent(incoming, { emitUpdate: false });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
