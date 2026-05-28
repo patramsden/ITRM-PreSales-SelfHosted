@@ -272,6 +272,7 @@ export interface AppSettings {
   'crm.autotask.opportunity.probability'?:   string;  // 0–100
   'crm.autotask.opportunity.closeDateDays'?: string;  // days from today
   'crm.autotask.opportunity.titleTemplate'?: string;  // e.g. '{projectName} — {client}'
+  'crm.autotask.opportunity.urlTemplate'?:   string;  // e.g. 'https://ww5.autotask.net/Autotask/views/opportunity/viewopportunity.aspx?opportunityID={id}'
 
   // Support proposal document — company boilerplate sections
   'support.doc.intro'?:                string;

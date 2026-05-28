@@ -1613,6 +1613,21 @@ function CrmTab({ settings, onChange, isAdmin }: {
                 </p>
               </FieldRow>
 
+              {/* Opportunity URL Template */}
+              <FieldRow label="Opportunity Link URL">
+                <input
+                  type="text"
+                  value={settings['crm.autotask.opportunity.urlTemplate'] ?? ''}
+                  onChange={e => set('crm.autotask.opportunity.urlTemplate', e.target.value)}
+                  disabled={!isAdmin}
+                  placeholder="e.g. https://ww5.autotask.net/Autotask/views/opportunity/viewopportunity.aspx?opportunityID={id}"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Open any opportunity in Autotask, copy its URL, replace the number at the end with <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{id}'}</code> and paste here.
+                  Leave blank to auto-detect (check Logs after first create to see what URL was generated).
+                </p>
+              </FieldRow>
             </div>
 
             {/* Readiness checklist */}

@@ -697,7 +697,30 @@ export async function maybeCreateOpportunity(
     throw new Error('Autotask returned no opportunity ID — the record may not have been created');
   }
 
-  const oppUrl = atOpportunityWebUrl(host, opportunityId);
+  // Try to get the URL from Autotask itself by fetching the created opportunity
+  let oppUrl = '';
+  try {
+    const getR = await fetch(`${host}/atservicesrest/v1.0/Opportunities/${opportunityId}`, {
+      headers: { 'Content-Type': 'application/json', 'UserName': creds.username, 'Secret': creds.secret, 'ApiIntegrationCode': creds.integrationCode },
+    });
+    if (getR.ok) {
+      const getData = await getR.json() as { item?: Record<string, unknown> };
+      const item = getData.item ?? {};
+      crmLog(`  Opportunity GET fields: ${Object.keys(item).join(', ')}`);
+      log('info', 'crm', `Opportunity ${opportunityId} fields from Autotask`, { details: item });
+      const urlEntry = Object.entries(item).find(
+        ([k, v]) => typeof v === 'string' && (v as string).startsWith('http') &&
+          (k.toLowerCase().includes('url') || k.toLowerCase().includes('link') || k.toLowerCase().includes('permalink'))
+      );
+      if (urlEntry) { oppUrl = urlEntry[1] as string; }
+    }
+  } catch (e) { crmLog(`  Could not fetch opportunity for URL: ${String(e)}`); }
+
+  if (!oppUrl) {
+    const urlTemplate = s['crm.autotask.opportunity.urlTemplate']?.trim();
+    oppUrl = urlTemplate ? urlTemplate.replace('{id}', String(opportunityId)) : atOpportunityWebUrl(host, opportunityId);
+  }
+
   crmLog(`  Opportunity created: ID ${opportunityId} — ${oppUrl}`);
   log('info', 'crm', `Opportunity created: ID ${opportunityId}`, { details: { url: oppUrl, proposalId } });
   return { opportunityId: String(opportunityId), url: oppUrl };
