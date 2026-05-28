@@ -1181,6 +1181,19 @@ function CrmTab({ settings, onChange, isAdmin }: {
     }
   };
 
+  // Auto-load stages when the opportunity section is enabled and CRM is configured,
+  // so the dropdown always shows the saved label rather than "Select a stage".
+  useEffect(() => {
+    if (
+      settings['crm.autotask.opportunity.enabled'] === 'true' &&
+      !oppStages && !oppStagesLoading &&
+      (settings['crm.autotask.zoneUrl'] || settings['crm.autotask.zoneUrl.configured'] === 'true')
+    ) {
+      loadOppStages();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings['crm.autotask.opportunity.enabled']]);
+
   // Toggle a queue in the comma-separated crm.tickets.queueIds setting
   const togglePanelQueue = (queueId: number) => {
     const current = (settings['crm.tickets.queueIds'] ?? '')
@@ -1535,15 +1548,27 @@ function CrmTab({ settings, onChange, isAdmin }: {
                 <select
                   value={settings['crm.autotask.opportunity.stageId'] ?? ''}
                   onChange={e => set('crm.autotask.opportunity.stageId', e.target.value)}
-                  disabled={!isAdmin}
+                  disabled={!isAdmin || oppStagesLoading}
                   className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
                 >
                   <option value="">— Select a stage (required) —</option>
+                  {/* If stages haven't loaded yet but a value IS saved, show it as a placeholder option */}
+                  {!oppStages && settings['crm.autotask.opportunity.stageId'] && (
+                    <option value={settings['crm.autotask.opportunity.stageId']}>
+                      Stage ID: {settings['crm.autotask.opportunity.stageId']} (loading label…)
+                    </option>
+                  )}
                   {(oppStages ?? []).map(v => (
                     <option key={v.value} value={String(v.value)}>{v.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Load stages from Autotask to see options.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {oppStagesLoading
+                    ? 'Loading stages…'
+                    : oppStages
+                      ? `${oppStages.length} stages loaded`
+                      : 'Stages load automatically when feature is enabled.'}
+                </p>
               </FieldRow>
 
               {/* Probability */}
@@ -1588,12 +1613,27 @@ function CrmTab({ settings, onChange, isAdmin }: {
               </FieldRow>
             </div>
 
-            {!settings['crm.autotask.opportunity.stageId'] && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                <AlertCircle size={12} />
-                A stage must be selected before opportunities will be created automatically.
-              </p>
-            )}
+            {/* Readiness checklist */}
+            <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-1.5 text-xs">
+              <p className="font-semibold text-gray-600 dark:text-slate-400 mb-2">Required for auto-create to work:</p>
+              {[
+                {
+                  ok: !!settings['crm.autotask.opportunity.stageId'],
+                  label: settings['crm.autotask.opportunity.stageId']
+                    ? `Stage configured (ID: ${settings['crm.autotask.opportunity.stageId']})`
+                    : 'Select and save an Opportunity Stage above',
+                },
+                {
+                  ok: true,
+                  label: 'When creating a proposal, pick the client from the Autotask company picker (not just typed). The proposal must have a linked CRM company.',
+                },
+              ].map(({ ok, label }, i) => (
+                <div key={i} className={clsx('flex items-start gap-1.5', ok ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400')}>
+                  {ok ? <CheckCircle size={12} className="mt-0.5 shrink-0" /> : <AlertCircle size={12} className="mt-0.5 shrink-0" />}
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
