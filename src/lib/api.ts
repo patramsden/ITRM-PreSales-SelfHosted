@@ -363,8 +363,22 @@ export const customerApi = {
     }).then(r => r.json() as Promise<{ signed: boolean; status: string }>),
 };
 
-// ─── Service API key ──────────────────────────────────────────────────────────
+// ─── Service API keys (named, multi-key) ──────────────────────────────────────
 
+export interface ApiKeyInfo {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsed?: string;
+}
+
+export const apiKeysApi = {
+  list:   ()             => api.get<ApiKeyInfo[]>('settings/api-keys'),
+  create: (label: string) => api.post<ApiKeyInfo & { key: string }>('settings/api-keys', { label }),
+  revoke: (id: string)   => api.delete<void>(`settings/api-keys/${id}`),
+};
+
+// Legacy single-key API (kept for backward compat)
 export const serviceKeyApi = {
   status:   () => api.get<{ configured: boolean }>('settings/service-key/status'),
   generate: () => api.post<{ serviceApiKey: string }>('settings/service-key', {}),

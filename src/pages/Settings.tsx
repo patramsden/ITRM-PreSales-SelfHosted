@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { canAccessAdmin } from '../utils/permissions';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useStore } from '../store';
-import { api, settingsApi, authApi, totpApi, serviceKeyApi, crmApi, ssoApi } from '../lib/api';
+import { api, settingsApi, authApi, totpApi, serviceKeyApi, apiKeysApi, crmApi, ssoApi } from '../lib/api';
 import type { AppSettings, AtPicklistValue } from '../lib/api';
 import { LookupEditor } from '../components/ui/LookupEditor';
 import { Button } from '../components/ui/Button';
@@ -13,7 +13,7 @@ import {
   ShieldCheck, User, Info, List, Lock, Zap, KeyRound, Globe,
   Eye, EyeOff, Save, Loader2, CheckCircle, AlertCircle, Bell,
   CalendarCheck, Palette, ChevronRight, Smartphone, ShieldAlert,
-  Plug, Copy, Check, RefreshCw, Trash2, Building2, UserCheck, Upload, Clock, Mail,
+  Plug, Copy, Check, RefreshCw, Trash2, Plus, X, Building2, UserCheck, Upload, Clock, Mail,
   Layout, GripVertical, ChevronUp, ChevronDown as ChevronDownIcon,
   AlertTriangle, Database, Download, Tag, FileText,
 } from 'lucide-react';
@@ -1671,110 +1671,183 @@ function ProvisioningTab({ settings, onChange, isAdmin }: {
 }
 
 function ApiAccessTab({ isAdmin }: { isAdmin: boolean }) {
-  const [configured, setConfigured]   = useState<boolean | null>(null);
-  const [newKey, setNewKey]           = useState<string | null>(null);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState<string | null>(null);
-  const [copied, setCopied]           = useState(false);
-  const apiBase = typeof window !== 'undefined'
-    ? `${window.location.origin}/api`
-    : '/api';
+  const [keys, setKeys]             = useState<import('../lib/api').ApiKeyInfo[] | null>(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  // New-key creation form
+  const [creating, setCreating]     = useState(false);
+  const [newLabel, setNewLabel]     = useState('');
+  const [createdKey, setCreatedKey] = useState<{ id: string; label: string; key: string } | null>(null);
+  const [copied, setCopied]         = useState(false);
+  // Per-key revoke in-flight
+  const [revoking, setRevoking]     = useState<string | null>(null);
 
-  useEffect(() => {
-    serviceKeyApi.status()
-      .then(r => setConfigured(r.configured))
-      .catch(() => setConfigured(false));
-  }, []);
+  const apiBase = typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api';
 
-  const handleGenerate = async () => {
-    if (!window.confirm(configured
-      ? 'This will invalidate the existing key. Any scripts using it will need to be updated. Continue?'
-      : 'Generate a new service API key?')) return;
-    setLoading(true); setError(null); setNewKey(null);
+  const loadKeys = () => {
+    setLoading(true);
+    apiKeysApi.list()
+      .then(setKeys)
+      .catch(() => setKeys([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadKeys(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCreate = async () => {
+    if (!newLabel.trim()) return;
+    setLoading(true); setError(null);
     try {
-      const r = await serviceKeyApi.generate();
-      setNewKey(r.serviceApiKey);
-      setConfigured(true);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
+      const r = await apiKeysApi.create(newLabel.trim());
+      setCreatedKey({ id: r.id, label: r.label, key: r.key });
+      setNewLabel(''); setCreating(false);
+      loadKeys();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create key'); }
     finally { setLoading(false); }
   };
 
-  const handleRevoke = async () => {
-    if (!window.confirm('Revoke the service API key? All scripts using it will stop working.')) return;
-    setLoading(true); setError(null);
+  const handleRevoke = async (id: string, label: string) => {
+    if (!window.confirm(`Revoke key "${label}"? Any scripts using it will stop working.`)) return;
+    setRevoking(id); setError(null);
     try {
-      await serviceKeyApi.revoke();
-      setConfigured(false); setNewKey(null);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
-    finally { setLoading(false); }
+      await apiKeysApi.revoke(id);
+      if (createdKey?.id === id) setCreatedKey(null);
+      loadKeys();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to revoke key'); }
+    finally { setRevoking(null); }
   };
 
   const handleCopy = () => {
-    if (!newKey) return;
-    navigator.clipboard.writeText(newKey);
+    if (!createdKey) return;
+    navigator.clipboard.writeText(createdKey.key);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const fmtDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch { return iso; }
   };
 
   return (
     <div className="space-y-6">
       <SectionHeader icon={Plug} title="API Access"
-        subtitle="Service API key for automated scripts and integrations (e.g. bulk user provisioning)"
+        subtitle="Service API keys for automated scripts, integrations and the MCP server"
         adminOnly={!isAdmin} />
 
-      {/* Status */}
-      <div className={clsx(
-        'flex items-center justify-between p-4 rounded-xl border-2',
-        configured
-          ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
-          : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/40'
-      )}>
-        <div className="flex items-center gap-2">
-          <div className={clsx('w-2 h-2 rounded-full', configured ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-500')} />
-          <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-            {configured === null ? 'Checking…' : configured ? 'Service key is active' : 'No service key configured'}
+      {/* Keys table */}
+      <div className="border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
+          <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+            Active keys {keys !== null && `(${keys.length})`}
           </span>
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            {configured && (
-              <button onClick={handleRevoke} disabled={loading}
-                className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 px-2.5 py-1.5 rounded border border-red-200 hover:border-red-400 transition-colors">
-                <Trash2 size={12} /> Revoke
-              </button>
-            )}
-            <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={loading}>
-              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              {configured ? 'Regenerate key' : 'Generate key'}
+          {isAdmin && (
+            <Button variant="secondary" size="sm" onClick={() => { setCreating(c => !c); setNewLabel(''); setError(null); }}>
+              <Plus size={13} /> New key
             </Button>
+          )}
+        </div>
+
+        {/* Inline create form */}
+        {creating && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border-b border-brand-200 dark:border-brand-800">
+            <input
+              autoFocus
+              type="text"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
+              placeholder="Key label, e.g. Copilot MCP, Reporting Script…"
+              className="flex-1 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <Button size="sm" onClick={handleCreate} disabled={loading || !newLabel.trim()}>
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              Create
+            </Button>
+            <button onClick={() => setCreating(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 p-1 rounded">
+              <X size={15} />
+            </button>
           </div>
+        )}
+
+        {loading && keys === null ? (
+          <div className="py-8 flex justify-center">
+            <Loader2 size={18} className="animate-spin text-gray-400" />
+          </div>
+        ) : keys?.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-400 dark:text-slate-500">
+            No API keys configured. Create one to enable integrations.
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+                <th className="text-left px-4 py-2 font-medium">Label</th>
+                <th className="text-left px-4 py-2 font-medium">Created</th>
+                <th className="text-left px-4 py-2 font-medium">Last used</th>
+                {isAdmin && <th className="px-4 py-2" />}
+              </tr>
+            </thead>
+            <tbody>
+              {keys?.map(k => (
+                <tr key={k.id} className="border-b last:border-0 border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/40">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                      <span className="font-medium text-gray-900 dark:text-slate-100">{k.label}</span>
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-slate-500 font-mono ml-3.5">id: {k.id}</div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{fmtDate(k.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{k.lastUsed ? fmtDate(k.lastUsed) : <span className="italic">Never</span>}</td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleRevoke(k.id, k.label)}
+                        disabled={revoking === k.id}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded border border-red-200 hover:border-red-400 dark:border-red-800 dark:hover:border-red-600 transition-colors disabled:opacity-50 ml-auto"
+                      >
+                        {revoking === k.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                        Revoke
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* Newly generated key — shown once */}
-      {newKey && (
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+          <AlertCircle size={14} />{error}
+        </div>
+      )}
+
+      {/* Newly created key — shown once */}
+      {createdKey && (
         <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-2">
-            <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">Copy this key now</div>
+              <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                Copy "{createdKey.label}" now
+              </div>
               <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                This is the only time it will be shown. Store it securely — treat it like a password.
+                This is the only time the key will be shown. Store it securely — treat it like a password.
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-            <code className="flex-1 text-xs font-mono text-gray-800 dark:text-slate-200 break-all select-all">{newKey}</code>
+            <code className="flex-1 text-xs font-mono text-gray-800 dark:text-slate-200 break-all select-all">{createdKey.key}</code>
             <button onClick={handleCopy}
-              className="flex-shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400">
+              className="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400">
               {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
             </button>
           </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600">
-          <AlertCircle size={14} />{error}
+          <button onClick={() => setCreatedKey(null)} className="text-xs text-amber-700 dark:text-amber-400 underline">
+            I've saved it — dismiss
+          </button>
         </div>
       )}
 
@@ -1782,18 +1855,16 @@ function ApiAccessTab({ isAdmin }: { isAdmin: boolean }) {
       <div className="space-y-3 text-sm">
         <div className="font-semibold text-gray-700 dark:text-slate-300">How to use</div>
         <p className="text-xs text-gray-500 dark:text-slate-400">
-          Pass the key as a Bearer token in the <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">Authorization</code> header.
-          It grants full admin access — keep it secret and rotate it if compromised.
+          Pass any key as a Bearer token in the <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">Authorization</code> header.
+          All keys grant full admin access — keep them secret and revoke immediately if compromised.
         </p>
         <div className="bg-gray-900 rounded-lg p-3 text-xs font-mono text-green-400 overflow-x-auto">
-          <div className="text-gray-500 mb-1"># Create a user</div>
-          <div>curl -X POST {apiBase}/users \</div>
-          <div className="pl-4">-H "Authorization: Bearer YOUR_KEY" \</div>
-          <div className="pl-4">-H "Content-Type: application/json" \</div>
-          <div className="pl-4">-d '&#123;"id":"...","name":"Jane Smith","email":"jane@co.com","appRole":"user","authProvider":"local","password":"..."&#125;'</div>
+          <div className="text-gray-500 mb-1"># Example: list proposals</div>
+          <div>curl {apiBase}/proposals \</div>
+          <div className="pl-4">-H "Authorization: Bearer YOUR_KEY"</div>
         </div>
         <p className="text-xs text-gray-400 dark:text-slate-500">
-          See <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">USER-PROVISIONING.md</code> in the repository for the full field reference and bulk import examples.
+          See <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">DEVELOPER.md</code> in the repository for the full API reference.
         </p>
       </div>
     </div>

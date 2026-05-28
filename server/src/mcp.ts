@@ -36,8 +36,20 @@ const DEV_BYPASS = !process.env.SESSION_SECRET;
 async function checkServiceKey(token: string): Promise<boolean> {
   try {
     const cfg = await getAppSettingsDirect();
-    const stored = (cfg['system.serviceApiKey'] ?? '').trim();
-    return stored.length > 0 && await verifyToken(token, stored);
+    // Check named multi-key list first
+    const keysJson = (cfg['system.serviceApiKeys'] ?? '').trim();
+    if (keysJson && keysJson !== '[]') {
+      try {
+        const keys = JSON.parse(keysJson) as Array<{ id: string; keyHash: string }>;
+        for (const k of keys) {
+          if (k.keyHash && await verifyToken(token, k.keyHash)) return true;
+        }
+      } catch { /* fall through */ }
+    }
+    // Legacy single key fallback
+    const legacy = (cfg['system.serviceApiKey'] ?? '').trim();
+    if (legacy && await verifyToken(token, legacy)) return true;
+    return false;
   } catch { return false; }
 }
 

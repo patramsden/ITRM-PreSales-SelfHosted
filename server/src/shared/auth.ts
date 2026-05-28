@@ -41,8 +41,23 @@ const SERVICE_ACCOUNT: User = {
 async function checkServiceKey(token: string): Promise<boolean> {
   try {
     const cfg = await getAppSettingsDirect();
-    const key = (cfg['system.serviceApiKey'] ?? '').trim();
-    return key.length > 0 && await verifyToken(token, key);
+
+    // New: named multi-key list (JSON array encrypted at rest)
+    const keysJson = (cfg['system.serviceApiKeys'] ?? '').trim();
+    if (keysJson && keysJson !== '[]') {
+      try {
+        const keys = JSON.parse(keysJson) as Array<{ id: string; keyHash: string }>;
+        for (const k of keys) {
+          if (k.keyHash && await verifyToken(token, k.keyHash)) return true;
+        }
+      } catch { /* malformed JSON — fall through */ }
+    }
+
+    // Legacy: single key stored as a bcrypt hash
+    const legacy = (cfg['system.serviceApiKey'] ?? '').trim();
+    if (legacy && await verifyToken(token, legacy)) return true;
+
+    return false;
   } catch { return false; }
 }
 

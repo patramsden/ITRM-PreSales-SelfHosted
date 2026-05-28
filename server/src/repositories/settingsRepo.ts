@@ -2,7 +2,9 @@ import { query } from '../shared/db';
 import { encrypt, decrypt, hashToken } from '../shared/crypto';
 
 const SERVER_ONLY_KEYS = new Set([
-  'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key', 'system.serviceApiKey',
+  'sso.idpCert', 'ai.azure.key', 'ai.anthropic.key',
+  'system.serviceApiKey',   // legacy single key — kept for backward compat
+  'system.serviceApiKeys',  // named multi-key list (JSON array, encrypted)
   'crm.autotask.secret', 'scim.token', 'email.password', 'email.graph.clientSecret',
 ]);
 
@@ -10,6 +12,7 @@ const SERVER_ONLY_KEYS = new Set([
 const ENCRYPT_KEYS = new Set([
   'ai.azure.key', 'ai.anthropic.key', 'crm.autotask.secret', 'email.password', 'sso.idpCert',
   'email.graph.clientSecret',
+  'system.serviceApiKeys',  // JSON array of hashed named keys — encrypted at rest
 ]);
 
 // bcrypt-hashed (only verified, never reconstructed)
