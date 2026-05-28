@@ -739,6 +739,7 @@ export async function maybeUpdateOpportunity(
     const hash = oppSyncHash(title, fin, contactID);
     if (_lastSyncHash.get(opportunityId) === hash) {
       crmLog(`  Opportunity ${opportunityId} unchanged — skipping PATCH`);
+      log('info', 'crm', `Opportunity ${opportunityId} unchanged — no update sent`, { details: { monthlyRevenue: fin.monthlyRevenue, amount: fin.amount } });
       return;
     }
 
@@ -747,6 +748,7 @@ export async function maybeUpdateOpportunity(
       id:               parseInt(opportunityId, 10),
       title,
       projectedCloseDate,
+      useQuoteTotals:   false,
       amount:           fin.amount,  cost:           fin.cost,
       oneTimeRevenue:   fin.oneTimeRevenue, oneTimeCost:    fin.oneTimeCost,
       monthlyRevenue:   fin.monthlyRevenue, monthlyCost:    fin.monthlyCost,
@@ -754,6 +756,14 @@ export async function maybeUpdateOpportunity(
     };
     if (contactID) body.contactID = contactID;
 
+    log('info', 'crm', `Patching opportunity ${opportunityId} for "${projectName}"`, {
+      details: {
+        amount: fin.amount, cost: fin.cost,
+        oneTimeRevenue: fin.oneTimeRevenue, oneTimeCost: fin.oneTimeCost,
+        monthlyRevenue: fin.monthlyRevenue, monthlyCost: fin.monthlyCost,
+        yearlyRevenue:  fin.yearlyRevenue,  yearlyCost:  fin.yearlyCost,
+      },
+    });
     crmLog(`→ PATCH ${host}/atservicesrest/v1.0/Opportunities (update ID ${opportunityId})`);
     const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
       method: 'PATCH',
@@ -763,9 +773,10 @@ export async function maybeUpdateOpportunity(
     if (!r.ok) {
       const t = await r.text().catch(() => r.statusText);
       crmLog(`Opportunity update failed (${r.status}): ${t.slice(0, 300)}`);
-      log('warn', 'crm', `Opportunity update failed for "${projectName}" (${r.status})`, { details: { opportunityId, body: t.slice(0, 200) } });
+      log('warn', 'crm', `Opportunity update failed for "${projectName}" (${r.status})`, { details: { opportunityId, response: t.slice(0, 300) } });
     } else {
       crmLog(`  Opportunity ${opportunityId} updated`);
+      log('info', 'crm', `Opportunity ${opportunityId} updated successfully for "${projectName}"`);
       _lastSyncHash.set(opportunityId, hash);
     }
   } catch (e) {
