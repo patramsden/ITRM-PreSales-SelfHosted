@@ -59,7 +59,9 @@ router.put('/:id',  requireAuth, async (req, res) => {
           await updateProposal(req.params.id, { ...body, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
           log('info', 'crm', `Opportunity created for proposal "${body.projectName}"`, { details: { proposalId: req.params.id, opportunityId: opp.opportunityId } });
         }
-      } catch { /* never let CRM failure affect the response */ }
+      } catch (e) {
+        log('warn', 'crm', `Auto-create opportunity failed for "${body.projectName}": ${e instanceof Error ? e.message : String(e)}`, { details: { proposalId: req.params.id } });
+      }
     })();
   }
 

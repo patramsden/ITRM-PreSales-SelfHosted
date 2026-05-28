@@ -495,6 +495,9 @@ function atOpportunityWebUrl(apiHost: string, oppId: number): string {
   return `${webHost}/Autotask/views/opportunity/viewopportunity.aspx?opportunityID=${oppId}`;
 }
 
+/** Called by proposals.ts after a new proposal is saved.
+ *  Returns null when feature is disabled or no company linked (silent skip).
+ *  Throws a descriptive Error for any condition the user should fix. */
 export async function maybeCreateOpportunity(
   proposalId: string,
   projectName: string,
@@ -502,42 +505,63 @@ export async function maybeCreateOpportunity(
   accountManager: string,
   crmCompanyId: string | undefined,
 ): Promise<{ opportunityId: string; url: string } | null> {
-  try {
-    const s = await getAppSettingsDirect();
-    if (s['crm.autotask.opportunity.enabled'] !== 'true') return null;
-    if (!crmCompanyId) return null;
-    const creds = await getCreds();
-    if (!creds) return null;
-    const stageId  = s['crm.autotask.opportunity.stageId'] ? parseInt(s['crm.autotask.opportunity.stageId']) : null;
-    if (!stageId) { crmLog(`Opportunity auto-create skipped: no stageId configured`); return null; }
-    const probability   = parseInt(s['crm.autotask.opportunity.probability']   ?? '50');
-    const closeDateDays = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
-    const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
-    const title = titleTemplate
-      .replace('{projectName}', projectName)
-      .replace('{client}', client)
-      .replace('{accountManager}', accountManager || '');
-    const ownerResourceID = await getApiUserResourceId(creds);
-    if (!ownerResourceID) { crmLog(`Opportunity auto-create skipped: could not resolve ownerResourceID`); return null; }
-    const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
-    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const body = {
-      accountID: parseInt(crmCompanyId), title, ownerResourceID,
-      stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
-    };
-    crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (auto-create for proposal ${proposalId})`);
-    const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'UserName': creds.username, 'Secret': creds.secret, 'ApiIntegrationCode': creds.integrationCode },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) { const t = await r.text().catch(() => r.statusText); crmLog(`Opportunity create failed (${r.status}): ${t.slice(0, 300)}`); return null; }
-    const data = await r.json() as { itemId?: number };
-    const opportunityId = data.itemId;
-    if (!opportunityId) return null;
-    crmLog(`  Opportunity created: ID ${opportunityId}`);
-    return { opportunityId: String(opportunityId), url: atOpportunityWebUrl(host, opportunityId) };
-  } catch (e) { crmLog(`Opportunity auto-create error: ${String(e)}`); return null; }
+  const s = await getAppSettingsDirect();
+  if (s['crm.autotask.opportunity.enabled'] !== 'true') return null;
+  if (!crmCompanyId) return null;
+
+  const creds = await getCreds();
+  if (!creds) throw new Error('Autotask credentials are not configured — check Settings → CRM');
+
+  const stageId = s['crm.autotask.opportunity.stageId'] ? parseInt(s['crm.autotask.opportunity.stageId']) : null;
+  if (!stageId) {
+    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": no stage configured`, { details: { proposalId } });
+    throw new Error('No opportunity stage configured — select one in Settings → CRM → Opportunity');
+  }
+
+  const probability   = parseInt(s['crm.autotask.opportunity.probability']   ?? '50');
+  const closeDateDays = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
+  const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
+  const title = titleTemplate
+    .replace('{projectName}', projectName)
+    .replace('{client}', client)
+    .replace('{accountManager}', accountManager || '');
+
+  const ownerResourceID = await getApiUserResourceId(creds);
+  if (!ownerResourceID) {
+    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": could not resolve API user resource ID`, { details: { proposalId } });
+    throw new Error('Could not resolve Autotask API user resource ID — check the API user account in Autotask');
+  }
+
+  const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
+  const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
+  const body = {
+    accountID: parseInt(crmCompanyId), title, ownerResourceID,
+    stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
+  };
+
+  crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (proposal ${proposalId})`);
+  const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'UserName': creds.username, 'Secret': creds.secret, 'ApiIntegrationCode': creds.integrationCode },
+    body: JSON.stringify(body),
+  });
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => r.statusText);
+    const msg = `Autotask API error ${r.status}: ${t.slice(0, 300)}`;
+    log('warn', 'crm', `Opportunity creation failed for "${projectName}": ${msg}`, { details: { proposalId, crmCompanyId } });
+    throw new Error(msg);
+  }
+
+  const data = await r.json() as { itemId?: number };
+  const opportunityId = data.itemId;
+  if (!opportunityId) {
+    log('warn', 'crm', `Opportunity creation returned no itemId for "${projectName}"`, { details: { proposalId } });
+    throw new Error('Autotask returned no opportunity ID — the record may not have been created');
+  }
+
+  crmLog(`  Opportunity created: ID ${opportunityId}`);
+  return { opportunityId: String(opportunityId), url: atOpportunityWebUrl(host, opportunityId) };
 }
 
 /** Called by proposals.ts on every PUT.
@@ -636,11 +660,15 @@ router.post('/sync-opportunity', requireAuth, async (req, res) => {
       return;
     }
 
-    const opp = await maybeCreateOpportunity(body.proposalId, projectName, client, accountManager, crmCompanyId);
+    let opp: { opportunityId: string; url: string } | null;
+    try {
+      opp = await maybeCreateOpportunity(body.proposalId, projectName, client, accountManager, crmCompanyId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.status(400).json({ error: msg }); return;
+    }
     if (!opp) {
-      log('warn', 'crm', `Opportunity creation failed for proposal "${projectName}"`, { details: { proposalId: body.proposalId, crmCompanyId } });
-      res.status(400).json({ error: 'Opportunity creation failed — check Settings → CRM (credentials, stage, zone URL)' });
-      return;
+      res.status(400).json({ error: 'Opportunity feature is disabled — enable it in Settings → CRM → Opportunity' }); return;
     }
 
     await updateProposalRepo(body.proposalId, { ...dbProposal, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
