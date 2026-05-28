@@ -10,17 +10,19 @@ import { useBranding } from '../../contexts/BrandingContext';
 import { useStore } from '../../store';
 import clsx from 'clsx';
 
+// adminOnly   = visible to admin, sales_admin, presales (isPresalesAdmin)
+// strictAdmin = visible to admin role only (appRole === 'admin')
 const nav = [
-  { to: '/',          label: 'Dashboard', icon: LayoutDashboard, end: true,  adminOnly: false },
-  { to: '/pipeline',  label: 'Pipeline',  icon: Kanban,          end: false, adminOnly: false },
-  { to: '/proposals', label: 'Proposals', icon: FileText,         end: false, adminOnly: false },
-  { to: '/templates', label: 'Templates', icon: BookTemplate,     end: false, adminOnly: false },
-  { to: '/catalog',   label: 'Catalog',   icon: Package,          end: false, adminOnly: false },
-  { to: '/rate-cards',label: 'Rate Cards',icon: CreditCard,       end: false, adminOnly: false },
-  { to: '/clauses',   label: 'Clauses',   icon: BookOpen,         end: false, adminOnly: false },
-  { to: '/users',     label: 'Users',     icon: Users,            end: false, adminOnly: true  },
-  { to: '/logs',      label: 'Logs',      icon: ScrollText,       end: false, adminOnly: true  },
-  { to: '/settings',  label: 'Settings',  icon: Settings,         end: false, adminOnly: false },
+  { to: '/',          label: 'Dashboard', icon: LayoutDashboard, end: true,  adminOnly: false, strictAdmin: false },
+  { to: '/pipeline',  label: 'Pipeline',  icon: Kanban,          end: false, adminOnly: false, strictAdmin: false },
+  { to: '/proposals', label: 'Proposals', icon: FileText,         end: false, adminOnly: false, strictAdmin: false },
+  { to: '/templates', label: 'Templates', icon: BookTemplate,     end: false, adminOnly: false, strictAdmin: false },
+  { to: '/catalog',   label: 'Catalog',   icon: Package,          end: false, adminOnly: false, strictAdmin: false },
+  { to: '/rate-cards',label: 'Rate Cards',icon: CreditCard,       end: false, adminOnly: false, strictAdmin: false },
+  { to: '/clauses',   label: 'Clauses',   icon: BookOpen,         end: false, adminOnly: false, strictAdmin: false },
+  { to: '/users',     label: 'Users',     icon: Users,            end: false, adminOnly: true,  strictAdmin: false },
+  { to: '/logs',      label: 'Logs',      icon: ScrollText,       end: false, adminOnly: false, strictAdmin: true  },
+  { to: '/settings',  label: 'Settings',  icon: Settings,         end: false, adminOnly: false, strictAdmin: false },
 ];
 
 interface SidebarProps {
@@ -61,7 +63,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Nav items */}
       <nav className={clsx('flex-1 py-3 space-y-0.5 overflow-y-auto', collapsed ? 'px-1.5' : 'px-3')}>
-        {nav.filter(item => !item.adminOnly || isPresalesAdmin(currentUser)).map(({ to, label, icon: Icon, end }) => (
+        {nav.filter(item => {
+          if (item.strictAdmin) return currentUser?.appRole === 'admin';
+          if (item.adminOnly)   return isPresalesAdmin(currentUser);
+          return true;
+        }).map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
