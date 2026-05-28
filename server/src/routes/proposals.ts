@@ -9,6 +9,7 @@ import { sendEmail, statusChangeEmail } from '../shared/email';
 import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
 import { getAllUsers } from '../repositories/userRepo';
 import { maybeCreateOpportunity } from './crm';
+import { log } from '../shared/logger';
 import type { Proposal } from '../types/index';
 
 const router = Router();
@@ -24,7 +25,9 @@ router.post('/',    requireAuth, async (req,  res) => {
   if (opp) {
     await updateProposal(created.id, { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
     created = { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url };
+    log('info', 'crm', `Opportunity created for proposal "${created.projectName}"`, { details: { proposalId: created.id, opportunityId: opp.opportunityId } });
   }
+  log('info', 'proposal', `Proposal created: "${created.projectName}" (${created.reference ?? created.id})`, { details: { client: created.client }, userId: req.user?.id, userName: req.user?.name });
   res.status(201).json(created);
 });
 router.get('/:id',  requireAuth, async (req, res) => {
@@ -56,7 +59,10 @@ router.put('/:id',  requireAuth, async (req, res) => {
   res.json(body);
 });
 router.delete('/:id', requireAuth, async (req, res) => {
-  await deleteProposal(req.params.id); res.sendStatus(204);
+  const existing = await getProposalById(req.params.id);
+  await deleteProposal(req.params.id);
+  log('warn', 'proposal', `Proposal deleted: "${existing?.projectName ?? req.params.id}"`, { details: { id: req.params.id, client: existing?.client }, userId: req.user?.id, userName: req.user?.name });
+  res.sendStatus(204);
 });
 
 // ─── Version history ──────────────────────────────────────────────────────────

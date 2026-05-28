@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { log } from '../shared/logger';
 import QRCode from 'qrcode';
 import { SAML } from '@node-saml/node-saml';
 import { v4 as uuid } from 'uuid';
@@ -132,7 +133,10 @@ router.post('/login', async (req, res) => {
   const record = await getUserByEmail(email);
   if (!record?.passwordHash) { res.status(401).json({ error: 'Invalid email or password' }); return; }
   const match = await bcrypt.compare(password as string, record.passwordHash);
-  if (!match) { res.status(401).json({ error: 'Invalid email or password' }); return; }
+  if (!match) {
+    log('warn', 'auth', `Login failed: bad password for ${email}`, { details: { email } });
+    res.status(401).json({ error: 'Invalid email or password' }); return;
+  }
   if (record.totpSecret) {
     const challengeToken = await createTotpChallenge(record.user.id);
     res.json({ requireTotp: true, challengeToken }); return;
@@ -145,6 +149,7 @@ router.post('/login', async (req, res) => {
     res.json({ requireMfaSetup: true, enrollToken, userName: record.user.name, userEmail: email }); return;
   }
   const token = await createSession(record.user.id);
+  log('info', 'auth', `Login: ${record.user.name} (${record.user.email})`, { userId: record.user.id, userName: record.user.name });
   res.json({ token, user: record.user });
 });
 
@@ -197,7 +202,10 @@ router.get('/totp/status', requireAuth, async (req, res) => {
 // POST /api/auth/logout
 router.post('/logout', async (req, res) => {
   const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ')) await deleteSession(header.slice(7));
+  if (header?.startsWith('Bearer ')) {
+    if (req.user) log('info', 'auth', `Logout: ${req.user.name} (${req.user.email})`, { userId: req.user.id, userName: req.user.name });
+    await deleteSession(header.slice(7));
+  }
   res.sendStatus(204);
 });
 

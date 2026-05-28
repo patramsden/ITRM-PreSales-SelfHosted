@@ -396,6 +396,31 @@ export const serviceKeyApi = {
   revoke:   () => api.delete<void>('settings/service-key'),
 };
 
+// ─── System logs ──────────────────────────────────────────────────────────────
+
+export interface LogEntry {
+  id:        string;
+  createdAt: string;
+  level:     'info' | 'warn' | 'error';
+  category:  string;
+  message:   string;
+  details?:  string;
+  userId?:   string;
+  userName?: string;
+}
+
+export const logsApi = {
+  list: (params?: { level?: string; category?: string; search?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.level)    q.set('level',    params.level);
+    if (params?.category) q.set('category', params.category);
+    if (params?.search)   q.set('search',   params.search);
+    if (params?.limit)    q.set('limit',    String(params.limit));
+    return api.get<{ logs: LogEntry[]; total: number }>(`logs?${q}`);
+  },
+  clear: () => api.delete<void>('logs'),
+};
+
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
 import type { ProposalComment, Clause } from '../types';

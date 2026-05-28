@@ -37,6 +37,17 @@ export async function ensureSchema(): Promise<void> {
 
   // ── Core tables (idempotent CREATE IF NOT EXISTS) ──────────────────────────
   const tables = [
+    `CREATE TABLE IF NOT EXISTS system_logs (
+      id         VARCHAR(36)  NOT NULL PRIMARY KEY,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      level      VARCHAR(10)  NOT NULL,
+      category   VARCHAR(50)  NOT NULL,
+      message    TEXT         NOT NULL,
+      details    TEXT,
+      user_id    VARCHAR(100),
+      user_name  VARCHAR(255)
+    )`,
+
     `CREATE TABLE IF NOT EXISTS users (
       id            VARCHAR(100)  NOT NULL PRIMARY KEY,
       name          VARCHAR(255)  NOT NULL,

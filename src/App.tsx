@@ -27,6 +27,7 @@ const Settings             = lazy(() => import('./pages/Settings').then(m => ({ 
 const UserManagement       = lazy(() => import('./pages/UserManagement').then(m => ({ default: m.UserManagement })));
 const Clauses              = lazy(() => import('./pages/Clauses').then(m => ({ default: m.Clauses })));
 const Help                 = lazy(() => import('./pages/Help').then(m => ({ default: m.Help })));
+const Logs                 = lazy(() => import('./pages/Logs').then(m => ({ default: m.Logs })));
 const Profile              = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const SharedProposalView   = lazy(() => import('./pages/SharedProposalView').then(m => ({ default: m.SharedProposalView })));
 const CustomerProposalView = lazy(() => import('./pages/CustomerProposalView').then(m => ({ default: m.CustomerProposalView })));
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="/catalog"       element={<Suspense fallback={<PageFallback />}><Catalog /></Suspense>} />
         <Route path="/rate-cards"    element={<Suspense fallback={<PageFallback />}><RateCards /></Suspense>} />
         <Route path="/users"         element={<Suspense fallback={<PageFallback />}><UserManagement /></Suspense>} />
+        <Route path="/logs"          element={<Suspense fallback={<PageFallback />}><Logs /></Suspense>} />
         <Route path="/clauses"       element={<Suspense fallback={<PageFallback />}><Clauses /></Suspense>} />
         <Route path="/help"          element={<Suspense fallback={<PageFallback />}><Help /></Suspense>} />
         <Route path="/settings"      element={<Suspense fallback={<PageFallback />}><Settings /></Suspense>} />

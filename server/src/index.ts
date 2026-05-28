@@ -32,6 +32,7 @@ import backupRouter         from './routes/backup';
 import commentsRouter       from './routes/comments';
 import clausesRouter        from './routes/clauses';
 import { createMcpRouter }  from './mcp';
+import logsRouter           from './routes/logs';
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -75,6 +76,7 @@ app.use('/api/backup',        backupRouter);
 app.use('/api/proposals',    commentsRouter);    // GET/POST /:id/comments
 app.use('/api/comments',     commentsRouter);    // DELETE /delete/:id
 app.use('/api/clauses',      clausesRouter);
+app.use('/api/logs',         logsRouter);
 
 // ─── MCP endpoint ─────────────────────────────────────────────────────────────
 // Health probe is unauthenticated; all other MCP routes require service API key.
@@ -104,8 +106,11 @@ if (existsSync(DIST)) {
 // ─── Global error handler ─────────────────────────────────────────────────────
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[error]', err);
-  res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  const msg   = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack   : undefined;
+  const { log } = require('./shared/logger') as { log: (l: string, c: string, m: string, o?: object) => void };
+  log('error', 'api', msg, { details: { stack } });
+  res.status(500).json({ error: 'An internal error occurred. Administrators can view details in System Logs.' });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

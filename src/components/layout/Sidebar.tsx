@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, BookTemplate, Package, CreditCard,
   Settings, ShieldCheck, Users, LogOut, Sun, Moon, Kanban, BookOpen,
-  HelpCircle, ChevronLeft, ChevronRight,
+  HelpCircle, ChevronLeft, ChevronRight, ScrollText,
 } from 'lucide-react';
 import { useAuth, isPresalesAdmin } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -19,6 +19,7 @@ const nav = [
   { to: '/rate-cards',label: 'Rate Cards',icon: CreditCard,       end: false, adminOnly: false },
   { to: '/clauses',   label: 'Clauses',   icon: BookOpen,         end: false, adminOnly: false },
   { to: '/users',     label: 'Users',     icon: Users,            end: false, adminOnly: true  },
+  { to: '/logs',      label: 'Logs',      icon: ScrollText,       end: false, adminOnly: true  },
   { to: '/settings',  label: 'Settings',  icon: Settings,         end: false, adminOnly: false },
 ];
 
