@@ -568,7 +568,7 @@ export async function maybeCreateOpportunity(
   const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
   const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
   const body = {
-    accountID: parseInt(crmCompanyId), title, ownerResourceID,
+    companyID: parseInt(crmCompanyId), title, ownerResourceID,
     stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
   };
 
