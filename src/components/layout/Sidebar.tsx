@@ -21,7 +21,7 @@ const nav = [
   { to: '/rate-cards',label: 'Rate Cards',icon: CreditCard,       end: false, adminOnly: false, strictAdmin: false },
   { to: '/clauses',   label: 'Clauses',   icon: BookOpen,         end: false, adminOnly: false, strictAdmin: false },
   { to: '/users',     label: 'Users',     icon: Users,            end: false, adminOnly: true,  strictAdmin: false },
-  { to: '/logs',      label: 'Logs',      icon: ScrollText,       end: false, adminOnly: false, strictAdmin: true  },
+  { to: '/logs',      label: 'Logs',      icon: ScrollText,       end: false, adminOnly: true,  strictAdmin: false },
   { to: '/settings',  label: 'Settings',  icon: Settings,         end: false, adminOnly: false, strictAdmin: false },
 ];
 

@@ -1,10 +1,19 @@
 import { Router } from 'express';
-import { requireAdmin } from '../shared/auth';
+import { requireAuth } from '../shared/auth';
 import { query } from '../shared/db';
+import type { Request, Response, NextFunction } from 'express';
 
 const router = Router();
 
-router.get('/', requireAdmin, async (req, res) => {
+function requireLogsAccess(req: Request, res: Response, next: NextFunction): void {
+  const role = req.user?.appRole ?? '';
+  if (!['admin', 'sales_admin'].includes(role)) {
+    res.status(403).json({ error: 'Admin or Sales Admin access required' }); return;
+  }
+  next();
+}
+
+router.get('/', requireAuth, requireLogsAccess, async (req, res) => {
   const level    = (req.query.level    as string) || null;
   const category = (req.query.category as string) || null;
   const search   = (req.query.search   as string) || null;
@@ -36,7 +45,7 @@ router.get('/', requireAdmin, async (req, res) => {
   });
 });
 
-router.delete('/', requireAdmin, async (_req, res) => {
+router.delete('/', requireAuth, requireLogsAccess, async (_req, res) => {
   await query('DELETE FROM system_logs', []);
   res.sendStatus(204);
 });
