@@ -19,19 +19,25 @@ router.get('/', requireAuth, requireLogsAccess, async (req, res) => {
   const search   = (req.query.search   as string) || null;
   const limit    = Math.min(parseInt((req.query.limit as string) ?? '200'), 500);
 
-  const params: unknown[] = [limit];
-  let where = 'WHERE 1=1';
-  if (level)    { params.push(level);             where += ` AND level = $${params.length}`; }
-  if (category) { params.push(category);          where += ` AND category = $${params.length}`; }
-  if (search)   { params.push(`%${search}%`);     where += ` AND message ILIKE $${params.length}`; }
+  // Build filter WHERE using $1, $2 ... for the count query.
+  // For the main query, shift every $N to $(N+1) so $1 stays free for LIMIT.
+  const filterParams: unknown[] = [];
+  let filterWhere = 'WHERE 1=1';
+  if (level)    { filterParams.push(level);         filterWhere += ` AND level = $${filterParams.length}`; }
+  if (category) { filterParams.push(category);      filterWhere += ` AND category = $${filterParams.length}`; }
+  if (search)   { filterParams.push(`%${search}%`); filterWhere += ` AND message ILIKE $${filterParams.length}`; }
+
+  // Shift $N → $(N+1) so LIMIT can occupy $1
+  const mainWhere  = filterWhere.replace(/\$(\d+)/g, (_, n) => `$${parseInt(n) + 1}`);
+  const mainParams = [limit, ...filterParams];
 
   const rows = await query<Record<string, unknown>>(
     `SELECT id, created_at, level, category, message, details, user_id, user_name
-     FROM system_logs ${where} ORDER BY created_at DESC LIMIT $1`, params,
+     FROM system_logs ${mainWhere} ORDER BY created_at DESC LIMIT $1`, mainParams,
   );
 
   const countRows = await query<{ n: string }>(
-    `SELECT COUNT(*) AS n FROM system_logs ${where}`, params.slice(1),
+    `SELECT COUNT(*) AS n FROM system_logs ${filterWhere}`, filterParams,
   );
 
   res.json({
