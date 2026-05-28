@@ -565,7 +565,7 @@ async function getResourceIdForAccountManager(creds: AtCreds, fullName: string):
 function atOpportunityWebUrl(apiHost: string, oppId: number, urlTemplate?: string): string {
   if (urlTemplate?.trim()) return urlTemplate.trim().replace('{id}', String(oppId));
   const webHost = apiHost.replace(/webservices(\d+)/i, 'ww$1');
-  return `${webHost}/Autotask/views/crm/CRMOpportunityCore.aspx?id=${oppId}`;
+  return `${webHost}/Mvc/CRM/OpportunityDetail.mvc?opportunityId=${oppId}`;
 }
 
 function calcOpportunityFinancials(proposal: import('../types/index').Proposal) {
