@@ -1136,17 +1136,14 @@ function CrmTab({ settings, onChange, isAdmin }: {
   const loadPicklists = async () => {
     setPicklistLoading(true); setPicklistError(null);
     try {
-      const [queues, priorities, statuses, ticketTypes] = await Promise.all([
-        crmApi.getPicklist('Tickets', 'queueID'),
-        crmApi.getPicklist('Tickets', 'priority'),
-        crmApi.getPicklist('Tickets', 'status'),
-        crmApi.getPicklist('Tickets', 'ticketType'),
-      ]);
+      // Single batch request — fetches all four fields in one Autotask API call
+      // instead of four concurrent calls that would hit the 3-thread rate limit.
+      const batch = await crmApi.getPicklistsBatch('Tickets', ['queueID', 'priority', 'status', 'ticketType']);
       setPicklists({
-        queues:      queues.filter(v => v.isActive),
-        priorities:  priorities.filter(v => v.isActive),
-        statuses:    statuses.filter(v => v.isActive),
-        ticketTypes: ticketTypes.filter(v => v.isActive),
+        queues:      (batch['queueID']     ?? []).filter(v => v.isActive),
+        priorities:  (batch['priority']    ?? []).filter(v => v.isActive),
+        statuses:    (batch['status']      ?? []).filter(v => v.isActive),
+        ticketTypes: (batch['ticketType']  ?? []).filter(v => v.isActive),
       });
     } catch (e) {
       setPicklistError(e instanceof Error ? e.message : 'Failed to load Autotask picklists');

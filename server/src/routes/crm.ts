@@ -385,24 +385,58 @@ async function resolveAmFieldName(host: string, creds: AtCreds): Promise<string 
 }
 
 // ─── GET /api/crm/picklist?entity=&field= ────────────────────────────────────
+// Prefer /api/crm/picklists-batch when fetching multiple fields from the
+// same entity — it hits Autotask only once instead of once per field.
 
 interface AtPicklistValue { value: number; label: string; isActive: boolean; isDefaultValue: boolean; }
 
-async function fetchPicklist(creds: AtCreds, entity: string, fieldName: string): Promise<AtPicklistValue[]> {
+type EntityFieldsResult = Array<{ name: string; picklistValues?: AtPicklistValue[] }>;
+
+// In-process cache: prevents concurrent requests hitting the 3-thread limit
+const _fieldsCache = new Map<string, { fields: EntityFieldsResult; expiresAt: number }>();
+const _fieldsPending = new Map<string, Promise<EntityFieldsResult>>();
+const FIELDS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function fetchEntityFields(creds: AtCreds, entity: string): Promise<EntityFieldsResult> {
+  const cacheKey = `${creds.username}::${entity}`;
+
+  const cached = _fieldsCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) return cached.fields;
+
+  const pending = _fieldsPending.get(cacheKey);
+  if (pending) return pending;
+
   const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
   const url  = `${host}/atservicesrest/v1.0/${entity}/entityInformation/fields`;
-  crmLog(`→ GET ${url} (picklist: ${entity}.${fieldName})`);
-  const r = await fetch(url, {
+  crmLog(`→ GET ${url} (entity fields cache miss)`);
+
+  const promise = fetch(url, {
     headers: {
-      'Content-Type': 'application/json',
-      'UserName': creds.username,
-      'Secret': creds.secret,
+      'Content-Type':       'application/json',
+      'UserName':           creds.username,
+      'Secret':             creds.secret,
       'ApiIntegrationCode': creds.integrationCode,
     },
+  }).then(async r => {
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      throw new Error(`Autotask ${entity} fields (${r.status}): ${t.slice(0, 300)}`);
+    }
+    const data = await r.json() as { fields?: EntityFieldsResult };
+    const fields = data.fields ?? [];
+    _fieldsCache.set(cacheKey, { fields, expiresAt: Date.now() + FIELDS_CACHE_TTL_MS });
+    return fields;
+  }).finally(() => {
+    _fieldsPending.delete(cacheKey);
   });
-  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error(`Autotask ${entity} fields (${r.status}): ${t.slice(0, 200)}`); }
-  const data = await r.json() as { fields?: Array<{ name: string; picklistValues?: AtPicklistValue[] }> };
-  const field = data.fields?.find((f: { name: string }) => f.name === fieldName);
+
+  _fieldsPending.set(cacheKey, promise);
+  return promise;
+}
+
+async function fetchPicklist(creds: AtCreds, entity: string, fieldName: string): Promise<AtPicklistValue[]> {
+  const fields = await fetchEntityFields(creds, entity);
+  const field  = fields.find(f => f.name === fieldName);
   return field?.picklistValues ?? [];
 }
 
@@ -410,11 +444,32 @@ router.get('/picklist', requireAuth, async (req, res) => {
   try {
     const creds = await getCreds();
     if (!creds) { res.json([]); return; }
-    const entity    = ((req.query.entity    as string) ?? '').trim();
-    const fieldName = ((req.query.field as string) ?? '').trim();
+    const entity    = ((req.query.entity as string) ?? '').trim();
+    const fieldName = ((req.query.field  as string) ?? '').trim();
     if (!entity || !fieldName) { res.status(400).json({ error: 'entity and field are required' }); return; }
     const values = await fetchPicklist(creds, entity, fieldName);
     res.json(values);
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
+// ─── GET /api/crm/picklists-batch?entity=&fields=f1,f2,f3 ────────────────────
+// Fetches multiple picklists for one entity in a single Autotask API call.
+
+router.get('/picklists-batch', requireAuth, async (req, res) => {
+  try {
+    const creds = await getCreds();
+    if (!creds) { res.json({}); return; }
+    const entity      = ((req.query.entity as string) ?? '').trim();
+    const fieldsParam = ((req.query.fields as string) ?? '').trim();
+    if (!entity || !fieldsParam) { res.status(400).json({ error: 'entity and fields are required' }); return; }
+    const fieldNames  = fieldsParam.split(',').map((f: string) => f.trim()).filter(Boolean);
+    const allFields   = await fetchEntityFields(creds, entity);
+    const result: Record<string, AtPicklistValue[]> = {};
+    for (const name of fieldNames) {
+      const field = allFields.find(f => f.name === name);
+      result[name] = field?.picklistValues ?? [];
+    }
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 

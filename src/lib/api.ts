@@ -153,6 +153,8 @@ export const crmApi = {
     api.post<{ ticketId: number; url: string }>('crm/create-ticket', data),
   getPicklist:        (entity: string, field: string) =>
     api.get<AtPicklistValue[]>(`crm/picklist?entity=${encodeURIComponent(entity)}&field=${encodeURIComponent(field)}`),
+  getPicklistsBatch:  (entity: string, fields: string[]) =>
+    api.get<Record<string, AtPicklistValue[]>>(`crm/picklists-batch?entity=${encodeURIComponent(entity)}&fields=${fields.map(encodeURIComponent).join(',')}`),
   getTickets:         (companyId: number) =>
     api.get<CrmTicket[]>(`crm/tickets?companyId=${companyId}`),
   getCompanyAddress:  (companyId: number) =>
