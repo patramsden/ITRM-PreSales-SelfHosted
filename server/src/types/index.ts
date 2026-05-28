@@ -102,6 +102,7 @@ export interface Proposal {
   dateModified: string;
   ticketRef?: string;
   markupPct: number;
+  description?: string;
   objectives?: string;
   businessRequirements?: string;
   justification?: string;

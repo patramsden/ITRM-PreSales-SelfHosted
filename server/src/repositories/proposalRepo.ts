@@ -44,6 +44,7 @@ function toProposal(r: Record<string, unknown>, parts: Part[], phases: Consultan
     dateModified: (r.date_modified as Date).toISOString().split('T')[0],
     ticketRef: (r.ticket_ref as string) ?? undefined,
     markupPct: Number(r.markup_pct),
+    description:          (r.description           as string) ?? undefined,
     objectives:           (r.objectives           as string) ?? undefined,
     businessRequirements: (r.business_requirements as string) ?? undefined,
     justification:        (r.justification         as string) ?? undefined,
@@ -265,8 +266,8 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
        expires_at,discount_status,discount_approved_by,discount_approved_at,discount_approval_note,
        at_project_id,at_opportunity_id,at_opportunity_url,
        consultancy_discount_type,consultancy_discount_amount,consultancy_discount_note,
-       proposal_type,support_contract)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54)`,
+       proposal_type,support_contract,description)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55)`,
     [p.id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
      p.objectives ?? null, p.businessRequirements ?? null, p.justification ?? null,
@@ -289,7 +290,8 @@ export async function createProposal(p: Proposal): Promise<Proposal> {
      p.discountApprovalNote ?? null, p.atProjectId ?? null,
      p.atOpportunityId ?? null, p.atOpportunityUrl ?? null,
      p.consultancyDiscountType ?? null, p.consultancyDiscountAmount ?? null, p.consultancyDiscountNote ?? null,
-     p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null],
+     p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null,
+     p.description ?? null],
   );
   await writeNested(p);
   return { ...p, reference };
@@ -310,7 +312,7 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
        discount_approved_at=$44,discount_approval_note=$45,at_project_id=$46,
        at_opportunity_id=$47,at_opportunity_url=$48,
        consultancy_discount_type=$49,consultancy_discount_amount=$50,consultancy_discount_note=$51,
-       proposal_type=$52,support_contract=$53
+       proposal_type=$52,support_contract=$53,description=$54
      WHERE id=$1`,
     [id, p.projectName, p.client, p.accountManager ?? null, p.status, p.currency,
      p.dateCreated, p.dateModified, p.ticketRef ?? null, p.markupPct,
@@ -333,7 +335,8 @@ export async function updateProposal(id: string, p: Proposal): Promise<void> {
      p.discountApprovalNote ?? null, p.atProjectId ?? null,
      p.atOpportunityId ?? null, p.atOpportunityUrl ?? null,
      p.consultancyDiscountType ?? null, p.consultancyDiscountAmount ?? null, p.consultancyDiscountNote ?? null,
-     p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null],
+     p.proposalType ?? 'project', p.supportContract ? JSON.stringify(p.supportContract) : null,
+     p.description ?? null],
   );
   await writeNested(p);
 }

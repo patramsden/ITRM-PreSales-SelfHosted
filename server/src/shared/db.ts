@@ -396,6 +396,9 @@ export async function ensureSchema(): Promise<void> {
     // CRM enrichment — contact email and company address
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_contact_email VARCHAR(255)`,
     `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS client_address       TEXT`,
+
+    // Proposal description
+    `ALTER TABLE proposals ADD COLUMN IF NOT EXISTS description TEXT`,
   ];
 
   for (const stmt of migrations) {

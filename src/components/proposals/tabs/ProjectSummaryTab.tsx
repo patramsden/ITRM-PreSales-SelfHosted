@@ -281,6 +281,17 @@ export function ProjectSummaryTab({ proposal, editable, onUpdate }: Props) {
               )}
             </div>
           </Field>
+          <div className="col-span-2 space-y-1">
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">Description</label>
+            <textarea
+              value={proposal.description ?? ''}
+              onChange={e => onUpdate({ description: e.target.value })}
+              disabled={!editable}
+              rows={3}
+              placeholder="Brief description of the proposal…"
+              className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 resize-y"
+            />
+          </div>
           <Field label="Ticket Reference">
             <TextInput value={proposal.ticketRef ?? ''} onChange={v => onUpdate({ ticketRef: v })} disabled={!editable} placeholder="e.g. CRM-1042" />
           </Field>

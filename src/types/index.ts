@@ -114,6 +114,8 @@ export interface Proposal {
   markupPct: number;
 
   // narrative
+  /** Short description of the proposal — shown on Summary tab and synced to Autotask opportunity. */
+  description?: string;
   objectives?: string;
   businessRequirements?: string;
   justification?: string;

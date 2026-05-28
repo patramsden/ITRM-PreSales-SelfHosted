@@ -676,6 +676,7 @@ export async function maybeCreateOpportunity(
     yearlyRevenue:  fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
   };
   if (contactID) body.contactID = contactID;
+  if (proposal.description?.trim()) body.description = proposal.description.trim();
 
   crmLog(`→ POST ${host}/atservicesrest/v1.0/Opportunities (proposal ${proposalId})`);
   const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
@@ -731,8 +732,8 @@ export async function maybeCreateOpportunity(
  *  PATCHes the linked Autotask opportunity's title (and amount if provided).
  *  Silent on failure — never throws. */
 const _lastSyncHash = new Map<string, string>();
-function oppSyncHash(title: string, fin: ReturnType<typeof calcOpportunityFinancials>, contactID: number | null): string {
-  return JSON.stringify({ title, ...fin, contactID });
+function oppSyncHash(title: string, fin: ReturnType<typeof calcOpportunityFinancials>, contactID: number | null, description?: string): string {
+  return JSON.stringify({ title, ...fin, contactID, description: description ?? '' });
 }
 
 export async function maybeUpdateOpportunity(
@@ -770,7 +771,7 @@ export async function maybeUpdateOpportunity(
       s['crm.autotask.opportunity.urlTemplate'],
     );
 
-    const hash = oppSyncHash(title, fin, contactID);
+    const hash = oppSyncHash(title, fin, contactID, proposal.description);
     if (_lastSyncHash.get(opportunityId) === hash) {
       crmLog(`  Opportunity ${opportunityId} unchanged — skipping PATCH`);
       log('info', 'crm', `Opportunity ${opportunityId} unchanged — no update sent`, { details: { monthlyRevenue: fin.monthlyRevenue, amount: fin.amount } });
@@ -789,6 +790,7 @@ export async function maybeUpdateOpportunity(
       yearlyRevenue:    fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
     };
     if (contactID) body.contactID = contactID;
+    if (proposal.description?.trim()) body.description = proposal.description.trim();
 
     log('info', 'crm', `Patching opportunity ${opportunityId} for "${projectName}"`, {
       details: {
