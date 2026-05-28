@@ -39,12 +39,7 @@ router.put('/:id',  requireAuth, async (req, res) => {
 
   if (body.atOpportunityId) {
     // Opportunity already exists — keep it in sync.
-    maybeUpdateOpportunity(
-      body.atOpportunityId,
-      body.projectName ?? '',
-      body.client ?? '',
-      body.accountManager ?? '',
-    ).catch(() => {});
+    maybeUpdateOpportunity(body).catch(() => {});
   } else if (body.crmCompanyId && !existing?.atOpportunityId) {
     // CRM company just linked (or was set at creation but opp wasn't created yet) — create now.
     (async () => {

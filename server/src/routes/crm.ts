@@ -662,39 +662,50 @@ export async function maybeCreateOpportunity(
  *  PATCHes the linked Autotask opportunity's title (and amount if provided).
  *  Silent on failure — never throws. */
 export async function maybeUpdateOpportunity(
-  opportunityId: string,
-  projectName: string,
-  client: string,
-  accountManager: string,
-  amount?: number,
+  proposal: import('../types/index').Proposal,
 ): Promise<void> {
+  const opportunityId = proposal.atOpportunityId;
+  if (!opportunityId) return;
   try {
     const s = await getAppSettingsDirect();
     if (s['crm.autotask.opportunity.enabled'] !== 'true') return;
     const creds = await getCreds();
     if (!creds) return;
-    const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
+
+    const projectName    = proposal.projectName    ?? '';
+    const client         = proposal.client         ?? '';
+    const accountManager = proposal.accountManager ?? '';
+    const titleTemplate  = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
     const title = titleTemplate
       .replace('{projectName}', projectName)
-      .replace('{client}', client)
-      .replace('{accountManager}', accountManager || '');
+      .replace('{client}',      client)
+      .replace('{accountManager}', accountManager);
+
+    const closeDateDays      = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
+    const projectedCloseDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
+    const fin = calcOpportunityFinancials(proposal);
+
     const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const body: Record<string, unknown> = { id: parseInt(opportunityId, 10), title };
-    if (amount !== undefined && amount > 0) body.amount = amount;
+    const body = {
+      id:               parseInt(opportunityId, 10),
+      title,
+      projectedCloseDate,
+      amount:           fin.amount,  cost:           fin.cost,
+      oneTimeRevenue:   fin.oneTimeRevenue, oneTimeCost:    fin.oneTimeCost,
+      monthlyRevenue:   fin.monthlyRevenue, monthlyCost:    fin.monthlyCost,
+      yearlyRevenue:    fin.yearlyRevenue,  yearlyCost:     fin.yearlyCost,
+    };
+
     crmLog(`→ PATCH ${host}/atservicesrest/v1.0/Opportunities (update ID ${opportunityId})`);
     const r = await fetch(`${host}/atservicesrest/v1.0/Opportunities`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type':       'application/json',
-        'UserName':           creds.username,
-        'Secret':             creds.secret,
-        'ApiIntegrationCode': creds.integrationCode,
-      },
+      headers: { 'Content-Type': 'application/json', 'UserName': creds.username, 'Secret': creds.secret, 'ApiIntegrationCode': creds.integrationCode },
       body: JSON.stringify(body),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => r.statusText);
       crmLog(`Opportunity update failed (${r.status}): ${t.slice(0, 300)}`);
+      log('warn', 'crm', `Opportunity update failed for "${projectName}" (${r.status})`, { details: { opportunityId, body: t.slice(0, 200) } });
     } else {
       crmLog(`  Opportunity ${opportunityId} updated`);
     }
@@ -748,7 +759,7 @@ router.post('/sync-opportunity', requireAuth, async (req, res) => {
     const atOpportunityId = mergedProposal.atOpportunityId;
 
     if (atOpportunityId) {
-      await maybeUpdateOpportunity(atOpportunityId, mergedProposal.projectName ?? '', mergedProposal.client ?? '', mergedProposal.accountManager ?? '');
+      await maybeUpdateOpportunity(mergedProposal);
       log('info', 'crm', `Opportunity ${atOpportunityId} synced for proposal "${mergedProposal.projectName}"`);
       res.json({ opportunityId: atOpportunityId, url: dbProposal.atOpportunityUrl ?? '' });
       return;
