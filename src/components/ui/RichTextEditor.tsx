@@ -78,8 +78,8 @@ function ToolBtn({
       className={clsx(
         'p-1.5 rounded transition-colors select-none',
         active
-          ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300'
-          : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-slate-200',
+          ? 'bg-brand-100 dark:bg-brand-700/60 text-brand-700 dark:text-brand-200'
+          : 'text-gray-500 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-600 hover:text-gray-800 dark:hover:text-white',
         disabled && 'opacity-40 cursor-not-allowed',
       )}
     >
@@ -89,7 +89,7 @@ function ToolBtn({
 }
 
 function Divider() {
-  return <div className="w-px h-5 bg-gray-200 dark:bg-slate-600 mx-0.5" />;
+  return <div className="w-px h-5 bg-gray-200 dark:bg-slate-500 mx-0.5" />;
 }
 
 // ─── Toolbar ──────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ function Toolbar({ editor, minimal }: { editor: ReturnType<typeof useEditor>; mi
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/60 rounded-t-lg">
+    <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 rounded-t-lg">
       {/* History */}
       <ToolBtn onClick={() => editor.chain().focus().undo().run()} title="Undo (Ctrl+Z)" disabled={!editor.can().undo()}>
         <Undo2 size={13} />
