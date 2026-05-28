@@ -477,55 +477,45 @@ router.get('/picklists-batch', requireAuth, async (req, res) => {
 
 // ─── Opportunity creation ─────────────────────────────────────────────────────
 
-let _resourceIdCache: { id: number; expiresAt: number } | null = null;
+// Per-name cache for account manager resource ID lookups (10 min TTL).
+const _amResourceIdCache = new Map<string, { id: number; expiresAt: number }>();
 
-async function getApiUserResourceId(creds: AtCreds): Promise<number | null> {
-  if (_resourceIdCache && Date.now() < _resourceIdCache.expiresAt) return _resourceIdCache.id;
+/** Looks up the Autotask Resource ID for a given full name (e.g. "Jane Smith").
+ *  Splits into firstName / lastName and queries the Resources entity. */
+async function getResourceIdForAccountManager(creds: AtCreds, fullName: string): Promise<number | null> {
+  const key = fullName.trim().toLowerCase();
+  const cached = _amResourceIdCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) return cached.id;
 
-  // Check for a manually configured resource ID first
-  const s = await getAppSettingsDirect();
-  const manual = s['crm.autotask.opportunity.ownerResourceId']?.trim();
-  if (manual) {
-    const id = parseInt(manual);
-    if (!isNaN(id)) {
-      _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
-      return id;
-    }
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 2) {
+    crmLog(`Cannot resolve resource ID: "${fullName}" is not a full name`);
+    return null;
   }
+  const firstName = parts[0];
+  const lastName  = parts.slice(1).join(' ');
 
-  // Fall back to looking up the API user's resource record by username
   try {
-    const host = creds.zoneUrl.replace(/\/atservicesrest.*$/i, '').replace(/\/$/, '');
-    const url  = `${host}/atservicesrest/v1.0/Resources/query`;
-    crmLog(`→ POST ${url} (resource lookup for "${creds.username}")`);
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type':       'application/json',
-        'UserName':           creds.username,
-        'Secret':             creds.secret,
-        'ApiIntegrationCode': creds.integrationCode,
-      },
-      body: JSON.stringify({ filter: [{ field: 'userName', op: 'eq', value: creds.username }] }),
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(() => r.statusText);
-      crmLog(`Resource lookup HTTP ${r.status}: ${t.slice(0, 200)}`);
-      log('warn', 'crm', `Resource ID lookup failed (HTTP ${r.status}) — set Owner Resource ID manually in Settings → CRM`, { details: { status: r.status, body: t.slice(0, 200) } });
-      return null;
-    }
-    const data = await r.json() as { items?: Array<{ id: number }> };
-    const id = data.items?.[0]?.id ?? null;
+    crmLog(`→ Resource lookup for "${firstName} ${lastName}"`);
+    const items = await atQuery<{ id: number }>(
+      creds, 'Resources',
+      [
+        { field: 'firstName', op: 'eq', value: firstName },
+        { field: 'lastName',  op: 'eq', value: lastName  },
+      ],
+      ['id'], 1,
+    );
+    const id = items[0]?.id ?? null;
     if (id) {
-      crmLog(`  Resolved resource ID: ${id}`);
-      _resourceIdCache = { id, expiresAt: Date.now() + 10 * 60 * 1000 };
+      crmLog(`  Resolved resource ID for "${fullName}": ${id}`);
+      _amResourceIdCache.set(key, { id, expiresAt: Date.now() + 10 * 60 * 1000 });
     } else {
-      crmLog(`Resource lookup returned no results for "${creds.username}"`);
-      log('warn', 'crm', `No Autotask Resource found for username "${creds.username}" — set Owner Resource ID manually in Settings → CRM`);
+      crmLog(`  No Resource found for "${fullName}"`);
+      log('warn', 'crm', `No Autotask Resource found for account manager "${fullName}" — ensure they are an active resource in Autotask`);
     }
     return id;
   } catch (e) {
-    crmLog(`Resource lookup error: ${String(e)}`);
+    crmLog(`Resource lookup error for "${fullName}": ${String(e)}`);
     return null;
   }
 }
@@ -566,10 +556,13 @@ export async function maybeCreateOpportunity(
     .replace('{client}', client)
     .replace('{accountManager}', accountManager || '');
 
-  const ownerResourceID = await getApiUserResourceId(creds);
+  const ownerResourceID = accountManager
+    ? await getResourceIdForAccountManager(creds, accountManager)
+    : null;
   if (!ownerResourceID) {
-    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": could not resolve API user resource ID`, { details: { proposalId } });
-    throw new Error('Could not resolve Autotask API user resource ID — check the API user account in Autotask');
+    const who = accountManager || 'account manager';
+    log('warn', 'crm', `Opportunity creation skipped for "${projectName}": could not resolve resource ID for "${who}"`, { details: { proposalId, accountManager } });
+    throw new Error(`Could not find an Autotask Resource record for "${who}" — ensure they are an active resource in Autotask`);
   }
 
   const closeDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();
