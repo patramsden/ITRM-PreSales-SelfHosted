@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { requireAuth, requireAdmin } from '../shared/auth';
 import { getAppSettingsDirect } from '../repositories/settingsRepo';
+import { getProposalById, updateProposal as updateProposalRepo } from '../repositories/proposalRepo';
+import { log } from '../shared/logger';
 
 const router = Router();
 
@@ -592,6 +594,38 @@ router.post('/create-opportunity', requireAuth, async (req, res) => {
     const result = await maybeCreateOpportunity(proposalId ?? '', projectName, client ?? '', accountManager ?? '', crmCompanyId);
     if (!result) { res.status(400).json({ error: 'Opportunity creation failed — check CRM configuration (Settings → CRM)' }); return; }
     res.json(result);
+  } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
+});
+
+// ─── POST /api/crm/sync-opportunity ──────────────────────────────────────────
+// Called by the frontend Save button and on proposal exit.
+// Looks up the proposal in DB, then creates or updates the linked opportunity.
+
+router.post('/sync-opportunity', requireAuth, async (req, res) => {
+  try {
+    const { proposalId } = req.body as { proposalId?: string };
+    if (!proposalId) { res.status(400).json({ error: 'proposalId is required' }); return; }
+    const proposal = await getProposalById(proposalId);
+    if (!proposal) { res.sendStatus(404); return; }
+
+    if (proposal.atOpportunityId) {
+      await maybeUpdateOpportunity(
+        proposal.atOpportunityId, proposal.projectName ?? '',
+        proposal.client ?? '', proposal.accountManager ?? '',
+      );
+      res.json({ opportunityId: proposal.atOpportunityId, url: proposal.atOpportunityUrl ?? '' });
+    } else if (proposal.crmCompanyId) {
+      const opp = await maybeCreateOpportunity(
+        proposalId, proposal.projectName ?? '', proposal.client ?? '',
+        proposal.accountManager ?? '', proposal.crmCompanyId,
+      );
+      if (!opp) { res.status(400).json({ error: 'Opportunity creation failed — check CRM configuration (Settings → CRM)' }); return; }
+      await updateProposalRepo(proposalId, { ...proposal, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
+      log('info', 'crm', `Opportunity created for proposal "${proposal.projectName}"`, { details: { proposalId, opportunityId: opp.opportunityId } });
+      res.json(opp);
+    } else {
+      res.status(400).json({ error: 'Proposal has no CRM company linked' });
+    }
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 

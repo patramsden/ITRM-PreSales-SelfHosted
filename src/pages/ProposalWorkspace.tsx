@@ -1,7 +1,7 @@
-import { useState, lazy, Suspense, useRef, useEffect } from 'react';
+import { useState, lazy, Suspense, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText, Check, Trophy, XCircle } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Loader2, Clock, Share2, Copy, ChevronDown, FileSpreadsheet, FileText, Check, Trophy, XCircle, Save } from 'lucide-react';
 import { useStore } from '../store';
 import { useAuth } from '../contexts/AuthContext';
 import { getProposalRole, canEdit, canDelete, canAccessAdmin } from '../utils/permissions';
@@ -16,6 +16,7 @@ import { StatusBadge } from '../components/ui/Badge';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ProjectSummaryTab } from '../components/proposals/tabs/ProjectSummaryTab';
 import { PartsTab } from '../components/proposals/tabs/PartsTab';
+import { crmApi } from '../lib/api';
 // Heavier tabs are lazy-loaded so each becomes its own chunk
 const ConsultancyTab = lazy(() => import('../components/proposals/tabs/ConsultancyTab').then(m => ({ default: m.ConsultancyTab })));
 const BillingTab     = lazy(() => import('../components/proposals/tabs/BillingTab').then(m => ({ default: m.BillingTab })));
@@ -173,6 +174,8 @@ export function ProposalWorkspace() {
   const [pendingExport, setPendingExport] = useState<(() => void) | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [layoutConfig, setLayoutConfig] = useState<ProposalLayoutConfig | null>(null);
+  const [crmSyncing, setCrmSyncing] = useState(false);
+  const [crmSyncResult, setCrmSyncResult] = useState<'ok' | 'error' | null>(null);
 
   // Fetch layout config for PDF generation
   useEffect(() => {
@@ -185,12 +188,39 @@ export function ProposalWorkspace() {
   const proposalRef = useRef(proposal);
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
 
-  // Save version snapshot when navigating away
+  // CRM sync — create or update the linked Autotask opportunity
+  const handleCrmSync = useCallback(async (proposalId: string) => {
+    setCrmSyncing(true);
+    setCrmSyncResult(null);
+    try {
+      const result = await crmApi.syncOpportunity(proposalId);
+      // Patch the local store so the Opportunity link appears immediately
+      updateProposal(proposalId, { atOpportunityId: result.opportunityId, atOpportunityUrl: result.url });
+      setCrmSyncResult('ok');
+      setTimeout(() => setCrmSyncResult(null), 3000);
+    } catch {
+      setCrmSyncResult('error');
+      setTimeout(() => setCrmSyncResult(null), 4000);
+    } finally {
+      setCrmSyncing(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Save version snapshot + sync CRM when navigating away
   useEffect(() => {
     return () => {
       const p = proposalRef.current;
       if (p && canEdit(p, currentUser)) {
         versionApi.save(p.id).catch(() => {/* fire and forget */});
+        // Fire-and-forget CRM sync on exit if company is linked
+        if (p.crmCompanyId) {
+          crmApi.syncOpportunity(p.id).then(result => {
+            if (result.opportunityId && !p.atOpportunityId) {
+              updateProposal(p.id, { atOpportunityId: result.opportunityId, atOpportunityUrl: result.url });
+            }
+          }).catch(() => {});
+        }
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,6 +396,29 @@ export function ProposalWorkspace() {
                 </div>
               )}
             </div>
+
+            {/* Save / CRM sync button — only shown when a CRM company is linked */}
+            {proposal.crmCompanyId && editable && (
+              <button
+                onClick={() => handleCrmSync(proposal.id)}
+                disabled={crmSyncing}
+                title={proposal.atOpportunityId ? 'Save & sync Autotask opportunity' : 'Save & create Autotask opportunity'}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors',
+                  crmSyncResult === 'ok'    && 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400',
+                  crmSyncResult === 'error' && 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400',
+                  !crmSyncResult            && 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400',
+                )}
+              >
+                {crmSyncing
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : crmSyncResult === 'ok'
+                    ? <Check size={13} />
+                    : <Save size={13} />
+                }
+                {crmSyncing ? 'Saving…' : crmSyncResult === 'ok' ? 'Saved' : crmSyncResult === 'error' ? 'Sync failed' : 'Save'}
+              </button>
+            )}
 
             {/* Autotask opportunity link */}
             {proposal.atOpportunityUrl && (
