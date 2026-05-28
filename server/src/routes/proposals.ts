@@ -8,7 +8,7 @@ import { createShare, listShares, deleteShare, getProposalByShareToken } from '.
 import { sendEmail, statusChangeEmail } from '../shared/email';
 import { getAppSettingsDirect, SETTING_KEYS } from '../repositories/settingsRepo';
 import { getAllUsers } from '../repositories/userRepo';
-import { maybeCreateOpportunity, maybeUpdateOpportunity } from './crm';
+import { maybeUpdateOpportunity } from './crm';
 import { log } from '../shared/logger';
 import type { Proposal } from '../types/index';
 
@@ -18,13 +18,9 @@ router.get('/',     requireAuth, async (_req, res) => { res.json(await getAllPro
 router.post('/',    requireAuth, async (req,  res) => {
   const body = req.body as Proposal;
   if (!body?.id || !body?.projectName) { res.status(400).json({ error: 'id and projectName are required' }); return; }
-  let created = await createProposal(body);
-  const opp = await maybeCreateOpportunity(created);
-  if (opp) {
-    await updateProposal(created.id, { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
-    created = { ...created, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url };
-    log('info', 'crm', `Opportunity created for proposal "${created.projectName}"`, { details: { proposalId: created.id, opportunityId: opp.opportunityId } });
-  }
+  const created = await createProposal(body);
+  // Opportunity creation is handled exclusively by the Save button (sync-opportunity)
+  // to avoid duplicates and errors when account manager isn't set yet on new proposals.
   log('info', 'proposal', `Proposal created: "${created.projectName}" (${created.reference ?? created.id})`, { details: { client: created.client }, userId: req.user?.id, userName: req.user?.name });
   res.status(201).json(created);
 });
