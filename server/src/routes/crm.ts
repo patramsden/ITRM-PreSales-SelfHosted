@@ -576,6 +576,7 @@ function calcOpportunityFinancials(proposal: import('../types/index').Proposal) 
     yearlyRevenue:  round2(yearlyRevenue),
     yearlyCost:     round2(yearlyCost),
     amount:         round2(oneTimeRevenue + monthlyRevenue * 12 + yearlyRevenue),
+    cost:           round2(oneTimeCost   + monthlyCost   * 12 + yearlyCost),
   };
 }
 
@@ -623,6 +624,7 @@ export async function maybeCreateOpportunity(
     companyID: parseInt(crmCompanyId), title, ownerResourceID,
     stage: stageId, status: 1, probability: isNaN(probability) ? 50 : probability, closeDate,
     amount:         fin.amount,
+    cost:           fin.cost,
     oneTimeRevenue: fin.oneTimeRevenue,
     oneTimeCost:    fin.oneTimeCost,
     monthlyRevenue: fin.monthlyRevenue,
