@@ -439,7 +439,25 @@ export const useStore = create<AppStore>()((set, get) => ({
   // ── Proposals ─────────────────────────────────────────────────────────────
   addProposal: (p) => {
     set(s => ({ proposals: [p, ...s.proposals] }));
-    sync.proposals().then(a => a.create(p)).catch(onErr('addProposal'));
+    // After the backend responds, patch any server-assigned fields back into
+    // local state (reference number, atOpportunityId/Url from auto-create).
+    sync.proposals().then(async a => {
+      const saved = await a.create(p);
+      if (saved && (saved.reference || saved.atOpportunityId || saved.atOpportunityUrl)) {
+        set(s => ({
+          proposals: s.proposals.map(existing =>
+            existing.id === p.id
+              ? {
+                  ...existing,
+                  ...(saved.reference        && { reference:        saved.reference }),
+                  ...(saved.atOpportunityId  && { atOpportunityId:  saved.atOpportunityId }),
+                  ...(saved.atOpportunityUrl && { atOpportunityUrl: saved.atOpportunityUrl }),
+                }
+              : existing,
+          ),
+        }));
+      }
+    }).catch(onErr('addProposal'));
   },
   updateProposal: (id, updates, modifiedBy) => {
     const now = new Date().toISOString();
