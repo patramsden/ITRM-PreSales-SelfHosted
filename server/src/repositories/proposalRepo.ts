@@ -144,18 +144,31 @@ function assemble(
 }
 
 // ─── Nested writer ────────────────────────────────────────────────────────────
+// Uses UPSERT (INSERT … ON CONFLICT DO UPDATE) instead of DELETE + INSERT so
+// that concurrent saves for the same proposal don't cause duplicate-key errors.
+// Orphaned rows (parts/phases/tasks removed by the user) are pruned at the end
+// using "NOT IN current list" deletes which are safe to run concurrently.
 
 async function writeNested(proposal: Proposal): Promise<void> {
-  await query('DELETE FROM parts  WHERE proposal_id=$1', [proposal.id]);
-  await query('DELETE FROM phases WHERE proposal_id=$1', [proposal.id]);
+  const partIds  = proposal.parts.map(p => p.id);
+  const phaseIds = proposal.phases.map(ph => ph.id);
 
+  // ── Parts ──────────────────────────────────────────────────────────────────
   for (let pi = 0; pi < proposal.parts.length; pi++) {
     const p = proposal.parts[pi];
     await query(
       `INSERT INTO parts (id,proposal_id,description,sku,quantity,unit_cost,unit_price,part_type,sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [p.id, proposal.id, p.description, p.sku ?? null, p.quantity, p.unitCost, p.unitPrice, p.partType ?? 'Hardware', pi],
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO UPDATE SET
+         proposal_id=$2, description=$3, sku=$4, quantity=$5,
+         unit_cost=$6, unit_price=$7, part_type=$8, sort_order=$9`,
+      [p.id, proposal.id, p.description, p.sku ?? null, p.quantity,
+       p.unitCost, p.unitPrice, p.partType ?? 'Hardware', pi],
     );
+
+    // Vendor quotes: delete-then-reinsert per part (quotes don't have stable IDs
+    // across edits so this is safe — parts are now committed above).
+    await query('DELETE FROM vendor_quotes WHERE part_id=$1', [p.id]);
     for (const q of p.quotes) {
       await query(
         `INSERT INTO vendor_quotes
@@ -167,18 +180,58 @@ async function writeNested(proposal: Proposal): Promise<void> {
     }
   }
 
+  // Remove parts that are no longer in the proposal
+  if (partIds.length > 0) {
+    await query(
+      `DELETE FROM parts WHERE proposal_id=$1 AND id != ALL($2::text[])`,
+      [proposal.id, partIds],
+    );
+  } else {
+    await query('DELETE FROM parts WHERE proposal_id=$1', [proposal.id]);
+  }
+
+  // ── Phases & tasks ─────────────────────────────────────────────────────────
   for (let phi = 0; phi < proposal.phases.length; phi++) {
     const ph = proposal.phases[phi];
-    await query('INSERT INTO phases (id,proposal_id,name,sort_order) VALUES ($1,$2,$3,$4)',
-      [ph.id, proposal.id, ph.name, phi]);
+    await query(
+      `INSERT INTO phases (id,proposal_id,name,sort_order) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (id) DO UPDATE SET proposal_id=$2, name=$3, sort_order=$4`,
+      [ph.id, proposal.id, ph.name, phi],
+    );
+
+    const taskIds = ph.tasks.map(t => t.id);
     for (let ti = 0; ti < ph.tasks.length; ti++) {
       const t = ph.tasks[ti];
       await query(
         `INSERT INTO tasks (id,phase_id,name,role,days,day_rate,unit,rate_multiplier,sort_order)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [t.id, ph.id, t.name, t.role, t.days, t.dayRate, t.unit ?? 'days', t.rateMultiplier ?? 1, ti],
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (id) DO UPDATE SET
+           phase_id=$2, name=$3, role=$4, days=$5, day_rate=$6,
+           unit=$7, rate_multiplier=$8, sort_order=$9`,
+        [t.id, ph.id, t.name, t.role, t.days, t.dayRate,
+         t.unit ?? 'days', t.rateMultiplier ?? 1, ti],
       );
     }
+
+    // Remove tasks no longer in this phase
+    if (taskIds.length > 0) {
+      await query(
+        `DELETE FROM tasks WHERE phase_id=$1 AND id != ALL($2::text[])`,
+        [ph.id, taskIds],
+      );
+    } else {
+      await query('DELETE FROM tasks WHERE phase_id=$1', [ph.id]);
+    }
+  }
+
+  // Remove phases no longer in the proposal (cascades to their tasks)
+  if (phaseIds.length > 0) {
+    await query(
+      `DELETE FROM phases WHERE proposal_id=$1 AND id != ALL($2::text[])`,
+      [proposal.id, phaseIds],
+    );
+  } else {
+    await query('DELETE FROM phases WHERE proposal_id=$1', [proposal.id]);
   }
 }
 

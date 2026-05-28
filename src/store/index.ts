@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
+
+// ── Debounce for updateProposal API writes ────────────────────────────────────
+// Local state updates are always immediate. The API write is deferred 600ms so
+// rapid keystrokes (typing in a text field) are batched into a single PUT request
+// instead of firing dozens of concurrent requests that cause DB conflicts.
+const _updateTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const UPDATE_DEBOUNCE_MS = 600;
 import type {
   Proposal, Template, CatalogItem, RateCard, User,
   ProposalStatus, Currency, Part, ConsultancyPhase,
@@ -535,8 +542,16 @@ export const useStore = create<AppStore>()((set, get) => ({
         } : p
       ),
     }));
-    const updated = get().proposals.find(p => p.id === id);
-    if (updated) sync.proposals().then(a => a.update(id, updated)).catch(onErr('updateProposal'));
+    // Debounce the API write: cancel any pending call for this proposal,
+    // then schedule a new one. When it fires, it reads the latest state from
+    // the store (not the snapshot captured here) so rapid edits are coalesced.
+    const pending = _updateTimers.get(id);
+    if (pending) clearTimeout(pending);
+    _updateTimers.set(id, setTimeout(() => {
+      _updateTimers.delete(id);
+      const latest = get().proposals.find(p => p.id === id);
+      if (latest) sync.proposals().then(a => a.update(id, latest)).catch(onErr('updateProposal'));
+    }, UPDATE_DEBOUNCE_MS));
   },
   deleteProposal: (id) => {
     set(s => ({ proposals: s.proposals.filter(p => p.id !== id) }));
