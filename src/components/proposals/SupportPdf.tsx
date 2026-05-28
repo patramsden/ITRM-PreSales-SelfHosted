@@ -78,7 +78,8 @@ function makeStyles(primary: string) {
   return StyleSheet.create({
     // Pages
     coverPage: { backgroundColor: DARK, padding: 60, flex: 1, justifyContent: 'center' },
-    page: { padding: '14mm 14mm 20mm 14mm', fontFamily: 'Helvetica', fontSize: 10, color: MID, flex: 1 },
+    // top: 22mm clears the fixed page header; bottom: 18mm clears the fixed footer
+    page: { padding: '22mm 14mm 18mm 14mm', fontFamily: 'Helvetica', fontSize: 10, color: MID, flex: 1 },
 
     // Cover text
     coverBrand:   { fontSize: 11, color: '#9ba8d0', letterSpacing: 3, marginBottom: 40, fontFamily: 'Helvetica-Bold' },
@@ -87,6 +88,15 @@ function makeStyles(primary: string) {
     coverMeta:    { fontSize: 9.5, color: '#8b98c4', marginTop: 3 },
     coverDivider: { borderBottom: `2px solid ${primary}`, marginTop: 28, marginBottom: 28, width: 60 },
     coverFooter:  { position: 'absolute', bottom: 40, left: 60, right: 60, fontSize: 8, color: '#6b7280' },
+
+    // Page header (fixed — repeats on every overflow page)
+    pageHeader: {
+      position: 'absolute', top: '6mm', left: '14mm', right: '14mm',
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
+      paddingBottom: 4, borderBottom: `1.5px solid ${primary}`,
+    },
+    pageHeaderLeft:  { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: primary },
+    pageHeaderRight: { fontSize: 7.5, color: LIGHT },
 
     // Section headings
     h1: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: primary, marginBottom: 4, marginTop: 12 },
@@ -125,11 +135,11 @@ function makeStyles(primary: string) {
     statValue: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: DARK },
     statValueLight: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#ffffff' },
 
-    // Footer
+    // Footer (fixed — repeats on every overflow page)
     footer: {
-      position: 'absolute', bottom: 14, left: 14, right: 14,
-      flexDirection: 'row', justifyContent: 'space-between',
-      fontSize: 7.5, color: '#9ca3af', borderTop: `0.5px solid ${RULE}`, paddingTop: 4,
+      position: 'absolute', bottom: '6mm', left: '14mm', right: '14mm',
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      fontSize: 7.5, color: '#9ca3af', borderTop: `0.5px solid ${RULE}`, paddingTop: 5,
     },
 
     // Signature boxes
@@ -151,13 +161,23 @@ function renderText(text: string, styles: ReturnType<typeof makeStyles>) {
   });
 }
 
-// ─── Page footer (fixed) ──────────────────────────────────────────────────────
+// ─── Page header & footer (fixed — repeat on every page of an overflowing Page) ─
+
+function PageHeader({ companyName, primaryColor }: { companyName: string; primaryColor: string }) {
+  const styles = makeStyles(primaryColor);
+  return (
+    <View style={styles.pageHeader} fixed>
+      <Text style={styles.pageHeaderLeft}>{companyName}</Text>
+      <Text style={styles.pageHeaderRight}>IT Managed Service Agreement</Text>
+    </View>
+  );
+}
 
 function PageFooter({ companyName }: { companyName: string }) {
   const styles = makeStyles('#000');
   return (
     <View style={styles.footer} fixed>
-      <Text>{companyName} — IT Managed Service Agreement — Confidential</Text>
+      <Text>{companyName} — Confidential</Text>
       <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
     </View>
   );
@@ -249,6 +269,7 @@ function SupportPdfDocument({
 
       {/* ── 2. Confidential Information & Contact ─────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={1} title="Confidential Information" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.confidentialityNotice || ''), styles)}
         {bpImages.confidentialityNotice && (
@@ -277,6 +298,7 @@ function SupportPdfDocument({
 
       {/* ── 3. Company Introduction ───────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={2} title={`${branding.companyName} – An Introduction`} styles={styles} />
         {renderText(htmlToPlainText(boilerplate.intro || ''), styles)}
         {bpImages.intro && (
@@ -287,6 +309,7 @@ function SupportPdfDocument({
 
       {/* ── 4. Background ────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={3} title={`${branding.companyName}'s Background`} styles={styles} />
         {renderText(htmlToPlainText(boilerplate.background || ''), styles)}
         {bpImages.background && (
@@ -297,6 +320,7 @@ function SupportPdfDocument({
 
       {/* ── 5. Staff ─────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={4} title="Staff, Qualifications and Experience" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.staff || ''), styles)}
         {bpImages.staff && (
@@ -307,6 +331,7 @@ function SupportPdfDocument({
 
       {/* ── 6. Certifications ────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={5} title="Certificates and Accreditations" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.certifications || ''), styles)}
         {bpImages.certifications && (
@@ -317,6 +342,7 @@ function SupportPdfDocument({
 
       {/* ── 7. Service Requirements ──────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={6} title="Service Requirements" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.serviceRequirements || ''), styles)}
         {bpImages.serviceRequirements && (
@@ -327,6 +353,7 @@ function SupportPdfDocument({
 
       {/* ── 8. Business Requirements ─────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={7} title="Business Requirements" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.businessRequirements || ''), styles)}
         {bpImages.businessRequirements && (
@@ -337,6 +364,7 @@ function SupportPdfDocument({
 
       {/* ── 9. Contractual Requirements + SLA table ──────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={8} title="Contractual Requirements" styles={styles} />
         {renderText(htmlToPlainText(boilerplate.contractualTerms || ''), styles)}
         {bpImages.contractualTerms && (
@@ -370,6 +398,7 @@ function SupportPdfDocument({
       {/* ── Extra sections (between §8 and Schedule 1) ───────────── */}
       {extraSections.map(es => (
         <Page key={es.id} size="A4" style={styles.page}>
+          <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
           <Text style={styles.h1}>{es.title || 'Additional Section'}</Text>
           <View style={styles.rule} />
           {renderText(htmlToPlainText(es.content || ''), styles)}
@@ -382,8 +411,10 @@ function SupportPdfDocument({
 
       {/* ── 10. Schedule 1 ───────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={9} title="Schedule 1" styles={styles} />
 
+        {/* §9.1 Scope — allow this to wrap across pages if the list is long */}
         <SubH num="9.1" title="Scope of Services" styles={styles} />
         <View style={styles.tableWrap}>
           <View style={styles.tableHeader}>
@@ -400,79 +431,84 @@ function SupportPdfDocument({
           ))}
         </View>
 
-        <SubH num="9.2" title="Supported Users Covered Under this Agreement" styles={styles} />
-        <View style={styles.tableWrap}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.thCell, { flex: 3 }]}>Users / Service</Text>
-            <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Cost/User/Month</Text>
-            <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Total per Annum</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={[styles.tdCell, { flex: 3 }]}>{sc.seats} Users (full-time)</Text>
-            <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase, S)}</Text>
-            <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * sc.seats * 12, S)}</Text>
-          </View>
-          {(sc.partTimeSeats ?? 0) > 0 && (
-            <View style={styles.tableRowAlt}>
-              <Text style={[styles.tdCell, { flex: 3 }]}>{sc.partTimeSeats} Users (part-time, 50%)</Text>
-              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * 0.5, S)}</Text>
-              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * 0.5 * (sc.partTimeSeats ?? 0) * 12, S)}</Text>
+        {/* §9.2 + §9.3 wrapped together with wrap={false} so they always stay on
+            the same page and never straddle the footer. If they don't fit after
+            §9.1 they will be pushed to the next page as a unit. */}
+        <View wrap={false}>
+          <SubH num="9.2" title="Supported Users Covered Under this Agreement" styles={styles} />
+          <View style={styles.tableWrap}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.thCell, { flex: 3 }]}>Users / Service</Text>
+              <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Cost/User/Month</Text>
+              <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Total per Annum</Text>
             </View>
-          )}
-          {(sc.addOns ?? []).map((a, i) => {
-            const monthly = a.priceType === 'per_seat' ? a.price * sc.seats : a.price;
-            return (
+            <View style={styles.tableRow}>
+              <Text style={[styles.tdCell, { flex: 3 }]}>{sc.seats} Users (full-time)</Text>
+              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase, S)}</Text>
+              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * sc.seats * 12, S)}</Text>
+            </View>
+            {(sc.partTimeSeats ?? 0) > 0 && (
+              <View style={styles.tableRowAlt}>
+                <Text style={[styles.tdCell, { flex: 3 }]}>{sc.partTimeSeats} Users (part-time, 50%)</Text>
+                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * 0.5, S)}</Text>
+                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(discountedBase * 0.5 * (sc.partTimeSeats ?? 0) * 12, S)}</Text>
+              </View>
+            )}
+            {(sc.addOns ?? []).map((a, i) => {
+              const monthly = a.priceType === 'per_seat' ? a.price * sc.seats : a.price;
+              return (
+                <View key={a.id} style={(i + 1) % 2 === 0 ? styles.tableRowAlt : styles.tableRow}>
+                  <Text style={[styles.tdCell, { flex: 3 }]}>{a.name}</Text>
+                  <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{a.priceType === 'per_seat' ? `${fmtCurr(a.price, S)}/seat` : 'Flat'}</Text>
+                  <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(monthly * 12, S)}</Text>
+                </View>
+              );
+            })}
+            <View style={styles.totalsRow}>
+              <Text style={[styles.totalsCell, { flex: 3 }]}>Total Annual Cost</Text>
+              <Text style={{ flex: 1.5 }} />
+              <Text style={[styles.totalsCellRight, { flex: 1.5 }]}>{fmtCurr(arr, S)}</Text>
+            </View>
+          </View>
+
+          <SubH num="9.3" title="Commercial Overview" styles={styles} />
+          <View style={styles.tableWrap}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.thCell, { flex: 3 }]}>Service</Text>
+              <Text style={[styles.thCell, { flex: 1, textAlign: 'right' }]}>Users / Qty</Text>
+              <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Total per Annum</Text>
+            </View>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tdCell, { flex: 3 }]}>IT Managed Service — {hoursLabel}</Text>
+              <Text style={[styles.tdCellRight, { flex: 1 }]}>{sc.seats + (sc.partTimeSeats ?? 0)}</Text>
+              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(arr - addonMRR * 12, S)}</Text>
+            </View>
+            {(sc.addOns ?? []).map((a, i) => (
               <View key={a.id} style={(i + 1) % 2 === 0 ? styles.tableRowAlt : styles.tableRow}>
                 <Text style={[styles.tdCell, { flex: 3 }]}>{a.name}</Text>
-                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{a.priceType === 'per_seat' ? `${fmtCurr(a.price, S)}/seat` : 'Flat'}</Text>
-                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(monthly * 12, S)}</Text>
+                <Text style={[styles.tdCellRight, { flex: 1 }]}>
+                  {a.priceType === 'per_seat' ? String(sc.seats) : '1'}
+                </Text>
+                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>
+                  {fmtCurr((a.priceType === 'per_seat' ? a.price * sc.seats : a.price) * 12, S)}
+                </Text>
               </View>
-            );
-          })}
-          <View style={styles.totalsRow}>
-            <Text style={[styles.totalsCell, { flex: 3 }]}>Total Annual Cost</Text>
-            <Text style={{ flex: 1.5 }} />
-            <Text style={[styles.totalsCellRight, { flex: 1.5 }]}>{fmtCurr(arr, S)}</Text>
+            ))}
+            {onboarding > 0 && (
+              <View style={styles.tableRowAlt}>
+                <Text style={[styles.tdCell, { flex: 3 }]}>Onboarding / Setup</Text>
+                <Text style={[styles.tdCellRight, { flex: 1 }]}>1</Text>
+                <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(onboarding, S)}</Text>
+              </View>
+            )}
+            {yearCosts.map((cost, i) => (
+              <View key={i} style={styles.totalsRow}>
+                <Text style={[styles.totalsCell, { flex: 3 }]}>Year {i + 1} Total</Text>
+                <Text style={{ flex: 1 }} />
+                <Text style={[styles.totalsCellRight, { flex: 1.5 }]}>{fmtCurr(cost, S)}</Text>
+              </View>
+            ))}
           </View>
-        </View>
-
-        <SubH num="9.3" title="Commercial Overview" styles={styles} />
-        <View style={styles.tableWrap}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.thCell, { flex: 3 }]}>Service</Text>
-            <Text style={[styles.thCell, { flex: 1, textAlign: 'right' }]}>Users / Qty</Text>
-            <Text style={[styles.thCell, { flex: 1.5, textAlign: 'right' }]}>Total per Annum</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={[styles.tdCell, { flex: 3 }]}>IT Managed Service — {hoursLabel}</Text>
-            <Text style={[styles.tdCellRight, { flex: 1 }]}>{sc.seats + (sc.partTimeSeats ?? 0)}</Text>
-            <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(arr - addonMRR * 12, S)}</Text>
-          </View>
-          {(sc.addOns ?? []).map((a, i) => (
-            <View key={a.id} style={(i + 1) % 2 === 0 ? styles.tableRowAlt : styles.tableRow}>
-              <Text style={[styles.tdCell, { flex: 3 }]}>{a.name}</Text>
-              <Text style={[styles.tdCellRight, { flex: 1 }]}>
-                {a.priceType === 'per_seat' ? String(sc.seats) : '1'}
-              </Text>
-              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>
-                {fmtCurr((a.priceType === 'per_seat' ? a.price * sc.seats : a.price) * 12, S)}
-              </Text>
-            </View>
-          ))}
-          {onboarding > 0 && (
-            <View style={styles.tableRowAlt}>
-              <Text style={[styles.tdCell, { flex: 3 }]}>Onboarding / Setup</Text>
-              <Text style={[styles.tdCellRight, { flex: 1 }]}>1</Text>
-              <Text style={[styles.tdCellRight, { flex: 1.5 }]}>{fmtCurr(onboarding, S)}</Text>
-            </View>
-          )}
-          {yearCosts.map((cost, i) => (
-            <View key={i} style={styles.totalsRow}>
-              <Text style={[styles.totalsCell, { flex: 3 }]}>Year {i + 1} Total</Text>
-              <Text style={{ flex: 1 }} />
-              <Text style={[styles.totalsCellRight, { flex: 1.5 }]}>{fmtCurr(cost, S)}</Text>
-            </View>
-          ))}
         </View>
 
         <PageFooter companyName={branding.companyName} />
@@ -480,6 +516,7 @@ function SupportPdfDocument({
 
       {/* ── 11. Contractual Terms ─────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={10} title="Contractual Terms" styles={styles} />
 
         <Text style={styles.para}>
@@ -512,6 +549,7 @@ function SupportPdfDocument({
 
       {/* ── 12. Service Contract ──────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={11} title="Service Contract" styles={styles} />
 
         <Text style={[styles.para, { fontStyle: 'italic' }]}>
@@ -538,6 +576,7 @@ function SupportPdfDocument({
 
       {/* ── 13. Authorised Signatures ─────────────────────────────── */}
       <Page size="A4" style={styles.page}>
+        <PageHeader companyName={branding.companyName} primaryColor={branding.primaryColor} />
         <SectionH num={12} title="Authorised Signatures" styles={styles} />
 
         <Text style={styles.para}>
