@@ -564,7 +564,7 @@ async function getResourceIdForAccountManager(creds: AtCreds, fullName: string):
 
 function atOpportunityWebUrl(apiHost: string, oppId: number): string {
   const webHost = apiHost.replace(/webservices(\d+)/i, 'ww$1');
-  return `${webHost}/Autotask/views/opportunity/viewopportunity.aspx?opportunityID=${oppId}`;
+  return `${webHost}/Autotask/views/crm/CRMOpportunityCore.aspx?id=${oppId}`;
 }
 
 function calcOpportunityFinancials(proposal: import('../types/index').Proposal) {
@@ -647,9 +647,10 @@ export async function maybeCreateOpportunity(
   const closeDateDays = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
   const titleTemplate = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
   const title = titleTemplate
-    .replace('{projectName}', projectName)
-    .replace('{client}', client)
-    .replace('{accountManager}', accountManager);
+    .replace('{projectName}',    projectName)
+    .replace('{client}',         client)
+    .replace('{accountManager}', accountManager)
+    .replace('{reference}',      proposal.reference ?? '');
 
   const ownerResourceID = accountManager
     ? await getResourceIdForAccountManager(creds, accountManager)
@@ -696,8 +697,10 @@ export async function maybeCreateOpportunity(
     throw new Error('Autotask returned no opportunity ID — the record may not have been created');
   }
 
-  crmLog(`  Opportunity created: ID ${opportunityId}`);
-  return { opportunityId: String(opportunityId), url: atOpportunityWebUrl(host, opportunityId) };
+  const oppUrl = atOpportunityWebUrl(host, opportunityId);
+  crmLog(`  Opportunity created: ID ${opportunityId} — ${oppUrl}`);
+  log('info', 'crm', `Opportunity created: ID ${opportunityId}`, { details: { url: oppUrl, proposalId } });
+  return { opportunityId: String(opportunityId), url: oppUrl };
 }
 
 /** Called by proposals.ts on every PUT.
@@ -725,9 +728,10 @@ export async function maybeUpdateOpportunity(
     const accountManager = proposal.accountManager ?? '';
     const titleTemplate  = (s['crm.autotask.opportunity.titleTemplate'] ?? '{projectName}').trim() || '{projectName}';
     const title = titleTemplate
-      .replace('{projectName}', projectName)
-      .replace('{client}',      client)
-      .replace('{accountManager}', accountManager);
+      .replace('{projectName}',    projectName)
+      .replace('{client}',         client)
+      .replace('{accountManager}', accountManager)
+      .replace('{reference}',      proposal.reference ?? '');
 
     const closeDateDays      = parseInt(s['crm.autotask.opportunity.closeDateDays'] ?? '30');
     const projectedCloseDate = new Date(Date.now() + closeDateDays * 86400000).toISOString();

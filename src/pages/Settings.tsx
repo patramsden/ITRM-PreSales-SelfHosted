@@ -1608,7 +1608,8 @@ function CrmTab({ settings, onChange, isAdmin }: {
                 <p className="text-xs text-gray-400 mt-1">
                   Supports <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>projectName{'}'},{' '}
                   <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>client{'}'},{' '}
-                  <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>accountManager{'}'}.
+                  <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>accountManager{'}'},{' '}
+                  <code className="bg-gray-100 dark:bg-slate-700 px-1 rounded">{'{'}</code>reference{'}'}.
                 </p>
               </FieldRow>
 
