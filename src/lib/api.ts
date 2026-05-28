@@ -163,8 +163,8 @@ export const crmApi = {
     api.get<AtPicklistValue[]>('crm/opportunity-stages'),
   createOpportunity: (data: { proposalId: string; projectName: string; client: string; accountManager: string; crmCompanyId: string }) =>
     api.post<{ opportunityId: string; url: string }>('crm/create-opportunity', data),
-  syncOpportunity: (proposalId: string) =>
-    api.post<{ opportunityId: string; url: string }>('crm/sync-opportunity', { proposalId }),
+  syncOpportunity: (data: { proposalId: string; projectName?: string; client?: string; accountManager?: string; crmCompanyId?: string; atOpportunityId?: string }) =>
+    api.post<{ opportunityId: string; url: string }>('crm/sync-opportunity', data),
 };
 
 export const lookupsApi = {

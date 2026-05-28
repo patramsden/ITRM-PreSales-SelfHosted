@@ -176,6 +176,7 @@ export function ProposalWorkspace() {
   const [layoutConfig, setLayoutConfig] = useState<ProposalLayoutConfig | null>(null);
   const [crmSyncing, setCrmSyncing] = useState(false);
   const [crmSyncResult, setCrmSyncResult] = useState<'ok' | 'error' | null>(null);
+  const [crmSyncError, setCrmSyncError] = useState<string | null>(null);
 
   // Fetch layout config for PDF generation
   useEffect(() => {
@@ -189,18 +190,29 @@ export function ProposalWorkspace() {
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
 
   // CRM sync — create or update the linked Autotask opportunity
-  const handleCrmSync = useCallback(async (proposalId: string) => {
+  const handleCrmSync = useCallback(async (p: typeof proposal) => {
+    if (!p) return;
     setCrmSyncing(true);
     setCrmSyncResult(null);
+    setCrmSyncError(null);
     try {
-      const result = await crmApi.syncOpportunity(proposalId);
+      const result = await crmApi.syncOpportunity({
+        proposalId:     p.id,
+        projectName:    p.projectName,
+        client:         p.client,
+        accountManager: p.accountManager,
+        crmCompanyId:   p.crmCompanyId,
+        atOpportunityId: p.atOpportunityId,
+      });
       // Patch the local store so the Opportunity link appears immediately
-      updateProposal(proposalId, { atOpportunityId: result.opportunityId, atOpportunityUrl: result.url });
+      updateProposal(p.id, { atOpportunityId: result.opportunityId, atOpportunityUrl: result.url });
       setCrmSyncResult('ok');
       setTimeout(() => setCrmSyncResult(null), 3000);
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setCrmSyncError(msg);
       setCrmSyncResult('error');
-      setTimeout(() => setCrmSyncResult(null), 4000);
+      setTimeout(() => { setCrmSyncResult(null); setCrmSyncError(null); }, 6000);
     } finally {
       setCrmSyncing(false);
     }
@@ -215,10 +227,10 @@ export function ProposalWorkspace() {
         versionApi.save(p.id).catch(() => {/* fire and forget */});
         // Fire-and-forget CRM sync on exit if company is linked
         if (p.crmCompanyId) {
-          crmApi.syncOpportunity(p.id).then(result => {
-            if (result.opportunityId && !p.atOpportunityId) {
-              updateProposal(p.id, { atOpportunityId: result.opportunityId, atOpportunityUrl: result.url });
-            }
+          crmApi.syncOpportunity({
+            proposalId: p.id, projectName: p.projectName, client: p.client,
+            accountManager: p.accountManager, crmCompanyId: p.crmCompanyId,
+            atOpportunityId: p.atOpportunityId,
           }).catch(() => {});
         }
       }
@@ -399,25 +411,32 @@ export function ProposalWorkspace() {
 
             {/* Save / CRM sync button — only shown when a CRM company is linked */}
             {proposal.crmCompanyId && editable && (
-              <button
-                onClick={() => handleCrmSync(proposal.id)}
-                disabled={crmSyncing}
-                title={proposal.atOpportunityId ? 'Save & sync Autotask opportunity' : 'Save & create Autotask opportunity'}
-                className={clsx(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors',
-                  crmSyncResult === 'ok'    && 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400',
-                  crmSyncResult === 'error' && 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400',
-                  !crmSyncResult            && 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400',
+              <div className="relative">
+                <button
+                  onClick={() => handleCrmSync(proposal)}
+                  disabled={crmSyncing}
+                  title={proposal.atOpportunityId ? 'Save & sync Autotask opportunity' : 'Save & create Autotask opportunity'}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors',
+                    crmSyncResult === 'ok'    && 'bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400',
+                    crmSyncResult === 'error' && 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400',
+                    !crmSyncResult            && 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400',
+                  )}
+                >
+                  {crmSyncing
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : crmSyncResult === 'ok'
+                      ? <Check size={13} />
+                      : <Save size={13} />
+                  }
+                  {crmSyncing ? 'Saving…' : crmSyncResult === 'ok' ? 'Saved' : crmSyncResult === 'error' ? 'Sync failed' : 'Save'}
+                </button>
+                {crmSyncResult === 'error' && crmSyncError && (
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg shadow-lg z-30 p-2.5 text-xs text-red-700 dark:text-red-300">
+                    {crmSyncError}
+                  </div>
                 )}
-              >
-                {crmSyncing
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : crmSyncResult === 'ok'
-                    ? <Check size={13} />
-                    : <Save size={13} />
-                }
-                {crmSyncing ? 'Saving…' : crmSyncResult === 'ok' ? 'Saved' : crmSyncResult === 'error' ? 'Sync failed' : 'Save'}
-              </button>
+              </div>
             )}
 
             {/* Autotask opportunity link */}

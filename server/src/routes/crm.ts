@@ -603,29 +603,49 @@ router.post('/create-opportunity', requireAuth, async (req, res) => {
 
 router.post('/sync-opportunity', requireAuth, async (req, res) => {
   try {
-    const { proposalId } = req.body as { proposalId?: string };
-    if (!proposalId) { res.status(400).json({ error: 'proposalId is required' }); return; }
-    const proposal = await getProposalById(proposalId);
-    if (!proposal) { res.sendStatus(404); return; }
+    const body = req.body as {
+      proposalId?: string;
+      projectName?: string;
+      client?: string;
+      accountManager?: string;
+      crmCompanyId?: string;
+      atOpportunityId?: string;
+    };
+    if (!body.proposalId) { res.status(400).json({ error: 'proposalId is required' }); return; }
 
-    if (proposal.atOpportunityId) {
-      await maybeUpdateOpportunity(
-        proposal.atOpportunityId, proposal.projectName ?? '',
-        proposal.client ?? '', proposal.accountManager ?? '',
-      );
-      res.json({ opportunityId: proposal.atOpportunityId, url: proposal.atOpportunityUrl ?? '' });
-    } else if (proposal.crmCompanyId) {
-      const opp = await maybeCreateOpportunity(
-        proposalId, proposal.projectName ?? '', proposal.client ?? '',
-        proposal.accountManager ?? '', proposal.crmCompanyId,
-      );
-      if (!opp) { res.status(400).json({ error: 'Opportunity creation failed — check CRM configuration (Settings → CRM)' }); return; }
-      await updateProposalRepo(proposalId, { ...proposal, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
-      log('info', 'crm', `Opportunity created for proposal "${proposal.projectName}"`, { details: { proposalId, opportunityId: opp.opportunityId } });
-      res.json(opp);
-    } else {
-      res.status(400).json({ error: 'Proposal has no CRM company linked' });
+    // Merge DB record with fresher values from the request body
+    const dbProposal = await getProposalById(body.proposalId);
+    if (!dbProposal) { res.sendStatus(404); return; }
+
+    const projectName     = body.projectName     ?? dbProposal.projectName     ?? '';
+    const client          = body.client          ?? dbProposal.client          ?? '';
+    const accountManager  = body.accountManager  ?? dbProposal.accountManager  ?? '';
+    const crmCompanyId    = body.crmCompanyId    ?? dbProposal.crmCompanyId;
+    const atOpportunityId = body.atOpportunityId ?? dbProposal.atOpportunityId;
+
+    if (atOpportunityId) {
+      await maybeUpdateOpportunity(atOpportunityId, projectName, client, accountManager);
+      log('info', 'crm', `Opportunity ${atOpportunityId} synced for proposal "${projectName}"`);
+      res.json({ opportunityId: atOpportunityId, url: dbProposal.atOpportunityUrl ?? '' });
+      return;
     }
+
+    if (!crmCompanyId) {
+      log('warn', 'crm', `Sync skipped for proposal "${projectName}" — no CRM company linked`, { details: { proposalId: body.proposalId } });
+      res.status(400).json({ error: 'Proposal has no CRM company linked — set one on the Summary tab first' });
+      return;
+    }
+
+    const opp = await maybeCreateOpportunity(body.proposalId, projectName, client, accountManager, crmCompanyId);
+    if (!opp) {
+      log('warn', 'crm', `Opportunity creation failed for proposal "${projectName}"`, { details: { proposalId: body.proposalId, crmCompanyId } });
+      res.status(400).json({ error: 'Opportunity creation failed — check Settings → CRM (credentials, stage, zone URL)' });
+      return;
+    }
+
+    await updateProposalRepo(body.proposalId, { ...dbProposal, atOpportunityId: opp.opportunityId, atOpportunityUrl: opp.url });
+    log('info', 'crm', `Opportunity created for proposal "${projectName}"`, { details: { proposalId: body.proposalId, opportunityId: opp.opportunityId } });
+    res.json(opp);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : String(e) }); }
 });
 
